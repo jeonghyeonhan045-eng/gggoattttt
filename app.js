@@ -1628,13 +1628,13 @@ const ICON = { good: '✓', warn: '!', bad: '!!', info: 'i' };
 const LV_LABEL = { good: '양호', warn: '주의', bad: '필요', info: '정보' };
 
 function viewAnalysis() {
-  const R = buildReport(), dl = R.dl, ws = dl.cur;
+  const R = buildReport(), dl = R.dl, ws = dl.cur, ES = energySummary(7);
   let h = `<div class="sec-h" style="margin-top:4px"><h2>주간 리포트</h2><span class="aside">${shortDate(R.range[0])}–${shortDate(R.range[1])} (최근 7일)</span></div>
   <div class="tiles">
     <div class="tile"><div class="k">운동한 날</div><div class="v">${ws.sessions}<small>/7일</small></div></div>
     <div class="tile"><div class="k">근력 세트</div><div class="v">${ws.sets}<small>세트</small></div></div>
     <div class="tile"><div class="k">총 볼륨</div><div class="v">${fmtInt(ws.tonnage)}<small>kg</small></div></div>
-    <div class="tile"><div class="k">평균 컨디션</div><div class="v">${ws.cond != null ? r1(ws.cond) : '–'}<small>/5</small></div></div>
+    <div class="tile"><div class="k">운동 소모 (7일)</div><div class="v">${fmtInt(ES.ex)}<small>kcal</small></div></div>
   </div>
   <section class="card" style="margin-top:10px"><h3>추천 · 우선순위 순</h3>
     ${R.recs.length ? R.recs.slice(0, 7).map(r => `<div class="rec"><div class="ic ${r.lv}" aria-hidden="true">${ICON[r.lv]}</div><div>
@@ -1642,6 +1642,21 @@ function viewAnalysis() {
       <div class="d">${esc(r.d)}</div>${r.act ? `<div class="a">→ ${esc(r.act)}</div>` : ''}${r.src ? `<div class="src">근거: ${esc(r.src)}</div>` : ''}</div></div>`).join('')
     : '<div class="small muted">특별히 손볼 부분이 없어요. 지금처럼 꾸준히!</div>'}
   </section>`;
+
+  // energy expenditure
+  {
+    const E = ES.E, srcLbl = { inbody: '인바디 기반', formula: '체중·키·나이 기반', avg: '평균 수치 기반' }[E.src];
+    const strK = ES.per.reduce((a, x) => a + x.strK, 0), carK = ES.per.reduce((a, x) => a + x.carK, 0);
+    h += `<div class="sec-h"><h2>칼로리 소모</h2><span class="aside">최근 7일 · ${srcLbl}</span></div><section class="card">
+      <div class="grid3">
+        <div><div class="small muted">하루 평균 총 소모</div><div class="num" style="font-weight:900;font-size:18px">${fmtInt(ES.tdee)}</div><div class="small muted">kcal</div></div>
+        <div><div class="small muted">기초대사량</div><div class="num" style="font-weight:800">${fmtInt(E.rmr)}</div><div class="small muted">kcal/일</div></div>
+        <div><div class="small muted">운동 (하루 평균)</div><div class="num" style="font-weight:800">${fmtInt(ES.exAvg)}</div><div class="small muted">kcal/일</div></div>
+      </div>
+      <div style="margin-top:10px">${barChart(ES.per.map(x => ({ label: WD[fromKey(x.k).getDay()], v: x.total, hl: x.k === today(), tip: `${shortDate(x.k)} · 근력 ${fmtInt(x.strK)}kcal(${x.strMin}분)${x.carK ? ` · 유산소 ${fmtInt(x.carK)}kcal(${x.carMin}분)` : ''}` })), { aria: '요일별 운동 칼로리', h: 120 })}</div>
+      <div class="small" style="margin-top:4px;color:var(--ink2)">이번 주 운동 ${fmtInt(ES.ex)}kcal = 근력 ${fmtInt(strK)} + 유산소 ${fmtInt(carK)}</div>
+      <div class="note">${esc(E.how)}. 운동 소모는 운동 강도표(MET) × 체중 × 시간으로 계산해요: 근력운동 약 5 MET(세트 기록 시간으로 운동 시간 추정), 유산소는 기계에 표시된 칼로리가 있으면 그 값을, 없으면 속도·종류별 MET를 써요. 하루 총 소모 = 기초대사량 × 1.2(일상 생활·소화) + 운동. 측정이 아닌 추정치라 ±10–20% 오차가 있어요. 바디 탭의 섭취 목표도 이 값으로 계산해요.</div></section>`;
+  }
 
   // muscle volume
   h += `<div class="sec-h"><h2>부위별 주간 세트</h2><span class="aside">최근 2주 주평균 · 진한 막대 = 직접</span></div><section class="card">
@@ -1901,20 +1916,61 @@ function profileHtml() {
    Energy: resting rate from fat-free mass (Katch-McArdle) when InBody has body fat, else Mifflin-St Jeor,
    times an activity factor from how often you trained in the last 4 weeks, then the goal adjustment.
    Protein/fat/carbs per goal follow the papers listed with each line. */
-function macroPlan() {
+/* ---------- energy expenditure ----------
+   Resting: InBody fat-free mass (Katch-McArdle) → else weight/height/age (Mifflin-St Jeor) → else averages.
+   Exercise: MET × kg × hours (Ainsworth Compendium). Strength ≈ 5 MET (between moderate 3.5 and vigorous 6);
+   session length from the set timestamps, or ~2.5 min per set when sets were logged in one go. */
+function bodyEnergy() {
   const ib = DB.inbody.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).filter(e => e.weight != null);
-  const lastIb = ib[ib.length - 1], bw = latestBodyweight() || (lastIb && lastIb.weight);
-  if (!bw) return null;
+  const lastIb = ib[ib.length - 1];
+  const realBw = latestBodyweight() || (lastIb && lastIb.weight) || null;
+  const bw = realBw || 70;
   const pf = DB.settings.profile || {}, age = pf.birth ? new Date().getFullYear() - pf.birth : null;
-  let fatPct = lastIb ? (lastIb.fatPct != null ? lastIb.fatPct : lastIb.fatKg != null ? lastIb.fatKg / lastIb.weight * 100 : null) : null;
+  const fatPct = lastIb ? (lastIb.fatPct != null ? lastIb.fatPct : lastIb.fatKg != null ? lastIb.fatKg / lastIb.weight * 100 : null) : null;
   const ffm = fatPct != null ? bw * (1 - fatPct / 100) : null;
-  let rmr, rmrHow;
-  if (ffm) { rmr = 370 + 21.6 * ffm; rmrHow = `제지방 ${r1(ffm)}kg 기준 (Katch-McArdle)`; }
-  else if (pf.sex && age && pf.height) { rmr = 10 * bw + 6.25 * pf.height - 5 * age + (pf.sex === 'm' ? 5 : -161); rmrHow = '체중·키·나이 기준 (Mifflin-St Jeor)'; }
-  else { rmr = bw * 22; rmrHow = '체중만으로 대략 추정 — 인바디 체지방을 넣으면 정확해져요'; }
-  const days = new Set(setsBetween(addDays(today(), -27), today()).map(s => s.date)).size / 4; // sessions per week
-  const af = days >= 5.5 ? 1.725 : days >= 3 ? 1.55 : days >= 1 ? 1.375 : 1.2;
-  const tdee = rmr * af;
+  if (ffm) return { bw, realBw, ffm, fatPct, src: 'inbody', rmr: 370 + 21.6 * ffm, how: `인바디 제지방 ${r1(ffm)}kg 기준 (Katch-McArdle)` };
+  if (pf.sex && age && pf.height) return { bw, realBw, src: 'formula', rmr: 10 * bw + 6.25 * pf.height - 5 * age + (pf.sex === 'm' ? 5 : -161), how: `체중 ${trimNum(bw)}kg·키·나이 기준 (Mifflin-St Jeor)` };
+  // averages: weight if known, otherwise a 70kg adult; ~22 kcal/kg/day is a typical resting rate
+  return { bw, realBw, src: 'avg', rmr: bw * 22, how: realBw ? `체중 ${trimNum(bw)}kg × 평균 대사율 (인바디·키·나이를 넣으면 정확해져요)` : '평균 성인(70kg) 기준 — 체중이나 인바디를 넣으면 내 몸 기준으로 바뀌어요' };
+}
+const CARDIO_MET = { '러닝/걷기': null, '사이클': 7.0, '일립티컬': 5.0, '계단': 9.0, '로잉': 7.0 };
+function cardioMet(s) {
+  if (s.type === '러닝/걷기' || /트레드밀|러닝|걷기/.test(s.name || '')) {
+    const v = s.km && s.mins ? s.km / (s.mins / 60) : null; // km/h
+    return v == null ? 6.0 : v >= 11 ? 11.0 : v >= 9.5 ? 9.8 : v >= 8 ? 8.3 : v >= 6.5 ? 5.0 : 3.5;
+  }
+  return CARDIO_MET[s.type] || 6.0;
+}
+function dayExercise(k, bw) {
+  const sets = dayRO(k).sets || [];
+  const str = sets.filter(s => !isCardioSet(s)), car = sets.filter(isCardioSet);
+  let strMin = 0;
+  if (str.length) {
+    const ts = str.map(s => s.t).filter(Boolean).sort((a, b) => a - b);
+    const span = ts.length > 1 ? (ts[ts.length - 1] - ts[0]) / 60000 + 2 : 0;
+    // logged live → use the real time span; logged all at once → assume ~2.5 min per set incl. rest
+    strMin = span >= str.length * 1.2 ? Math.min(span, 150) : str.length * 2.5;
+  }
+  const strK = 5.0 * bw * strMin / 60;
+  let carK = 0, carMin = 0;
+  for (const s of car) { const m = +s.mins || 0; carMin += m; carK += s.kcal > 0 ? +s.kcal : cardioMet(s) * bw * m / 60; }
+  return { strMin: Math.round(strMin), strK: Math.round(strK), carMin: Math.round(carMin), carK: Math.round(carK), total: Math.round(strK + carK) };
+}
+function energySummary(days) {
+  const E = bodyEnergy(), t = today(), per = [];
+  for (let i = days - 1; i >= 0; i--) { const k = addDays(t, -i); per.push(Object.assign({ k }, dayExercise(k, E.bw))); }
+  const ex = per.reduce((a, x) => a + x.total, 0);
+  const base = E.rmr * 1.2; // resting + everyday living + digestion, before planned exercise
+  return { E, per, ex, exAvg: ex / days, base, tdee: base + ex / days };
+}
+
+function macroPlan() {
+  const S28 = energySummary(28), E = S28.E;
+  if (!E.realBw) return null;
+  const bw = E.bw, ffm = E.ffm || null, fatPct = E.fatPct, rmr = E.rmr, rmrHow = E.how;
+  const days = new Set(setsBetween(addDays(today(), -27), today()).map(s => s.date)).size / 4;
+  const af = r1(S28.tdee / rmr);
+  const tdee = S28.tdee, exAvg = Math.round(S28.exAvg);
   const key = goalKey();
   const kcalBy = { cut: tdee - bw * 0.007 * 7700 / 7, recomp: tdee * 0.95, keep: tdee, leanbulk: tdee * 1.07, bulk: tdee * 1.15 };
   const kcal = Math.round(kcalBy[key] / 10) * 10;
@@ -1926,7 +1982,7 @@ function macroPlan() {
   // fat: cut 20% of energy, otherwise 25%, never under 0.6 g/kg (Helms 2014, Iraki 2019)
   const f = Math.max(Math.round(kcal * (key === 'cut' ? 0.2 : 0.25) / 9), Math.round(bw * 0.6));
   const c = Math.max(0, Math.round((kcal - p * 4 - f * 9) / 4));
-  return { bw, ffm, fatPct, rmr: Math.round(rmr), rmrHow, af, days: r1(days), tdee: Math.round(tdee), kcal, p, pHow, f, c, key, perMeal: Math.round(bw * 0.4) };
+  return { bw, ffm, fatPct, rmr: Math.round(rmr), rmrHow, af, days: r1(days), exAvg, tdee: Math.round(tdee), kcal, p, pHow, f, c, key, perMeal: Math.round(bw * 0.4) };
 }
 function macroCardHtml() {
   const M = macroPlan();
@@ -1942,7 +1998,7 @@ function macroCardHtml() {
     </div>
     <ul class="mlist">
       <li>기초대사량 ${fmtInt(M.rmr)}kcal — ${esc(M.rmrHow)}</li>
-      <li>× 활동계수 ${M.af} (최근 4주 주 ${M.days}회 운동) = 유지 ${fmtInt(M.tdee)}kcal → ${esc(adj)}</li>
+      <li>일상 생활 ×1.2 + 운동 하루 평균 ${fmtInt(M.exAvg)}kcal (최근 4주 주 ${M.days}회 기록) = 유지 ${fmtInt(M.tdee)}kcal → ${esc(adj)}</li>
       <li>단백질 ${esc(M.pHow)}. 한 끼 약 ${M.perMeal}g씩 하루 4끼로 나누면 효율적이에요</li>
       <li>지방은 칼로리의 ${M.key === 'cut' ? '20' : '25'}%(최소 체중 1kg당 0.6g), 나머지가 탄수화물이에요${M.c / M.bw < 3 && M.key !== 'cut' ? ' — 고강도 운동량이 많으면 탄수화물을 조금 더 늘려도 돼요' : ''}</li>
     </ul>
@@ -2074,7 +2130,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
