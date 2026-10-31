@@ -1747,9 +1747,7 @@ function viewAnalysis() {
     }).join('') : '<div class="small muted">세트를 기록하면 패턴별 최고 기록이 모여요.</div>'}
   </section>`;
 
-  h += `<div class="sec-h"><h2>분석 기준 · 참고문헌</h2></div><section class="card"><ol class="reflist" style="padding-left:18px;margin:0">
-    ${REFS.map(r => `<li>${esc(r.text)} <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a><span class="use">→ ${esc(r.use)}</span></li>`).join('')}</ol>
-    <div class="note">이 분석은 위 연구의 평균적인 결과를 규칙으로 옮긴 참고용이에요. 개인차가 크고, 통증·부상은 전문가와 상담하세요.</div></section>`;
+  h += `<div class="note" style="text-align:center;margin:18px 0 6px">분석에 쓴 논문 목록은 설정(⚙) → 참고 논문에 있어요. 연구 평균을 옮긴 참고용이고 개인차가 커요.</div>`;
   return h;
 }
 
@@ -1899,6 +1897,58 @@ function profileHtml() {
     </div></section>`;
 }
 
+/* ---------- daily intake targets from body composition + goal ----------
+   Energy: resting rate from fat-free mass (Katch-McArdle) when InBody has body fat, else Mifflin-St Jeor,
+   times an activity factor from how often you trained in the last 4 weeks, then the goal adjustment.
+   Protein/fat/carbs per goal follow the papers listed with each line. */
+function macroPlan() {
+  const ib = DB.inbody.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).filter(e => e.weight != null);
+  const lastIb = ib[ib.length - 1], bw = latestBodyweight() || (lastIb && lastIb.weight);
+  if (!bw) return null;
+  const pf = DB.settings.profile || {}, age = pf.birth ? new Date().getFullYear() - pf.birth : null;
+  let fatPct = lastIb ? (lastIb.fatPct != null ? lastIb.fatPct : lastIb.fatKg != null ? lastIb.fatKg / lastIb.weight * 100 : null) : null;
+  const ffm = fatPct != null ? bw * (1 - fatPct / 100) : null;
+  let rmr, rmrHow;
+  if (ffm) { rmr = 370 + 21.6 * ffm; rmrHow = `제지방 ${r1(ffm)}kg 기준 (Katch-McArdle)`; }
+  else if (pf.sex && age && pf.height) { rmr = 10 * bw + 6.25 * pf.height - 5 * age + (pf.sex === 'm' ? 5 : -161); rmrHow = '체중·키·나이 기준 (Mifflin-St Jeor)'; }
+  else { rmr = bw * 22; rmrHow = '체중만으로 대략 추정 — 인바디 체지방을 넣으면 정확해져요'; }
+  const days = new Set(setsBetween(addDays(today(), -27), today()).map(s => s.date)).size / 4; // sessions per week
+  const af = days >= 5.5 ? 1.725 : days >= 3 ? 1.55 : days >= 1 ? 1.375 : 1.2;
+  const tdee = rmr * af;
+  const key = goalKey();
+  const kcalBy = { cut: tdee - bw * 0.007 * 7700 / 7, recomp: tdee * 0.95, keep: tdee, leanbulk: tdee * 1.07, bulk: tdee * 1.15 };
+  const kcal = Math.round(kcalBy[key] / 10) * 10;
+  // protein: deficit → 2.3–3.1 g/kg FFM (Helms 2014); otherwise 1.6–2.2 g/kg BW (Morton 2018)
+  let p, pHow;
+  if ((key === 'cut' || key === 'recomp') && ffm) { p = Math.round(ffm * 2.6); pHow = `제지방 1kg당 2.6g (권장 2.3–3.1)`; }
+  else if (key === 'cut' || key === 'recomp') { p = Math.round(bw * 2.2); pHow = '체중 1kg당 2.2g'; }
+  else { p = Math.round(bw * 1.8); pHow = '체중 1kg당 1.8g (권장 1.6–2.2)'; }
+  // fat: cut 20% of energy, otherwise 25%, never under 0.6 g/kg (Helms 2014, Iraki 2019)
+  const f = Math.max(Math.round(kcal * (key === 'cut' ? 0.2 : 0.25) / 9), Math.round(bw * 0.6));
+  const c = Math.max(0, Math.round((kcal - p * 4 - f * 9) / 4));
+  return { bw, ffm, fatPct, rmr: Math.round(rmr), rmrHow, af, days: r1(days), tdee: Math.round(tdee), kcal, p, pHow, f, c, key, perMeal: Math.round(bw * 0.4) };
+}
+function macroCardHtml() {
+  const M = macroPlan();
+  if (!M) return `<section class="card" style="margin-top:10px"><h3>하루 섭취 목표</h3><div class="small muted">체중이나 인바디를 기록하면 목표에 맞는 칼로리·탄단지를 계산해요.</div></section>`;
+  const g = GOALS[M.key], adj = { cut: `감량 주 0.7% (하루 약 −${fmtInt(M.tdee - M.kcal)}kcal)`, recomp: '유지보다 5% 적게', keep: '유지', leanbulk: '유지보다 7% 많게', bulk: '유지보다 15% 많게' }[M.key];
+  const pct = x => Math.round(x / M.kcal * 100);
+  return `<section class="card" style="margin-top:10px"><div class="row between"><h3 style="margin:0">하루 섭취 목표</h3><span class="small muted">${esc(g.l)} 기준</span></div>
+    <div class="macro4">
+      <div><div class="k">칼로리</div><div class="v">${fmtInt(M.kcal)}</div><div class="k">kcal</div></div>
+      <div><div class="k">단백질</div><div class="v">${M.p}g</div><div class="k">${pct(M.p * 4)}% · ${r1(M.p / M.bw)}g/kg</div></div>
+      <div><div class="k">탄수화물</div><div class="v">${M.c}g</div><div class="k">${pct(M.c * 4)}% · ${r1(M.c / M.bw)}g/kg</div></div>
+      <div><div class="k">지방</div><div class="v">${M.f}g</div><div class="k">${pct(M.f * 9)}% · ${r1(M.f / M.bw)}g/kg</div></div>
+    </div>
+    <ul class="mlist">
+      <li>기초대사량 ${fmtInt(M.rmr)}kcal — ${esc(M.rmrHow)}</li>
+      <li>× 활동계수 ${M.af} (최근 4주 주 ${M.days}회 운동) = 유지 ${fmtInt(M.tdee)}kcal → ${esc(adj)}</li>
+      <li>단백질 ${esc(M.pHow)}. 한 끼 약 ${M.perMeal}g씩 하루 4끼로 나누면 효율적이에요</li>
+      <li>지방은 칼로리의 ${M.key === 'cut' ? '20' : '25'}%(최소 체중 1kg당 0.6g), 나머지가 탄수화물이에요${M.c / M.bw < 3 && M.key !== 'cut' ? ' — 고강도 운동량이 많으면 탄수화물을 조금 더 늘려도 돼요' : ''}</li>
+    </ul>
+    <div class="note">출발점이에요. 2–3주 체중 추세가 목표 속도(위 "목표 체중 속도")와 다르면 하루 100–200kcal씩 조정하세요. 근거: Helms 2014 · Iraki 2019 · Morton 2018 · Garthe 2011 · Schoenfeld 2018</div></section>`;
+}
+
 function goalCardHtml(list) {
   const key = goalKey(), g = GOALS[key], chosen = !!GOALS[DB.settings.mode];
   const bw = latestBodyweight(), mac = bw ? goalMacros(key, bw) : null, G = DB.settings.goals;
@@ -1933,7 +1983,7 @@ function viewBody() {
     const d = r1(cur[key] - base[key]); const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
     return `<span class="delta ${cls} ${inv ? 'inv' : ''}">${d > 0 ? '▲' : d < 0 ? '▼' : '–'} ${Math.abs(d)}</span>`;
   };
-  let h = goalCardHtml(list) + weightCardHtml();
+  let h = goalCardHtml(list) + macroCardHtml() + weightCardHtml();
   if (last) {
     h += `<div class="sec-h"><h2>최근 인바디</h2><span class="aside">${esc(last.date)}${prev ? ` · 직전 대비` : ''}</span></div>
     <div class="tiles">
@@ -2015,11 +2065,16 @@ function openSettings(focus) {
       <div class="note">체중 기준 대략적인 시작값이에요. 칼로리는 체중×30(유지)에 목표별 배수(다이어트 80% · 리컴프 95% · 린매스업 107% · 벌크업 115%), 단백질은 다이어트·리컴프 2.0g/kg, 나머지 1.6–1.8g/kg, 지방 0.9g/kg, 나머지는 탄수화물. 2–3주 체중 변화를 보고 조정하세요.</div></div>
     <button class="btn primary block" style="margin-top:12px" data-act="st-save-goals">목표 저장</button>` : ''}
 
+    <div class="sec-h"><h2 style="font-size:15px">참고 논문</h2><span class="aside">${REFS.length}편</span></div>
+    <details class="more" style="margin-top:0"><summary>분석·추천에 쓴 논문 보기</summary>
+      <ol class="reflist" style="padding-left:18px;margin:6px 0 0">${REFS.map(r => `<li>${esc(r.text)} <a href="${esc(r.url)}" target="_blank" rel="noopener">링크</a><span class="use">→ ${esc(r.use)}</span></li>`).join('')}</ol>
+      <div class="note">연구의 평균적인 결과를 규칙으로 옮긴 참고용이에요. 개인차가 크고, 통증·부상은 전문가와 상담하세요.</div></details>
+
     <div class="sec-h"><h2 style="font-size:15px">데이터</h2></div>
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 2.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
