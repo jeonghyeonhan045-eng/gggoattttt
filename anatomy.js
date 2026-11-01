@@ -161,3 +161,24 @@ function bodySvg(view, vals, max, label) {
     <ellipse cx="100" cy="29" rx="14" ry="18" class="mzhead"/>
     <text x="100" y="343" text-anchor="middle" class="mzlbl">${label}</text></svg>`;
 }
+
+/* weekly set ranges per region (app guide: research gives ~10–20 fractional sets per *muscle*;
+   regions that share a muscle — upper/lower chest, the three delt heads — get a share of that) */
+const REG_GROUP = {
+  가슴: ['chestU', 'chestL'], 등: ['lats', 'midback', 'traps', 'lowback'], 어깨: ['deltF', 'deltS', 'deltR'],
+  팔: ['biceps', 'triceps', 'forearm'], 다리: ['quads', 'hams', 'glutes', 'adduct', 'calves'], 코어: ['abs', 'oblique'],
+};
+const REG_RANGE = {
+  chestU: [3, 12], chestL: [6, 20], lats: [8, 20], midback: [6, 18], traps: [3, 14], lowback: [2, 12],
+  deltF: [3, 14], deltS: [6, 20], deltR: [4, 16], biceps: [6, 20], triceps: [6, 20], forearm: [2, 14],
+  quads: [8, 20], hams: [6, 18], glutes: [6, 20], adduct: [3, 14], calves: [6, 18], abs: [4, 16], oblique: [2, 12],
+};
+function regionTotals(from, to) {
+  const vals = {};
+  for (const s of setsBetween(from, to)) {
+    if (isCardioSet(s)) continue;
+    const e = eqById(s.eq) || s;
+    for (const [k, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m))) vals[k] = (vals[k] || 0) + v;
+  }
+  return vals;
+}

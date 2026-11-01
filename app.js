@@ -1634,6 +1634,50 @@ function mixTips() {
 const ICON = { good: '✓', warn: '!', bad: '!!', info: 'i' };
 const LV_LABEL = { good: '양호', warn: '주의', bad: '필요', info: '정보' };
 
+/* training advice that follows the chosen goal; uses this week's logs, not generic rules */
+const MAIN_REG = ['chestU', 'chestL', 'lats', 'midback', 'deltS', 'deltR', 'biceps', 'triceps', 'quads', 'hams', 'glutes', 'calves', 'abs'];
+function goalTrainHtml(R, RW, ES) {
+  const key = goalKey(), G = GOALS[key], items = [];
+  const prog = progression().filter(r => ['up', 'flat', 'down'].includes(r.status)), down = prog.filter(r => r.status === 'down'), up = prog.filter(r => r.status === 'up');
+  const carMin = ES.per.reduce((a, x) => a + x.carMin, 0);
+  const days28 = new Set(setsBetween(addDays(today(), -27), today()).filter(s => !isCardioSet(s)).map(s => s.date)).size / 4;
+  const ib = DB.inbody.slice().sort((a, b) => (a.date < b.date ? -1 : 1)), vfl = (ib.filter(e => e.vfl != null).pop() || {}).vfl;
+  const wkSets = STRENGTH_MUSCLES.reduce((a, m) => a + (R.mv14.dW[m] || 0), 0);
+  if (!wkSets && !carMin) return '';
+  // trained regions that sit under their range, biggest gap first
+  const trainedG = Object.keys(REG_GROUP).filter(m => (R.mv14.dW[m] || 0) >= 0.5);
+  const lowRegs = trainedG.flatMap(m => REG_GROUP[m]).filter(k => MAIN_REG.includes(k))
+    .map(k => ({ k, v: RW[k] || 0, lo: REG_RANGE[k][0] })).filter(x => x.v < x.lo).sort((a, b) => (a.v / a.lo) - (b.v / b.lo));
+  const regTxt = l => l.slice(0, 2).map(x => `${REGIONS[x.k]} ${r1(x.v)}세트`).join(', ');
+  const progItem = need => down.length >= 2
+    ? ['warn', `추정 1RM이 떨어진 종목 ${down.length}개`, `${down.slice(0, 2).map(r => r.name).join(', ')}. ${need}`]
+    : prog.length ? ['good', `무게 유지·상승 중 (${prog.length}종목 중 오름 ${up.length})`, '기록이 떨어지지 않고 있어요.'] : null;
+  if (wkSets < 0.5) items.push(['info', '최근 2주 근력운동 기록이 없어요', key === 'cut' ? '감량 중 근육을 지키려면 주 2회 이상 근력운동이 권장돼요. 유산소만 하면 빠지는 체중 중 근육 비율이 커져요.' : key === 'leanbulk' || key === 'bulk' ? '증량은 근력운동이 있어야 늘어난 체중이 근육으로 가요. 주 2회 이상, 근육별 주 10세트 정도부터 시작해보세요.' : '주 2회 이상 근력운동이 권장돼요.', 'WHO 2020']);
+  if (key === 'cut') {
+    const p = progItem('감량 중엔 세트를 줄이더라도 무게(강도)를 지키는 게 근육 유지의 핵심이에요. 피곤하면 세트부터 줄이세요.'); if (p) items.push(p);
+    if (wkSets >= 0.5) items.push(['info', `주 ${r1(wkSets)}세트 (직접)`, '감량 중엔 평소 볼륨의 1/3 정도로 줄여도 근육 크기는 유지됐어요. 세트를 늘리기보다 무거운 무게를 남겨두세요.', 'Bickel 2011']);
+    const vh = vfl != null && vfl >= 10;
+    items.push([carMin >= 150 ? 'good' : 'info', `유산소 최근 7일 ${carMin}분`, `${carMin >= 150 ? '건강 권장량(주 150–300분) 안이에요.' : `건강 권장량은 주 150–300분이에요(빠르게 걷기 포함).`}${vh ? ` 내장지방레벨이 ${trimNum(vfl)}이라 유산소 비중을 두는 게 좋아요. 체중이 그대로여도 유산소는 내장지방을 줄였어요.` : ''}`, vh ? 'WHO 2020 · Vissers 2013' : 'WHO 2020']);
+  } else if (key === 'recomp') {
+    if (days28 > 0) items.push([days28 >= 3 ? 'good' : 'info', `최근 4주 주 ${r1(days28)}회 근력운동`, days28 >= 3 ? '체형 바꾸기는 꾸준함이 제일 중요해요. 잘 하고 있어요.' : '체형 바꾸기는 칼로리 차이가 작아서 운동 자극이 근육 쪽으로 가게 하는 게 핵심이에요. 주 3회 이상이 좋아요.', 'Barakat 2020']);
+    const p = progItem('유지 칼로리 근처에서는 무게를 조금씩 올리는 게 근육이 늘고 있다는 신호예요. 단백질(몸 탭 목표)도 확인하세요.'); if (p) items.push(p);
+    if (lowRegs.length) items.push(['info', `볼륨 여유: ${regTxt(lowRegs)}`, '하던 근육 안에서 상대적으로 적게 한 부위예요(앱 기준). 체형을 바꾸고 싶은 부위라면 여기에 세트를 더하세요.']);
+  } else if (key === 'keep') {
+    if (days28 > 0) items.push([days28 >= 2 ? 'good' : 'info', `최근 4주 주 ${r1(days28)}회`, '유지만 할 땐 주 1–2회, 부위당 몇 세트라도 무게를 지키면 근육과 힘이 거의 그대로 유지돼요. 바쁜 주엔 횟수보다 무게를 지키세요.', 'Bickel 2011']);
+    const p = progItem('유지 목표에선 무게가 떨어지지 않는 게 기준이에요.'); if (p) items.push(p);
+  } else {
+    const fast = key === 'bulk';
+    if (lowRegs.length) items.push(['info', `더 키울 여지: ${regTxt(lowRegs)}`, `하던 근육 안에서 상대적으로 적게 한 부위예요(앱 기준). 증량 중엔 늘린 칼로리를 근육으로 보내려면 볼륨이 받쳐줘야 해요. 키우고 싶은 부위부터 주 2–4세트씩 올려 범위(대략 주 10–20세트, 근육 단위)에 넣어보세요.`, 'Schoenfeld 2017 · Pelland 2024']);
+    else if (wkSets) items.push(['good', `하던 부위 모두 범위 안 · 주 ${r1(wkSets)}세트`, '볼륨은 충분해요. 이제는 같은 세트에서 무게·횟수를 올리는 게 우선이에요.']);
+    const flat = prog.filter(r => r.status === 'flat' || r.status === 'down');
+    if (prog.length) items.push(flat.length > prog.length / 2 ? ['warn', `정체·하락 ${flat.length}/${prog.length}종목`, `${fast ? '빠르게' : '천천히'} 증량 중인데 기록이 안 오르면 칼로리가 부족하거나 회복이 안 되는 경우가 많아요. 체중 추세(몸 탭)를 같이 보세요.`] : ['good', `오른 종목 ${up.length}/${prog.length}`, '증량하면서 무게도 오르고 있어요. 늘린 체중이 근육으로 가고 있다는 신호예요.']);
+  }
+  if (!items.length) return '';
+  return `<div class="sec-h"><h2>목표에 맞춘 운동</h2><span class="aside">목표: ${esc(G.l)} · 몸 탭에서 변경</span></div><section class="card">
+    ${items.map(([lv, t, d, src]) => `<div class="mixtip"><b><span class="status ${lv}">${ICON[lv]}</span> ${esc(t)}</b><div class="d">${esc(d)}</div>${src ? `<div class="src">근거: ${esc(src)}</div>` : ''}</div>`).join('')}
+  </section>`;
+}
+
 function viewAnalysis() {
   const R = buildReport(), dl = R.dl, ws = dl.cur, ES = energySummary(7);
   let h = `<div class="sec-h" style="margin-top:4px"><h2>주간 리포트</h2><span class="aside">${shortDate(R.range[0])}–${shortDate(R.range[1])} (최근 7일)</span></div>
@@ -1687,8 +1731,10 @@ function viewAnalysis() {
       <div class="note">${esc(E.how)}. 운동 소모는 운동 강도표(MET) × 체중 × 시간으로 계산해요: 근력운동 약 5 MET(세트 기록 시간으로 운동 시간 추정), 유산소는 기계에 표시된 칼로리가 있으면 그 값을, 없으면 속도·종류별 MET를 써요. 하루 총 소모 = 기초대사량 × 1.2(일상 생활·소화) + 운동. 측정이 아닌 추정치라 ±10–20% 오차가 있어요. 바디 탭의 섭취 목표도 이 값으로 계산해요.</div></section>`;
   }
 
-  // muscle volume
-  h += `<div class="sec-h"><h2>부위별 주간 세트</h2><span class="aside">최근 2주 주평균 · 진한 막대 = 직접</span></div><section class="card">
+  // muscle volume: six groups, each opening into its regions (weekly average of the last 2 weeks)
+  const RW = (() => { const t = regionTotals(addDays(today(), -13), today()), first = (allSets()[0] || {}).date || today(); const span = Math.min(14, Math.max(7, daysBetween(first, today()) + 1)); for (const k in t) t[k] = t[k] * 7 / span; return t; })();
+  h += goalTrainHtml(R, RW, ES);
+  h += `<div class="sec-h"><h2>부위별 주간 세트</h2><span class="aside">최근 2주 주평균 · 누르면 세부 부위</span></div><section class="card">
     ${STRENGTH_MUSCLES.map(m => {
       const v = R.mv14.vol[m], dir = R.mv14.dW[m], ind = Math.max(0, v - dir), dys = R.mv.days[m].size;
       const [lo, hi] = volRange(m);
@@ -1696,11 +1742,14 @@ function viewAnalysis() {
       const lv = onlyInd ? 'none' : v < lo || v > hi ? 'info' : 'good';
       const lbl = onlyInd ? (ind > 0 ? '간접만' : '안 함') : v < lo ? '여유' : v > hi ? '고볼륨' : '적정';
       const maxV = hi + 6, bandHi = m === '다리' ? 30 : 20;
-      return `<div class="mvol"><span>${mtag(m)}</span>
+      const regs = (REG_GROUP[m] || []).map(k => { const rv = (RW[k] || 0); const [rlo, rhi] = REG_RANGE[k]; const rmax = rhi + 4;
+        const rl = rv < 0.5 ? '안 함' : rv < rlo ? '적은 편' : '', rc = 'none';
+        return `<div class="rvol"><span>${REGIONS[k]}</span><div class="bar"><div class="band" style="left:${rlo / rmax * 100}%;width:${(rhi - rlo) / rmax * 100}%"></div><div class="fill ${mcls(m)}" style="width:${Math.min(100, rv / rmax * 100)}%"></div></div><span class="num">${r1(rv)}</span><span class="status ${rc}">${rl}</span></div>`; }).join('');
+      return `<details class="mgrp" ${dir >= 0.5 ? 'open' : ''}><summary class="mvol"><span>${mtag(m)}</span>
         <div class="bar"><div class="band" style="left:${lo / maxV * 100}%;width:${(bandHi - lo) / maxV * 100}%"></div><div class="fill ind ${mcls(m)}" style="width:${Math.min(100, v / maxV * 100)}%"></div><div class="fill ${mcls(m)}" style="width:${Math.min(100, dir / maxV * 100)}%"></div></div>
-        <div class="r"><span class="num"><b>${r1(dir)}</b>세트${ind >= 0.5 ? ` <span class="muted">+간접 ${r1(ind)}</span>` : ''}</span><span class="s status ${lv}">${lv === 'none' ? '' : ICON[lv] + ' '}${lbl}</span></div></div>`;
+        <div class="r"><span class="num"><b>${r1(dir)}</b>세트${ind >= 0.5 ? `<span class="muted indl">+간접 ${r1(ind)}</span>` : ''}</span><span class="s status ${lv}">${lv === 'none' ? '' : ICON[lv] + ' '}${lbl}</span></div></summary><div class="regs">${regs}</div></details>`;
     }).join('')}
-    <div class="note">큰 숫자는 그 부위를 직접 한 세트예요. 연한 막대·"+간접"은 다른 운동에 딸려서 쓰인 몫이에요(벤치프레스 1세트 → 어깨·삼두 각 0.5, 로우 → 이두 0.5). 적정 판단은 연구 방식대로 둘을 합쳐서 하고, 직접 안 한 부위는 판단하지 않아요. 초록 띠는 대부분의 연구가 효과적이라고 보는 10–20세트(다리는 앞·뒤·종아리를 합쳐 14–30), 그 위도 성장은 계속되지만 효율이 떨어져요. 팔·코어는 보조 부위로 주 6세트부터.${R.dl.inDeload ? ' 지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.' : ''}</div>
+    <div class="note">큰 숫자는 그 부위를 직접 한 세트예요. 연한 막대·"+간접"은 다른 운동에 딸려서 쓰인 몫이에요(벤치프레스 1세트 → 어깨·삼두 각 0.5, 로우 → 이두 0.5). 적정 판단은 연구 방식대로 둘을 합쳐서 하고, 직접 안 한 부위는 판단하지 않아요. 초록 띠는 대부분의 연구가 효과적이라고 보는 10–20세트(다리는 앞·뒤·종아리를 합쳐 14–30), 그 위도 성장은 계속되지만 효율이 떨어져요. 팔·코어는 보조 부위로 주 6세트부터. 세부 부위(윗가슴·광배·햄스트링 등)는 해부도와 같은 방식(주동근 1, 보조근 0.5–0.25)으로 세고, 연구의 세트 권장은 근육 단위라서 적정 판단은 위 큰 막대로만 해요. 세부 막대는 어디에 몰렸는지 보는 참고용이고, 연한 띠는 근육 기준을 부위에 나눠본 앱 기준이에요.${R.dl.inDeload ? ' 지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.' : ''}</div>
   </section>`;
 
   // exercise mix (optional notes)
@@ -2310,7 +2359,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
