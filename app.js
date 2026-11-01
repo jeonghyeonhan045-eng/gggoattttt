@@ -775,8 +775,8 @@ function routinesHtml() {
   const isPro = p => /선수 루틴|Heavy Duty|트레이너 루틴/.test(p.who);
   const card = p => `<button class="progcard" data-act="prog-open" data-p="${p.id}">
       <div class="row between"><b>${esc(p.name)}</b><span class="small muted">${esc(p.per)}</span></div>
-      <div class="small muted" style="margin:2px 0 4px">${esc(p.who)} · ${esc(p.lv)}${PROGRAM_INFO[p.id] ? ` · <b class="goaltag">${esc(PROGRAM_INFO[p.id].goal.split(' (')[0])}</b>` : ''}</div>
-      <div class="small">${esc(p.desc)}</div></button>`;
+      <div class="small muted" style="margin:2px 0 4px"><b class="tier t${p.tier || 2}">${esc(p.lv)}</b> ${esc(p.who)}${PROGRAM_INFO[p.id] ? ` · <b class="goaltag">${esc(PROGRAM_INFO[p.id].goal.split(' (')[0])}</b>` : ''}</div>
+      <div class="small">${esc(p.desc)}</div>${p.why ? `<div class="small tierwhy">${esc(p.lv)}인 이유 · ${esc(p.why)}</div>` : ''}</button>`;
   // suggestions that follow sex + goal (every program stays open to everyone below)
   if ((state.rtM || '전체') === '전체') {
     const sex = (DB.settings.profile || {}).sex, gk = goalKey();
@@ -806,8 +806,16 @@ function routinesHtml() {
       : '<div class="small muted">해당하는 날이 없어요.</div>';
     return h;
   }
-  h += `<div class="sec-h"><h2 style="font-size:16px">검증된 프로그램</h2><span class="aside">초보 → 중급 순</span></div>` + PROGRAMS.filter(p => !isPro(p)).map(card).join('');
-  h += `<div class="sec-h"><h2 style="font-size:16px">보디빌더 · 코치 루틴</h2><span class="aside">선수·코치들의 방식</span></div>` + PROGRAMS.filter(isPro).map(card).join('');
+  // every program by level (non-athlete programs first inside each level)
+  const TIERS = [[1, '초급', '운동 0–1년 · 주 2–3회 · 매번 조금씩 증량할 수 있는 시기'], [2, '중급', '1–3년 · 주 4–6회 분할 · 주 단위로 증량·볼륨 관리'], [3, '상급', '3년 이상 · 고볼륨이나 드롭세트·강제 반복 같은 강도 기법 · 회복 관리 필수']];
+  const LV = state.rtLv || 0;
+  h += `<div class="sec-h"><h2 style="font-size:16px">수준별 루틴</h2><span class="aside">운동 경력 기준</span></div>
+    <div class="chips rtchips">${[[0, '전체'], ...TIERS].map(([t, l]) => `<button class="chip ${LV === t ? 'on' : ''}" data-act="rt-lv" data-v="${t}">${l}</button>`).join('')}</div>`;
+  for (const [t, l, d] of TIERS) {
+    if (LV && LV !== t) continue;
+    const list = PROGRAMS.filter(p => (p.tier || 2) === t).sort((x, y) => isPro(x) - isPro(y));
+    h += `<div class="tierh"><b class="tier t${t}">${l}</b><span>${d}</span></div>` + list.map(card).join('');
+  }
   return h;
 }
 /* program sequence: plain programs cycle their days; `rep`/`block` programs run each block of `block` days `rep` times (e.g. A·B·C for 4 weeks, then the next phase) */
@@ -2474,7 +2482,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.8 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2718,6 +2726,7 @@ const ACT = {
   'tut-end': el => { DB.settings.tutV = 2; save(); closeSheet(); state.tab = 'workout'; render(); if (el.dataset.then === 'routines') setTimeout(openRoutines, 50); },
   'tut-open': () => { closeSheet(); setTimeout(() => openTutorial(0), 30); },
   'rt-sex': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { sex: el.dataset.v }); save(); setSheetBody(routinesHtml(), true); },
+  'rt-lv': el => { state.rtLv = +el.dataset.v; setSheetBody(routinesHtml(), true); },
   'rt-m': el => { state.rtM = el.dataset.m; setSheetBody(routinesHtml(), true); },
   // one day from a program, without signing up for the whole program
   'day-start': el => { const p = PROGRAMS.find(x => x.id === el.dataset.p), d = p.days[+el.dataset.d]; startPlan(d.ex, `${p.name} · ${d.t}`, null); day(state.date).plan.prog = p.id; save(); render(); },

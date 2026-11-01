@@ -637,3 +637,10 @@ input.ocrfill { border-color: var(--acc); background: var(--acc-soft); }
 .tut-prog .bar i { display: block; height: 100%; background: var(--acc); transition: width .25s; }
 .tut-prog .tut-n { margin: 0; }
 .sheet.tutmode { max-height: none; }
+.tier { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; margin-right: 4px; vertical-align: 1px; }
+.tier.t1 { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.tier.t2 { background: color-mix(in srgb, var(--acc) 14%, transparent); color: var(--acc); }
+.tier.t3 { background: color-mix(in srgb, #c81e28 16%, transparent); color: #d43a3a; }
+.tierh { display: flex; align-items: baseline; gap: 8px; margin: 16px 0 6px; font-size: 12px; color: var(--ink3); line-height: 1.4; }
+.tierh .tier { font-size: 13px; padding: 2px 9px; flex: 0 0 auto; }
+.tierwhy { margin-top: 4px; color: var(--ink3); }

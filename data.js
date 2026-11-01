@@ -756,18 +756,18 @@ const PROGRAM_INFO = {
 };
 
 const PROGRAMS = [
-  { id: 'fb3', name: '초보 전신 3일', who: '입문 추천', lv: '입문', per: '주 3일', days: [
+  { id: 'fb3', name: '초보 전신 3일', who: '입문 추천', lv: '초급', tier: 1, why: '주 3회 전신 · 동작 익히기', per: '주 3일', days: [
       { l: 'A', t: '전신 A', ex: [['fw-squat', '3×8'], ['fw-bench', '3×8'], ['cb-row', '3×10'], ['fw-lateral', '2×12'], ['cy-abcrunch', '2×12']] },
       { l: 'B', t: '전신 B', ex: [['fw-rdl', '3×8'], ['fw-ohp', '3×8'], ['lf-pulldown', '3×10'], ['lf-legpress', '2×12'], ['cb-pushdown', '2×12']] }],
     desc: 'A와 B를 번갈아 주 3회(예: 월 A · 수 B · 금 A). 운동을 막 시작했거나 쉬다가 돌아왔을 때.',
     note: '모든 세트를 목표 횟수로 성공하면 다음번에 무게를 한 단계 올리세요.' },
-  { id: 'glute3', name: '애플힙 전신 3일', who: '엉덩이 집중 · Contreras 방식 참고', lv: '입문–중급', per: '주 3일', fem: 1, days: [
+  { id: 'glute3', name: '애플힙 전신 3일', who: '엉덩이 집중 · Contreras 방식 참고', lv: '초급', tier: 1, why: '익숙한 기본 동작 위주 · 주 3회', per: '주 3일', fem: 1, days: [
       { l: 'A', t: '엉덩이 · 힙 쓰러스트 중심', ex: [['fw-hipthrust', '4×8–12'], ['fw-goblet', '3×10'], ['lf-pulldown', '3×10'], ['fw-db-ohp', '3×10'], ['tg-abduction', '3×15–20']] },
       { l: 'B', t: '엉덩이 · 허벅지 뒤 중심', ex: [['fw-rdl', '3×8–10'], ['fw-bss', '3×10'], ['cb-row', '3×10'], ['fw-incline-db', '3×10'], ['g80-glute', '3×12–15']] },
       { l: 'C', t: '엉덩이 · 고반복', ex: [['fw-hipthrust', '3×12–15'], ['lf-legpress', '3×12'], ['tg-legcurl', '3×12'], ['lf-pulldown', '3×12'], ['tg-abduction', '3×20']] }],
     desc: '엉덩이 운동을 매번 넣고 상체는 가볍게 유지하는 전신 3일. A·B·C를 돌아가며 주 3회.',
     note: '엉덩이는 주 10–20세트 정도가 쌓이도록 구성했어요. 범위 위쪽 횟수를 모든 세트에서 채우면 증량.' },
-  { id: 'sc12', name: '스트롱 커브스 입문 12주', who: 'Bret Contreras · Strong Curves', lv: '입문', per: '주 3일', fem: 1, rep: 4, block: 3, days: [
+  { id: 'sc12', name: '스트롱 커브스 입문 12주', who: 'Bret Contreras · Strong Curves', lv: '초급', tier: 1, why: '맨몸부터 단계적으로 바벨까지', per: '주 3일', fem: 1, rep: 4, block: 3, days: [
       { l: '1A', t: '1단계 A · 맨몸·덤벨', ex: [['fw-glutebridge', '3×10'], ['fw-dbrow', '3×8'], ['fw-boxsquat', '3×10'], ['fw-db-bench', '3×8'], ['fw-rdl', '3×10'], ['fw-clam', '1×15'], ['fw-plank', '1×30초'], ['fw-sideplank', '1×30초']] },
       { l: '1B', t: '1단계 B · 맨몸·덤벨', ex: [['fw-slbridge', '3×10'], ['lf-pulldown', '3×8'], ['fw-stepup', '3×10'], ['fw-db-ohp', '3×8'], ['fw-roman', '3×10'], ['fw-clam', '1×15'], ['fw-crunch', '1×15']] },
       { l: '1C', t: '1단계 C · 맨몸·덤벨', ex: [['fw-glutebridge', '3×60초 (행진)'], ['cb-row', '3×8'], ['fw-goblet', '3×10'], ['fw-incline-db', '3×8'], ['fw-sl-rdl', '3×10'], ['fw-clam', '1×10'], ['fw-plank', '1×30초'], ['fw-woodchop', '1×10']] },
@@ -779,41 +779,41 @@ const PROGRAMS = [
       { l: '3C', t: '3단계 C · 바벨 중심', ex: [['fw-hipthrust', '3×8'], ['fw-dbrow', '3×8'], ['fw-squat', '3×10'], ['fw-incline-bb', '3×3'], ['fw-roman', '3×10'], ['fw-clam', '1×15'], ['fw-hangleg', '1×10'], ['fw-woodchop', '1×10']] }],
     desc: '엉덩이 운동으로 유명한 브렛 콘트레라스의 책 Strong Curves의 입문 프로그램(Booty-ful Beginnings). 4주마다 단계가 올라가고, 각 단계에서 A·B·C를 주 3회 4주 반복해요. 앱이 몇 주차인지 세어줘요.',
     note: '하체는 10–20회, 상체는 8–12회 범위에서 모든 세트가 위쪽 횟수를 채우면 약 2kg 올리고 아래쪽부터 다시. 코어 운동은 증량 없이 시간·횟수만 늘려요. 밴드·리버스 하이퍼 같은 일부 종목은 헬스장에 흔한 비슷한 동작(클램쉘, 백 익스텐션)으로 바꿨어요.' },
-  { id: 'mach3', name: '머신으로 시작하는 3일', who: '입문 · 머신 위주 구성', lv: '입문', per: '주 3일', fem: 1, days: [
+  { id: 'mach3', name: '머신으로 시작하는 3일', who: '입문 · 머신 위주 구성', lv: '초급', tier: 1, why: '머신이라 자세 부담이 적음', per: '주 3일', fem: 1, days: [
       { l: 'A', t: '머신 전신 A', ex: [['lf-legpress', '3×10–12'], ['lf-chest-press', '3×10–12'], ['lf-pulldown', '3×10–12'], ['tg-legcurl', '3×12'], ['tg-abduction', '2×15'], ['cy-abcrunch', '2×12']] },
       { l: 'B', t: '머신 전신 B', ex: [['lf-legpress', '3×12'], ['hs-shoulder', '3×10–12'], ['cy-row', '3×10–12'], ['g80-glute', '3×12–15'], ['hs-legext', '3×12'], ['lf-backext', '2×12']] }],
     desc: '프리웨이트 구역이 부담스러울 때. 자리에 앉아 핀만 꽂으면 되는 머신으로 전신을 A·B 번갈아 주 3회.',
     note: '모든 세트에서 12회(어브덕션 15회)를 채우면 한 칸 올리기. 4–8주 하고 익숙해지면 다른 루틴으로 넘어가도 좋아요.' },
-  { id: 'db2', name: '덤벨 전신 2일 (40분)', who: '바쁠 때 · 최소 유효량', lv: '입문', per: '주 2일', fem: 1, days: [
+  { id: 'db2', name: '덤벨 전신 2일 (40분)', who: '바쁠 때 · 최소 유효량', lv: '초급', tier: 1, why: '주 2회 최소 구성', per: '주 2일', fem: 1, days: [
       { l: 'A', t: '덤벨 전신 A', ex: [['fw-goblet', '3×10–12'], ['fw-db-bench', '3×10'], ['fw-dbrow', '3×10'], ['fw-rdl', '3×10'], ['fw-lateral', '2×15'], ['fw-plank', '2×30초']] },
       { l: 'B', t: '덤벨 전신 B', ex: [['fw-lunge', '3×10'], ['fw-db-ohp', '3×10'], ['fw-dbrow', '3×12'], ['fw-glutebridge', '3×12'], ['fw-dbcurl', '2×12'], ['fw-crunch', '2×15']] }],
     desc: '덤벨 한 쌍과 벤치만 있으면 되는 주 2회 전신. 바쁜 주에도 근력운동 권장량(주 2회)을 채우는 구성.',
     note: '세트 사이 60–90초 쉬면 40분 안에 끝나요. 범위 위쪽 횟수를 채우면 한 단계 무거운 덤벨로.' },
-  { id: 'wul4', name: '하체 비중 상하체 4일', who: '일반적인 구성 · 하체 위주', lv: '초중급', per: '주 4일', fem: 1, days: [
+  { id: 'wul4', name: '하체 비중 상하체 4일', who: '일반적인 구성 · 하체 위주', lv: '중급', tier: 2, why: '주 4일 분할 · 하체 볼륨 많음', per: '주 4일', fem: 1, days: [
       { l: '하1', t: '하체 · 엉덩이 무겁게', ex: [['fw-squat', '4×6–8'], ['fw-hipthrust', '4×8'], ['fw-rdl', '3×8'], ['tg-abduction', '3×15']] },
       { l: '상1', t: '상체 · 등·어깨', ex: [['lf-pulldown', '3×10'], ['cb-row', '3×10'], ['fw-db-ohp', '3×10'], ['fw-lateral', '3×15'], ['cb-pushdown', '2×12']] },
       { l: '하2', t: '하체 · 엉덩이 볼륨', ex: [['fw-bss', '3×10'], ['lf-legpress', '3×12'], ['tg-legcurl', '3×12'], ['g80-glute', '3×15'], ['fw-hipthrust', '2×15']] },
       { l: '상2', t: '상체 · 가슴·팔', ex: [['fw-incline-db', '3×10'], ['cb-row', '3×12'], ['fw-lateral', '3×15'], ['fw-dbcurl', '2×12'], ['cy-abcrunch', '3×12']] }],
     desc: '하체·엉덩이 2일, 상체 2일. 하체를 더 키우고 싶지만 상체 라인도 같이 잡고 싶을 때.',
     note: '하체 날은 2–3회 여유를 남기고, 엉덩이 볼륨 날은 1–2회 여유까지.' },
-  { id: 'fatloss3', name: '다이어트 전신 3일 + 유산소', who: '근력+유산소 병행 · 연구 기반 구성', lv: '입문', per: '주 3일', fem: 1, days: [
+  { id: 'fatloss3', name: '다이어트 전신 3일 + 유산소', who: '근력+유산소 병행 · 연구 기반 구성', lv: '초급', tier: 1, why: '가벼운 전신 + 유산소', per: '주 3일', fem: 1, days: [
       { l: 'A', t: '전신 A + 유산소', ex: [['fw-goblet', '3×12'], ['lf-chest-press', '3×12'], ['lf-pulldown', '3×12'], ['fw-rdl', '3×12'], ['pc-tread', '1×20–30분']] },
       { l: 'B', t: '전신 B + 유산소', ex: [['lf-legpress', '3×12'], ['fw-db-ohp', '3×12'], ['cb-row', '3×12'], ['fw-hipthrust', '3×12'], ['mx-ellip', '1×20–30분']] }],
     desc: '근력운동으로 근육을 지키고 유산소로 소모를 늘리는 감량용 구성. A·B를 번갈아 주 3회, 다른 날 걷기를 더하면 좋아요.',
     note: '휴식은 60–90초로 짧게. 무게는 12회를 겨우 채우는 정도로 유지하고, 줄이지 마세요.' },
-  { id: 'sl5', name: '스트롱리프트 5×5', who: 'Mehdi · StrongLifts', lv: '입문', per: '주 3일', days: [
+  { id: 'sl5', name: '스트롱리프트 5×5', who: 'Mehdi · StrongLifts', lv: '초급', tier: 1, why: '매번 증량하는 초보 근력 프로그램', per: '주 3일', days: [
       { l: 'A', t: '워크아웃 A', ex: [['fw-squat', '5×5'], ['fw-bench', '5×5'], ['fw-bbrow', '5×5']] },
       { l: 'B', t: '워크아웃 B', ex: [['fw-squat', '5×5'], ['fw-ohp', '5×5'], ['fw-deadlift', '1×5']] }],
     desc: '바벨 5종목만으로 근력을 빠르게 올리는 대표적인 초보 프로그램. A/B를 번갈아 주 3회.',
     note: '5세트 모두 5회 성공하면 다음번 +2.5kg(데드리프트 +5kg). 같은 무게에서 3번 연속 실패하면 10% 낮춰 다시 올라가요.' },
-  { id: 'ul4', name: '상하체 분할 4일', who: '일반적인 구성', lv: '초중급', per: '주 4일', days: [
+  { id: 'ul4', name: '상하체 분할 4일', who: '일반적인 구성', lv: '중급', tier: 2, why: '주 4일 분할 · 무거운 날/볼륨 날 구분', per: '주 4일', days: [
       { l: '상1', t: '상체 · 무겁게', ex: [['fw-bench', '4×6'], ['fw-bbrow', '4×6'], ['fw-ohp', '3×8'], ['lf-pulldown', '3×10'], ['fw-bbcurl', '2×10'], ['cb-pushdown', '2×10']] },
       { l: '하1', t: '하체 · 무겁게', ex: [['fw-squat', '4×6'], ['fw-rdl', '3×8'], ['lf-legpress', '3×10'], ['tg-legcurl', '3×10'], ['mx-calf', '3×12']] },
       { l: '상2', t: '상체 · 볼륨', ex: [['fw-incline-db', '3×10'], ['cb-row', '3×10'], ['fw-db-ohp', '3×10'], ['cb-cross', '3×12'], ['fw-lateral', '3×15'], ['fw-hammer', '3×12'], ['fw-ohext', '3×12']] },
       { l: '하2', t: '하체 · 볼륨', ex: [['fw-deadlift', '3×5'], ['fw-bss', '3×10'], ['hs-legext', '3×12'], ['lf-lyingcurl', '3×12'], ['mx-calf', '3×15'], ['fw-hangleg', '3×12']] }],
     desc: '상체·하체를 주 2번씩. 부위당 주 2회 빈도로 근력과 근비대를 같이 챙기는 무난한 분할.',
     note: '무거운 날은 2–3회 여유(RIR 2–3)를 남기고, 볼륨 날은 1–2회 여유까지.' },
-  { id: 'ppl', name: '레딧 PPL 6일', who: 'Metallicadpa · r/Fitness', lv: '초중급', per: '주 6일', days: [
+  { id: 'ppl', name: '레딧 PPL 6일', who: 'Metallicadpa · r/Fitness', lv: '중급', tier: 2, why: '주 6일 · 회복 관리 필요', per: '주 6일', days: [
       { l: '당A', t: '당기기 A', ex: [['fw-deadlift', '1×5+'], ['lf-pulldown', '3×8–12'], ['cb-row', '3×8–12'], ['cb-facepull', '5×15–20'], ['fw-hammer', '4×8–12'], ['fw-dbcurl', '4×8–12']] },
       { l: '밀A', t: '밀기 A', ex: [['fw-bench', '5×5+'], ['fw-ohp', '3×8–12'], ['fw-incline-db', '3×8–12'], ['cb-pushdown', '3×8–12'], ['fw-ohext', '3×8–12'], ['fw-lateral', '3×15–20']] },
       { l: '하A', t: '하체', ex: [['fw-squat', '3×5+'], ['fw-rdl', '3×8–12'], ['lf-legpress', '3×8–12'], ['tg-legcurl', '3×8–12'], ['mx-calf', '5×8–12']] },
@@ -822,21 +822,21 @@ const PROGRAMS = [
       { l: '하B', t: '하체', ex: [['fw-squat', '3×5+'], ['fw-rdl', '3×8–12'], ['lf-legpress', '3×8–12'], ['tg-legcurl', '3×8–12'], ['mx-calf', '5×8–12']] }],
     desc: '당기기·밀기·하체를 두 바퀴, 주 6일. 레딧 r/Fitness에서 유명해진 초중급 PPL.',
     note: '"5+"는 마지막 세트를 할 수 있는 만큼(AMRAP). 메인 종목은 매번 +2.5kg(데드 +5kg), 보조 종목은 범위 위쪽 횟수를 채우면 증량.' },
-  { id: 'phul', name: 'PHUL 4일', who: 'Brandon Campbell', lv: '중급', per: '주 4일', days: [
+  { id: 'phul', name: 'PHUL 4일', who: 'Brandon Campbell', lv: '중급', tier: 2, why: '근력·근비대 날을 나눠 관리', per: '주 4일', days: [
       { l: '파상', t: '파워 상체', ex: [['fw-bench', '3×3–5'], ['fw-incline-db', '3×6–10'], ['fw-bbrow', '3×3–5'], ['lf-pulldown', '3×6–10'], ['fw-ohp', '2×5–8'], ['fw-bbcurl', '2×6–10'], ['fw-skull', '2×6–10']] },
       { l: '파하', t: '파워 하체', ex: [['fw-squat', '3×3–5'], ['fw-deadlift', '3×3–5'], ['lf-legpress', '3×10–15'], ['tg-legcurl', '3×6–10'], ['mx-calf', '4×6–10']] },
       { l: '근상', t: '근비대 상체', ex: [['fw-incline-bb', '3×8–12'], ['fw-db-fly', '3×8–12'], ['cb-row', '3×8–12'], ['fw-dbrow', '3×8–12'], ['fw-lateral', '3×8–12'], ['fw-dbcurl', '3×8–12'], ['cb-pushdown', '3×8–12']] },
       { l: '근하', t: '근비대 하체', ex: [['fw-front', '3×8–12'], ['fw-lunge', '3×8–12'], ['hs-legext', '3×10–15'], ['lf-lyingcurl', '3×10–15'], ['mx-calf', '4×8–12']] }],
     desc: 'Power Hypertrophy Upper Lower. 주 2일은 무겁게(근력), 2일은 가볍고 많이(근비대).',
     note: '파워 날은 3–5회로 무겁게, 근비대 날은 8–12회. 범위 위쪽 횟수를 모든 세트에서 채우면 증량.' },
-  { id: 'bbb', name: '5/3/1 BBB', who: 'Jim Wendler', lv: '중급', per: '주 4일', days: [
+  { id: 'bbb', name: '5/3/1 BBB', who: 'Jim Wendler', lv: '중급', tier: 2, why: '1RM 기준 % 계산 · 주 단위 증량', per: '주 4일', days: [
       { l: '1', t: '오버헤드 프레스', ex: [['fw-ohp', '5/3/1'], ['fw-ohp', '5×10'], ['fw-chinup', '5×10']] },
       { l: '2', t: '데드리프트', ex: [['fw-deadlift', '5/3/1'], ['fw-deadlift', '5×10'], ['fw-hangleg', '5×10']] },
       { l: '3', t: '벤치프레스', ex: [['fw-bench', '5/3/1'], ['fw-bench', '5×10'], ['fw-dbrow', '5×10']] },
       { l: '4', t: '스쿼트', ex: [['fw-squat', '5/3/1'], ['fw-squat', '5×10'], ['tg-legcurl', '5×10']] }],
     desc: 'Boring But Big. 하루 메인 1종목을 퍼센트로 올리고, 같은 종목 5×10으로 볼륨을 채워요. 4주 사이클.',
     note: '기준 무게(TM) = 1RM의 90%. 메인 세트: 1주 65·75·85%×5, 2주 70·80·90%×3, 3주 75·85·95%×5·3·1, 4주 디로딩. 5×10은 TM의 50–60%. 사이클마다 TM 상체 +2.5kg, 하체 +5kg.' },
-  { id: 'phat', name: 'PHAT 5일', who: 'Layne Norton', lv: '중상급', per: '주 5일', days: [
+  { id: 'phat', name: 'PHAT 5일', who: 'Layne Norton', lv: '상급', tier: 3, why: '주 5일 · 근력+고볼륨 동시', per: '주 5일', days: [
       { l: '파상', t: '파워 상체', ex: [['fw-bbrow', '3×3–5'], ['fw-pullup', '2×6–10'], ['lf-pulldown', '2×6–10'], ['fw-db-bench', '3×3–5'], ['fw-dips', '2×6–10'], ['fw-db-ohp', '3×6–10'], ['fw-bbcurl', '3×6–10'], ['fw-skull', '3×6–10']] },
       { l: '파하', t: '파워 하체', ex: [['fw-squat', '3×3–5'], ['hs-hack', '2×6–10'], ['hs-legext', '2×6–10'], ['fw-rdl', '3×5–8'], ['lf-lyingcurl', '2×6–10'], ['mx-calf', '3×6–10']] },
       { l: '등어', t: '등 · 어깨 근비대', ex: [['fw-bbrow', '4×8–10'], ['lf-pulldown', '3×8–12'], ['cb-row', '3×8–12'], ['fw-dbrow', '2×12–15'], ['fw-db-ohp', '3×8–12'], ['fw-lateral', '3×12–20']] },
@@ -844,35 +844,35 @@ const PROGRAMS = [
       { l: '가팔', t: '가슴 · 팔 근비대', ex: [['fw-db-bench', '4×8–10'], ['fw-incline-db', '3×8–12'], ['lf-chest-press', '3×12–15'], ['cb-cross', '2×15–20'], ['nt-preacher', '3×8–12'], ['fw-dbcurl', '2×12–15'], ['fw-skull', '3×8–12'], ['cb-pushdown', '2×12–15']] }],
     desc: 'Power Hypertrophy Adaptive Training. 앞 2일은 상·하체를 무겁게(3–5회), 뒤 3일은 부위별로 볼륨을 크게. PHUL보다 볼륨이 많아요.',
     note: '근비대 날 첫 종목은 파워 날 무게의 약 85%로. 주 5일, 3일째와 7일째 휴식. 종목은 같은 동작의 다른 기구로 바꿔도 돼요.' },
-  { id: 'gvt', name: '독일식 볼륨 트레이닝', who: 'Charles Poliquin · GVT', lv: '중급', per: '주 3일', days: [
+  { id: 'gvt', name: '독일식 볼륨 트레이닝', who: 'Charles Poliquin · GVT', lv: '상급', tier: 3, why: '10×10 초고볼륨 · 회복 부담 큼', per: '주 3일', days: [
       { l: '가등', t: '가슴 · 등', ex: [['fw-bench', '10×10'], ['fw-bbrow', '10×10'], ['cb-cross', '3×10'], ['lf-pulldown', '3×10']] },
       { l: '하체', t: '하체 · 복근', ex: [['fw-squat', '10×10'], ['lf-lyingcurl', '10×10'], ['mx-calf', '3×10'], ['fw-hangleg', '3×10']] },
       { l: '팔어', t: '팔 · 어깨', ex: [['fw-bench', '10×6'], ['fw-bbcurl', '10×6'], ['fw-lateral', '3×6'], ['fw-reardelt', '3×6']] }],
     desc: '메인 종목을 10세트×10회로. 두 종목을 번갈아(슈퍼세트) 하고 사이 휴식은 60–90초. 4–6주 하고 디로딩.',
     note: '10×10은 1RM의 약 60%로 시작해 매주 약 2%씩 올려요. 10회를 다 못 채우는 세트가 나와도 무게는 유지. 팔 날 벤치는 좁게 잡는 클로즈그립으로.' },
-  { id: 'regpark', name: '레그 파크 5×5', who: '레그 파크 · 선수 루틴', lv: '입문', per: '주 3일', days: [
+  { id: 'regpark', name: '레그 파크 5×5', who: '레그 파크 · 선수 루틴', lv: '초급', tier: 1, why: '1단계는 초보용 5×5 전신', per: '주 3일', days: [
       { l: 'A', t: '전신 A', ex: [['fw-squat', '5×5'], ['fw-chinup', '5×5'], ['fw-bench', '5×5'], ['fw-bbcurl', '2×10'], ['mx-calf', '2×15–20']] },
       { l: 'B', t: '전신 B', ex: [['fw-front', '5×5'], ['fw-bbrow', '5×5'], ['fw-ohp', '5×5'], ['fw-deadlift', '3×5'], ['mx-calf', '2×15–20']] }],
     desc: '아놀드가 롤모델로 꼽은 미스터 유니버스 레그 파크의 초보 전신 루틴. A·B를 번갈아 주 3회(1주 A-B-A, 2주 B-A-B).',
     note: '5×5에서 앞 2세트는 워밍업, 뒤 3세트가 5회 최대 무게예요. 손목·전완 운동(2×10)도 원래 구성에 있어요.' },
-  { id: 'coleman', name: '로니 콜먼 6일', who: '로니 콜먼 · 선수 루틴', lv: '상급', per: '주 6일', days: [
+  { id: 'coleman', name: '로니 콜먼 6일', who: '로니 콜먼 · 선수 루틴', lv: '상급', tier: 3, why: '선수 볼륨 · 초고중량', per: '주 6일', days: [
       { l: '등이어', t: '등 · 이두 · 어깨', ex: [['fw-deadlift', '4×6–12'], ['fw-bbrow', '4×10–12'], ['fw-landmine', '3×10–12'], ['fw-dbrow', '3×10–12'], ['fw-bbcurl', '4×12'], ['nt-preacher', '3×12'], ['fw-ohp', '4×10–12'], ['fw-lateral', '3×12']] },
       { l: '하체', t: '하체', ex: [['fw-squat', '6×2–12'], ['lf-legpress', '4×10–12'], ['fw-lunge', '2×길게'], ['fw-rdl', '3×10–12'], ['lf-lyingcurl', '3×10–12']] },
       { l: '가삼', t: '가슴 · 삼두 · 종아리', ex: [['fw-bench', '5×5–12'], ['fw-incline-bb', '3×10–12'], ['hs-decline', '3×10–12'], ['fw-db-fly', '3×12'], ['fw-skull', '4×12'], ['fw-ohext', '3×12'], ['mx-calf', '4×12–15']] }],
     desc: '미스터 올림피아 8연패. 등·이두·어깨 / 하체 / 가슴·삼두를 주 2바퀴.',
     note: '분할(주 6일, 2바퀴)은 잘 알려진 구성이고, 하체 날 종목은 공개된 프로그램 기준이에요. 나머지 날 종목은 그가 자주 한 운동으로 만든 대표 예시예요. 볼륨이 매우 커서 상급자용.' },
-  { id: 'haney', name: '리 헤이니 3분할', who: '리 헤이니 · 선수 루틴', lv: '중상급', per: '3일 운동 · 1일 휴식', days: [
+  { id: 'haney', name: '리 헤이니 3분할', who: '리 헤이니 · 선수 루틴', lv: '중급', tier: 2, why: '고전적 3분할 · 적당한 볼륨', per: '3일 운동 · 1일 휴식', days: [
       { l: '가팔', t: '가슴 · 팔', ex: [['fw-bench', '4×6–8'], ['fw-db-bench', '3×8–10'], ['fw-incline-bb', '4×6–8'], ['fw-incline-db', '3×8–10'], ['fw-bbcurl', '4×8–10'], ['nt-preacher', '4×8–10'], ['cb-pushdown', '4×10–12'], ['fw-skull', '4×6–8']] },
       { l: '하체', t: '하체', ex: [['hs-legext', '4×12–15'], ['lf-legpress', '4×10–12'], ['fw-squat', '4×8–10'], ['fw-rdl', '3×8–10'], ['mx-calf', '6×15–20']] },
       { l: '등어', t: '등 · 어깨', ex: [['lf-pulldown', '4×8–10'], ['fw-bbrow', '4×6–8'], ['cb-row', '4×8–10'], ['fw-ohp', '4×6–8'], ['fw-lateral', '4×8–10'], ['cy-abcrunch', '4×15–20']] }],
     desc: '미스터 올림피아 8연패. "자극하되 망가뜨리지 마라(Stimulate, don\'t annihilate)" — 3일 운동, 1일 휴식을 반복.',
     note: '원래는 종아리·복근을 매일 했어요. 요일 대신 3일 하고 하루 쉬는 순환이라 앱의 "다음 차례"를 따라가면 돼요.' },
-  { id: 'mentzer', name: '마이크 멘처 헤비듀티', who: '마이크 멘처 · Heavy Duty II', lv: '중급', per: '7–10일에 1회', days: [
+  { id: 'mentzer', name: '마이크 멘처 헤비듀티', who: '마이크 멘처 · Heavy Duty II', lv: '중급', tier: 2, why: '세트는 적지만 실패 지점까지 — 자세가 잡혀 있어야 함', per: '7–10일에 1회', days: [
       { l: 'A', t: '하체 · 등', ex: [['fw-squat', '1×8–15'], ['lf-pulldown', '1×6–10']] },
       { l: 'B', t: '후면 · 가슴 · 삼두', ex: [['fw-deadlift', '1×5–8'], ['fw-dips', '1×6–10']] }],
     desc: '극단적으로 적은 볼륨: 워밍업 후 실패 지점까지 단 1세트, 운동 사이 7–10일 휴식. 멘처의 말기 "통합(Consolidated)" 루틴.',
     note: '워밍업 1–3세트는 실패 근처까지 가지 않게. 매번 강해지지 않으면 휴식을 10–14일로 늘리라고 했어요. 연구 근거(주 10세트 이상)와는 정반대 철학이라 비교용으로 넣었어요.' },
-  { id: 'fst7', name: 'FST-7 5분할', who: '하니 램보드 · 트레이너 루틴', lv: '중상급', per: '주 5일', days: [
+  { id: 'fst7', name: 'FST-7 5분할', who: '하니 램보드 · 트레이너 루틴', lv: '상급', tier: 3, why: '부위당 고볼륨 + 짧은 휴식 7세트', per: '주 5일', days: [
       { l: '가슴', t: '가슴', ex: [['fw-bench', '3×6–8'], ['fw-incline-db', '3×8–12'], ['lf-chest-press', '3×8–12'], ['tg-pecdeck', '7×12–15']] },
       { l: '등', t: '등', ex: [['fw-pullup', '3×6–8'], ['fw-bbrow', '3×8–12'], ['fw-dbrow', '3×8–12'], ['lf-pulldown', '7×12–15']] },
       { l: '하체', t: '하체', ex: [['fw-squat', '3×6–8'], ['fw-rdl', '3×6–8'], ['lf-legpress', '3×8–12'], ['hs-legext', '7×12–15'], ['tg-legcurl', '7×12–15']] },
@@ -880,7 +880,7 @@ const PROGRAMS = [
       { l: '팔', t: '팔', ex: [['fw-dips', '3×6–8'], ['fw-bbcurl', '3×6–8'], ['nt-preacher', '3×8–12'], ['fw-skull', '3×8–12'], ['cb-curl', '7×12–15'], ['cb-pushdown', '7×12–15']] }],
     desc: '제이 커틀러·필 히스를 미스터 올림피아로 만든 트레이너의 방식. 부위마다 무거운 종목 2–3개 뒤, 마지막 종목을 7세트·짧은 휴식으로 마무리해요.',
     note: '마지막 "7×"가 FST-7: 세트 사이 30–45초만 쉬고 8–15회. 램보드는 처음엔 1–2부위에만 쓰고, 초보는 레그 익스텐션 같은 고립 운동으로 하라고 했어요. 근육통이 4–5일 가면 줄이세요. 부위별 종목은 공개된 예시 기준이에요.' },
-  { id: 'y3t', name: 'Y3T (Yoda 3 Training)', who: '닐 힐 · 트레이너 루틴', lv: '상급', per: '3주 사이클 · 주 3–5일', days: [
+  { id: 'y3t', name: 'Y3T (Yoda 3 Training)', who: '닐 힐 · 트레이너 루틴', lv: '상급', tier: 3, why: '3주 주기 + 드롭·자이언트 세트', per: '3주 사이클 · 주 3–5일', days: [
       { l: '1주', t: '1주차 · 상체 (무겁게)', ex: [['fw-incline-db', '3×6–10'], ['fw-bench', '3×6–10'], ['fw-bbrow', '3×6–10'], ['lf-pulldown', '3×6–10'], ['fw-ohp', '3×6–10'], ['fw-bbcurl', '2×6–10'], ['fw-dips', '2×6–10']] },
       { l: '1주', t: '1주차 · 하체 (무겁게)', ex: [['fw-squat', '4×6–10'], ['hs-hack', '3×6–10'], ['fw-rdl', '3×6–10'], ['lf-lyingcurl', '3×6–10'], ['mx-calf', '3×8–10']] },
       { l: '2주', t: '2주차 · 상체 (중간)', ex: [['fw-incline-db', '3×8–12'], ['cb-cross', '3×12–15'], ['hs-row', '3×8–12'], ['fw-dbrow', '3×8–12'], ['fw-db-ohp', '3×8–12'], ['fw-lateral', '3×12–15'], ['fw-dbcurl', '3×10–12'], ['cb-pushdown', '3×10–12']] },
@@ -889,13 +889,13 @@ const PROGRAMS = [
       { l: '3주', t: '3주차 · 하체 (고반복·드롭)', ex: [['hs-legext', '4×20–25'], ['lf-legpress', '3×25–30'], ['fw-lunge', '2×20–30'], ['fw-squat', '2×20–25'], ['fw-rdl', '3×20–25'], ['mx-calf', '3×20–30']] }],
     desc: '플렉스 루이스(212 올림피아 5연패)의 코치 닐 힐의 방식. 3주를 한 사이클로 1주차 무겁게 → 2주차 중간 → 3주차 가볍게 실패·드롭세트까지 바꿔가며 해요.',
     note: '3주 × 3 = 9주 후 5–7일 휴식. 3주차는 드롭세트·레스트포즈로 20회를 훌쩍 넘기는 게 특징이에요. 원래는 부위별 분할이라 여기선 상·하체로 묶어 옮겼고, 3주차 종목은 공개된 예시, 1·2주차 반복 범위는 흔히 소개되는 값이에요.' },
-  { id: 'arnold', name: '아놀드 스플릿', who: '아놀드 슈워제네거 · 선수 루틴', lv: '중상급', per: '주 6일', days: [
+  { id: 'arnold', name: '아놀드 스플릿', who: '아놀드 슈워제네거 · 선수 루틴', lv: '상급', tier: 3, why: '주 6일 고볼륨 · 하루 2부위', per: '주 6일', days: [
       { l: '가등', t: '가슴 · 등', ex: [['fw-bench', '4×8–12'], ['fw-incline-bb', '4×8–12'], ['fw-db-fly', '4×10–12'], ['fw-pullup', '4×최대'], ['fw-bbrow', '4×8–12'], ['fw-landmine', '4×8–12']] },
       { l: '어팔', t: '어깨 · 팔', ex: [['fw-ohp', '4×8–12'], ['fw-lateral', '4×10–12'], ['fw-reardelt', '4×10–12'], ['fw-bbcurl', '4×8–12'], ['fw-dbcurl', '4×8–12'], ['fw-skull', '4×8–12'], ['cb-pushdown', '4×10–12']] },
       { l: '하체', t: '하체 · 복근', ex: [['fw-squat', '4×8–12'], ['fw-lunge', '4×10'], ['lf-lyingcurl', '4×10–12'], ['fw-rdl', '4×8–12'], ['mx-calf', '4×15'], ['cy-abcrunch', '4×15']] }],
     desc: '아놀드가 현역 때 쓴 분할 방식(가슴·등 / 어깨·팔 / 하체를 주 2바퀴). 길항근(가슴↔등)을 같은 날 묶는 게 특징.',
     note: '분할 방식은 아놀드의 것이지만, 종목 구성은 그 방식을 요즘 헬스장 기구로 옮긴 대표 예시예요. 볼륨이 커서 초보에겐 무리일 수 있어요.' },
-  { id: 'yates', name: '도리안 예이츠 HIT', who: '도리안 예이츠 · 선수 루틴', lv: '중상급', per: '주 4일', days: [
+  { id: 'yates', name: '도리안 예이츠 HIT', who: '도리안 예이츠 · 선수 루틴', lv: '상급', tier: 3, why: '실패 이후 강제 반복까지 — 경험자용', per: '주 4일', days: [
       { l: '가이', t: '가슴 · 이두', ex: [['hs-incline', '1×6–10'], ['fw-incline-db', '1×6–10'], ['tg-pecdeck', '1×8–10'], ['nt-preacher', '1×6–8'], ['fw-dbcurl', '1×6–8']] },
       { l: '하체', t: '하체', ex: [['hs-legext', '1×10–12'], ['lf-legpress', '1×8–10'], ['hs-hack', '1×8–10'], ['lf-lyingcurl', '1×8–10'], ['fw-rdl', '1×8–10'], ['mx-calf', '1×10–12']] },
       { l: '어삼', t: '어깨 · 삼두', ex: [['hs-shoulder', '1×6–8'], ['fw-lateral', '1×8–10'], ['fw-reardelt', '1×8–10'], ['cb-pushdown', '1×8–10'], ['fw-ohext', '1×8–10']] },
