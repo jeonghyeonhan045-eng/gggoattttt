@@ -613,3 +613,27 @@ input.ocrfill { border-color: var(--acc); background: var(--acc-soft); }
 .guide > summary { padding: 12px 2px; font-weight: 700; font-size: 14px; cursor: pointer; }
 .guide ul { margin: 0 0 12px; padding-left: 20px; font-size: 13.5px; line-height: 1.55; color: var(--ink2); }
 .guide li + li { margin-top: 6px; }
+/* tutorial spotlight: the lit box casts a huge shadow that dims everything else */
+#tut-spot { position: fixed; z-index: 60; pointer-events: none; border-radius: 14px; display: none; transition: top .25s, left .25s, width .25s, height .25s; }
+#tut-spot.on { display: block; box-shadow: 0 0 0 9999px rgba(0,0,0,.62), 0 0 0 3px var(--acc), 0 0 18px 4px color-mix(in srgb, var(--acc) 60%, transparent); animation: tutpulse 1.6s ease-in-out infinite; }
+#tut-spot.none { display: block; inset: 0; width: auto !important; height: auto !important; background: rgba(0,0,0,.62); border-radius: 0; }
+@keyframes tutpulse { 50% { box-shadow: 0 0 0 9999px rgba(0,0,0,.62), 0 0 0 5px var(--acc), 0 0 26px 8px color-mix(in srgb, var(--acc) 45%, transparent); } }
+.scrim.tutmode { background: transparent; }
+.sheet.tutmode { left: 10px; right: 10px; bottom: 10px; border-radius: 20px; max-height: 58vh; box-shadow: 0 10px 40px rgba(0,0,0,.35); transition: transform .25s, top .25s, bottom .25s; }
+.sheet.tutmode.top { top: 10px; bottom: auto; }
+.sheet.tutmode .grab { display: none; }
+.tut-dots { align-items: center; }
+.tut-n { margin-left: 6px; font-size: 11px; color: var(--ink3); font-family: var(--mono); }
+#tut-spot.tap { pointer-events: auto; cursor: pointer; }
+.tut-pressed { transform: scale(.95); transition: transform .15s; }
+.tut-table .r { display: grid; grid-template-columns: 40px 1fr 1fr 44px; }
+.tut-table button.ck { background: transparent; font-size: 14px; }
+.tut-table button.ck[data-act] { border-color: var(--acc); color: var(--acc); animation: tutblink 1.2s ease-in-out infinite; }
+@keyframes tutblink { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--acc) 30%, transparent); } }
+.tut-ok { margin: 8px 0; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); font-weight: 700; font-size: 13px; }
+.tut-ok.soft { background: var(--bg2); color: var(--ink2); font-weight: 500; }
+.tut-prog { display: flex; align-items: center; gap: 8px; }
+.tut-prog .bar { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.tut-prog .bar i { display: block; height: 100%; background: var(--acc); transition: width .25s; }
+.tut-prog .tut-n { margin: 0; }
+.sheet.tutmode { max-height: none; }
