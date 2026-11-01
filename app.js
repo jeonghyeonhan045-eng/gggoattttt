@@ -2640,7 +2640,9 @@ function viewBody() {
   }
   h += `<div class="sec-h"><h2>인바디 / 체중 기록</h2></div>` + profileHtml() + `<section class="card" style="margin-top:10px">
     <div class="photo-pick"><div class="pv" id="ib-pv">${state.ibPhoto ? `<img src="${state.ibPhoto}" alt="">` : '사진'}</div>
-      <div><label class="btn sm" for="ib-file">결과지 사진</label><input type="file" id="ib-file" accept="image/*" capture="environment" class="hidden" data-on="ib-file">
+      <div><div class="row" style="gap:6px;flex-wrap:wrap"><label class="btn sm" for="ib-file">📷 찍기</label><label class="btn sm" for="ib-file-album">🖼 앨범에서 고르기</label></div>
+        <input type="file" id="ib-file" accept="image/*" capture="environment" class="hidden" data-on="ib-file">
+        <input type="file" id="ib-file-album" accept="image/*" class="hidden" data-on="ib-file">
       <div class="note" style="margin-top:6px">결과지를 찍으면 숫자를 자동으로 읽어서 아래 칸에 채워요. 결과지 전체가 반듯하게, 그림자 없이 나오게 찍어주세요.</div></div></div>
     <div id="ib-ocr" class="ocrstat"></div>
     <div class="grid2"><div class="field"><label>측정일</label><input type="date" id="ib-date" value="${state.date}"></div>
@@ -2723,7 +2725,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.6 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3138,7 +3140,7 @@ const ON = {
     const data = await compressImage(f, 900, .72);
     if (!data) { toast('사진을 읽지 못했어요'); return; }
     state.ibPhoto = data; const pv = $('#ib-pv'); if (pv) pv.innerHTML = `<img src="${data}" alt="">`;
-    ocrInbody(f);
+    ocrInbody(f); el.value = ''; // the same photo can be picked again
   },
 };
 
