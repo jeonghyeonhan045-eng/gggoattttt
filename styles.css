@@ -669,3 +669,7 @@ input.ocrfill { border-color: var(--acc); background: var(--acc-soft); }
 .gripchips button svg { width: 36px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .gripchips button svg rect { fill: currentColor; fill-opacity: .25; }
 .gripchips button.on { border-color: var(--acc); color: var(--acc); background: var(--acc-soft); font-weight: 800; }
+input.ocrunsure { border-color: var(--bad, #d43a3a) !important; background: color-mix(in srgb, #d43a3a 10%, var(--card)) !important; }
+.ocrstat.warn { padding: 9px 11px; background: color-mix(in srgb, #d43a3a 8%, var(--bg2)); }
+.ocrstat .warnc { color: #d43a3a; }
+.cfm-msg { white-space: pre-line; }

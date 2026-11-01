@@ -2209,53 +2209,101 @@ const IB_EXTRA = [
 const IB_SEG = [['segRA', '오른팔'], ['segLA', '왼팔'], ['segTR', '몸통'], ['segRL', '오른다리'], ['segLL', '왼다리']];
 
 /* read the numbers off an InBody result-sheet photo (Korean or English), on the phone itself */
+/* InBody result-sheet reader.
+   OCR on phone photos garbles labels and drops decimal points, so every field collects several candidates
+   and the sheet's own arithmetic picks the right ones:
+     weight = body water + protein + minerals + body fat,  weight = fat-free mass + body fat,
+     PBF = body fat / weight,  skeletal muscle ≈ 50–62% of fat-free mass.
+   Fields that could not be cross-checked come back in r.unsure so the screen can ask the user to look. */
 function parseInbody(text) {
   const T = text.replace(/[|]/g, ' ').replace(/(\d)\s*[.·,]\s*(\d)/g, '$1.$2');
   const lines = T.split(/\n+/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const nums = l => (l.replace(/\([^)]*\)/g, ' ').match(/\d{1,4}(?:\.\d{1,3})?/g) || []).map(Number);
-  const find = (re, lo, hi, avoid) => {
+  // numbers only — a long run of digits is chart noise, not a value
+  const numsIn = l => (l.replace(/\([^)]*\)?/g, ' ').match(/(?<![\d.])\d{1,4}(?:\.\d{1,3})?(?![\d])/g) || []).map(x => ({ v: +x, dec: x.includes('.') }));
+  // a number whose decimal point was lost (475 → 4.75, 824 → 82.4) is rescued by the field's range
+  const fit = (n, lo, hi) => { for (const d of [1, 10, 100]) { const v = n.v / d; if (v >= lo && v <= hi && (d === 1 || !n.dec)) return Math.round(v * 100) / 100; } return null; };
+  const cands = (re, lo, hi, avoid, first) => {
     const out = [];
     for (const l of lines) {
       if (!re.test(l) || (avoid && avoid.test(l))) continue;
       const after = l.split(re).slice(1).join(' ');
-      for (const n of nums(after)) if (n >= lo && n <= hi) { out.push(n); break; }
+      for (const n of numsIn(after)) { const v = fit(n, lo, hi); if (v != null) { out.push({ v, dec: n.dec || v !== n.v }); if (first) break; } }
     }
-    if (!out.length) return null;
-    const c = {}; for (const x of out) c[x] = (c[x] || 0) + 1;
-    return +Object.entries(c).sort((p, q) => q[1] - p[1])[0][0];
-  };
-  let W = find(/체\s*중(?!\s*조\s*절)|weight(?! control)/i, 25, 250, /적\s*정|조\s*절|target|control|표\s*준/i);
-  let Mu = find(/골\s*격\s*근\s*량|skeletal muscle mass|\bSMM\b/i, 8, 80);
-  let Fk = find(/체\s*지\s*방\s*량|body fat mass/i, 1, 120);
-  let Fp = find(/체\s*지\s*방\s*률|percent body fat|\bPBF\b/i, 2, 70);
-  // when a label is misread, use the fixed row order under each section header
-  const decOf = l => { const m = l.replace(/\([^)]*\)/g, ' ').match(/\d{1,3}\.\d{1,2}/g); return m ? +m[0] : null; };
-  const section = (head, n) => {
-    const i = lines.findIndex(l => head.test(l)); if (i < 0) return [];
-    const out = [];
-    for (const l of lines.slice(i + 1, i + 12)) { const v = decOf(l); if (v != null) out.push(v); if (out.length >= n) break; }
     return out;
   };
-  const mf = section(/골\s*격\s*근|지\s*방\s*분\s*석|muscle.?fat/i, 3);           // weight, skeletal muscle, fat mass
-  const bc = section(/체\s*성\s*분\s*분\s*석|body composition analysis/i, 5);   // water, protein, minerals, fat mass, weight
-  const okW = v => v != null && v >= 25 && v <= 250;
-  if (!okW(W) && mf.length === 3 && okW(mf[0])) W = mf[0];
-  if (!okW(W) && bc.length === 5 && okW(bc[4])) W = bc[4];
-  if (!okW(W) && bc.length >= 4 && okW(bc[0] + bc[1] + bc[2] + bc[3])) W = Math.round((bc[0] + bc[1] + bc[2] + bc[3]) * 10) / 10;
-  if (!okW(W)) W = null;
-  if (Mu == null && mf.length === 3 && W && Math.abs(mf[0] - W) < 0.6) Mu = mf[1];
-  if (Fk == null && mf.length === 3 && W && Math.abs(mf[0] - W) < 0.6) Fk = mf[2];
-  if (Fk == null && bc.length >= 4) Fk = bc[3];
-  if (Mu != null && W && (Mu < W * 0.25 || Mu > W * 0.65)) Mu = null;
-  if (Fk != null && W && Fk >= W) Fk = null;
-  if (Fk && W) { const calc = Fk / W * 100; if (Fp == null || Math.abs(Fp - calc) > 2.5) Fp = Math.round(calc * 10) / 10; }
-  const r = { weight: W, muscle: Mu, fatKg: Fk, fatPct: Fp };
+  const vals = list => [...new Set(list.map(x => x.v))];
+  const best = list => { if (!list.length) return null; const c = {}; for (const x of list) c[x.v] = (c[x.v] || 0) + (x.dec ? 2 : 1); return +Object.entries(c).sort((p, q) => q[1] - p[1])[0][0]; };
+  const near = (a, b, tol) => a != null && b != null && Math.abs(a - b) <= tol;
+
+  const Wc = cands(/체\s*중(?!\s*조\s*절)|weight(?! control)/i, 30, 250, /적\s*정|조\s*절|target|control|표\s*준|소\s*비/i);
+  const waterC = cands(/체\s*수\s*분|total body water/i, 15, 90, /세\s*포|ECW|비\b/i, true);
+  const protC = cands(/단\s*백\s*질|protein/i, 3, 30, null, true);
+  const minC = cands(/무\s*기\s*질|mineral/i, 1, 8, null, true);
+  const fatC = [...cands(/체\s*지\s*방\s*량|body fat mass/i, 1, 120), ...cands(/체\s*지\s*방(?!\s*[률율량])\s*\(?\s*k?g?/i, 1, 120, /분\s*석|레\s*벨|률|율/i)];
+  const ffmC = cands(/제\s*지\s*방\s*량|fat free mass|lean body mass/i, 15, 150);
+  const muC = cands(/골\s*격\s*근\s*량|skeletal muscle mass|\bSMM\b/i, 8, 80);
+  const pctC = cands(/체\s*지\s*방\s*률|percent body fat|\bPBF\b/i, 2, 65);
+  // body-composition-history block at the bottom: latest weight / SMM / PBF are the last decimals on each row
+  const hi = lines.findIndex(l => /신\s*체\s*변\s*화|composition history/i.test(l));
+  const hist = hi < 0 ? [] : lines.slice(hi + 1, hi + 14).flatMap(l => numsIn(l).filter(n => n.dec).map(n => n.v));
+  const unsure = [];
+
+  const water = best(waterC), prot = best(protC), mineral = best(minC);
+  let W = null, Fk = null;
+  const sum4 = f => water != null && prot != null && mineral != null ? water + prot + mineral + f : null;
+  const Ws = vals(Wc), Fs = vals(fatC).filter(f => f < 100), FFs = vals(ffmC);
+  // 1) a weight and a fat value that satisfy the composition identity
+  let bestErr = 9;
+  for (const w of Ws) for (const f of Fs) {
+    if (f >= w) continue;
+    const errs = [sum4(f) != null ? Math.abs(w - sum4(f)) : null, ...FFs.map(ff => Math.abs(w - (ff + f)))].filter(x => x != null);
+    if (!errs.length) continue;
+    const e = Math.min(...errs);
+    if (e < bestErr && e <= 1.0) { bestErr = e; W = w; Fk = f; }
+  }
+  // 2) weight from the identity itself when no printed weight agrees
+  if (W == null) {
+    // try fat values that the fat-free mass also agrees with first
+    Fs.sort((a, b) => (FFs.some(x => sum4(b) != null && near(x + b, sum4(b), 1)) ? 1 : 0) - (FFs.some(x => sum4(a) != null && near(x + a, sum4(a), 1)) ? 1 : 0));
+    for (const f of Fs) {
+      const s4 = sum4(f), ff = FFs.find(x => s4 != null && near(x + f, s4, 1));
+      if (s4 != null && s4 > 30 && (ff != null || !Ws.length)) { W = Math.round(s4 * 10) / 10; Fk = f; break; }
+      if (s4 == null && FFs.length) { const x = FFs[0] + f; if (x > 30 && x < 250) { W = Math.round(x * 10) / 10; Fk = f; unsure.push('weight'); break; } }
+    }
+  }
+  if (W == null) { W = best(Wc); if (W != null) unsure.push('weight'); }
+  if (Fk == null && W != null) {
+    // fat from the identity, or from a printed % body fat
+    if (water != null && prot != null && mineral != null) { const f = W - water - prot - mineral; if (f > 1 && f < W * 0.7) { Fk = Math.round(f * 10) / 10; } }
+    if (Fk == null && FFs.length) { const f = W - FFs[0]; if (f > 1 && f < W * 0.7) Fk = Math.round(f * 10) / 10; }
+    if (Fk == null) { const f = best(fatC.filter(x => x.v < W * 0.7)); if (f != null) { Fk = f; unsure.push('fatKg'); } }
+  }
+  // % body fat: printed value if it agrees with fat/weight, otherwise the calculation
+  let Fp = null;
+  if (Fk != null && W) {
+    const calc = Fk / W * 100, printed = [...vals(pctC), ...hist].find(p => near(p, calc, 0.6));
+    Fp = printed != null ? printed : Math.round(calc * 10) / 10;
+  } else { Fp = best(pctC); if (Fp != null) unsure.push('fatPct'); }
+  // skeletal muscle: must sit inside 45–65% of fat-free mass
+  let Mu = null;
+  const ffm = W != null && Fk != null ? W - Fk : null;
+  const okMu = m => ffm ? m >= ffm * 0.45 && m <= ffm * 0.66 : W ? m >= W * 0.25 && m <= W * 0.62 : true;
+  const muAll = [...muC.filter(x => okMu(x.v)), ...hist.filter(okMu).map(v => ({ v, dec: true }))];
+  Mu = best(muAll);
+  if (Mu == null) { const m = best(muC); if (m != null) { Mu = m; unsure.push('muscle'); } }
+  if (Mu != null && !muC.some(x => x.v === Mu) && !ffm) unsure.push('muscle');
+
+  const r = { weight: W, muscle: Mu, fatKg: Fk, fatPct: Fp, unsure };
+  if (water != null) r.water = water; if (prot != null) r.protein = prot; if (mineral != null) r.mineral = mineral;
   const X = {
-    water: [/체\s*수\s*분|total body water/i, /세\s*포|ECW|비\b/i], protein: [/단\s*백\s*질|protein/i], mineral: [/무\s*기\s*질|mineral/i],
     bmr: [/기\s*초\s*대\s*사\s*량|basal metabolic/i], vfl: [/내\s*장\s*지\s*방\s*레\s*벨|visceral fat level/i], whr: [/복\s*부\s*지\s*방\s*률|허\s*리\s*엉\s*덩\s*이|waist.?hip/i],
     ecw: [/세\s*포\s*외\s*수\s*분\s*비|ECW\s*\/?\s*TBW|ECW ratio/i], pa: [/위\s*상\s*각|phase angle/i], score: [/인\s*바\s*디\s*점\s*수|inbody score/i],
   };
-  for (const [k, , , lo, hi] of IB_EXTRA) { const v = find(X[k][0], lo, hi, X[k][1]); if (v != null) r[k] = v; }
+  for (const [k, , , lo, hiV] of IB_EXTRA) { if (!X[k] || r[k] != null) continue; const v = best(cands(X[k][0], lo, hiV, X[k][1], true)); if (v != null) r[k] = v; }
+  // inbody score sits on the line below its label on most sheets
+  if (r.score == null) { const i = lines.findIndex(l => /인\s*바\s*디\s*점\s*수|inbody score/i.test(l)); if (i >= 0) for (const l of lines.slice(i, i + 3)) { const m = l.match(/\b(\d{2,3})\s*\/?\s*100/); if (m && +m[1] <= 100) { r.score = +m[1]; break; } } }
+  // basal metabolic rate cross-check (Katch-McArdle-like: InBody uses 370 + 21.6 × FFM)
+  if (r.bmr != null && ffm && Math.abs(r.bmr - (370 + 21.6 * ffm)) > 120) delete r.bmr;
   const dm = T.match(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/);
   if (dm) r.date = `${dm[1]}-${String(dm[2]).padStart(2, '0')}-${String(dm[3]).padStart(2, '0')}`;
   return r;
@@ -2265,6 +2313,18 @@ function loadTess() {
   if (window.Tesseract) return Promise.resolve();
   if (tessLoading) return tessLoading;
   return (tessLoading = new Promise((ok, bad) => { const s = document.createElement('script'); s.src = 'tess/tesseract.min.js'; s.onload = ok; s.onerror = () => { tessLoading = null; bad(new Error('load')); }; document.head.appendChild(s); }));
+}
+// black-and-white copy (Otsu threshold) for a second reading of hard photos
+function binarize(src) {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const g = c.getContext('2d'); g.drawImage(src, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), p = d.data, hist = new Array(256).fill(0);
+  for (let i = 0; i < p.length; i += 4) hist[p[i]]++;
+  const n = c.width * c.height; let sum = 0; for (let t = 0; t < 256; t++) sum += t * hist[t];
+  let sB = 0, wB = 0, best = 0, th = 128;
+  for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = n - wB; if (!wF) break; sB += t * hist[t]; const mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) ** 2; if (v > best) { best = v; th = t; } }
+  for (let i = 0; i < p.length; i += 4) { const v = p[i] > th ? 255 : 0; p[i] = p[i + 1] = p[i + 2] = v; }
+  g.putImageData(d, 0, 0); return c;
 }
 // enlarge + grayscale + stretch contrast: Korean OCR on phone photos is much better after this
 function ocrCanvas(img) {
@@ -2294,17 +2354,36 @@ async function ocrInbody(file) {
       logger: m => { if (m.status === 'recognizing text') say(`사진에서 숫자를 읽는 중… ${Math.round(m.progress * 100)}%`, 'busy'); },
     });
     const { data } = await worker.recognize(canvas);
-    window.__ocrText = data.text; // kept for troubleshooting a misread sheet
+    // always read twice (colour-stretched + black-and-white) and compare; a value is trusted only if
+    // both readings agree or the sheet's own arithmetic (weight = water + protein + minerals + fat) confirms it
+    say('검증을 위해 한 번 더 읽는 중… <span class="muted">흑백으로 다시 읽어 두 결과를 비교해요</span>', 'busy');
+    const { data: d2 } = await worker.recognize(binarize(canvas));
+    const text = data.text + '\n' + d2.text;
+    const r1 = parseInbody(data.text), r2 = parseInbody(d2.text), r = parseInbody(text);
+    const KEYS = ['weight', 'muscle', 'fatKg', 'fatPct'];
+    const mathOk = r.weight != null && r.fatKg != null && r.water != null && r.protein != null && r.mineral != null && Math.abs(r.weight - (r.water + r.protein + r.mineral + r.fatKg)) <= 1;
+    r.verify = {};
+    for (const k of KEYS) {
+      if (r[k] == null) continue;
+      const agree = r1[k] != null && r2[k] != null && Math.abs(r1[k] - r2[k]) <= 0.15 && Math.abs(r1[k] - r[k]) <= 0.15;
+      const byMath = mathOk && !r.unsure.includes(k) && (k !== 'muscle' || agree || [r1.muscle, r2.muscle].includes(r.muscle));
+      r.verify[k] = agree && byMath ? 'both' : agree ? 'twice' : byMath ? 'math' : 'none';
+      if (r.verify[k] === 'none' && !r.unsure.includes(k)) r.unsure.push(k);
+    }
+    window.__ocrText = text; // kept for troubleshooting a misread sheet
     await worker.terminate();
-    const r = parseInbody(data.text);
-    const fill = (id, v) => { const el = $(id); if (el && v != null) { el.value = v; el.classList.add('ocrfill'); } };
-    fill('#ib-w', r.weight); fill('#ib-m', r.muscle); fill('#ib-fk', r.fatKg); fill('#ib-fp', r.fatPct);
+    const fill = (id, v, unsure) => { const el = $(id); if (el && v != null) { el.value = v; el.classList.add('ocrfill'); el.classList.toggle('ocrunsure', !!unsure); } };
+    fill('#ib-w', r.weight, r.unsure.includes('weight')); fill('#ib-m', r.muscle, r.unsure.includes('muscle')); fill('#ib-fk', r.fatKg, r.unsure.includes('fatKg')); fill('#ib-fp', r.fatPct, r.unsure.includes('fatPct'));
     if (r.date) fill('#ib-date', r.date);
     let extra = 0; for (const [k] of IB_EXTRA) if (r[k] != null) { fill('#ib-x-' + k, r[k]); extra++; }
     if (extra) { const dt = $('#ib-more'); if (dt) dt.open = true; }
     const got = ['weight', 'muscle', 'fatKg', 'fatPct'].filter(k => r[k] != null).length + extra;
     if (!got) say('숫자를 찾지 못했어요. 결과지 전체가 밝고 반듯하게 나오게 다시 찍거나, 직접 입력해 주세요.', 'bad');
-    else say(`<b>${got}개 항목을 읽었어요.</b> 주황색 칸이 사진에서 읽은 값이에요 — 결과지와 맞는지 확인하고 틀린 칸은 고친 뒤 저장하세요.${r.muscle == null || r.weight == null ? ' 못 읽은 칸은 직접 넣어주세요.' : ''}`, 'ok');
+    else {
+      const NAME = { weight: '체중', muscle: '골격근량', fatKg: '체지방량', fatPct: '체지방률' }, V = r.verify || {};
+      const how = Object.entries(V).filter(([, v]) => v !== 'none').map(([k, v]) => `${NAME[k]} ${v === 'both' ? '✓✓' : '✓'}`).join(' · ');
+      say(`<b>${got}개 항목을 읽었어요.</b> ${how ? `검증: ${how} <span class="muted">(✓✓ = 두 번 읽어 같고 합계도 맞음, ✓ = 둘 중 하나로 확인)</span>. ` : ''}주황색 칸이 사진에서 읽은 값이에요.${r.unsure.length ? ` <b class="warnc">빨간 칸(${r.unsure.map(k => NAME[k]).join(', ')})은 다른 숫자와 맞춰보지 못했으니 결과지와 꼭 비교하세요.</b>` : ' 저장 전에 한 번만 결과지와 비교해 주세요.'}${r.muscle == null || r.weight == null || r.fatKg == null ? ' 못 읽은 칸은 직접 넣어주세요.' : ''}`, r.unsure.length ? 'warn' : 'ok');
+    }
   } catch (e) {
     say('글자 인식을 불러오지 못했어요(인터넷 연결 확인). 숫자는 직접 입력해 주세요.', 'bad');
   }
@@ -2330,6 +2409,12 @@ function inbodyAnalysisHtml(list) {
   const pf = DB.settings.profile || {}, items = [];
   const age = pf.birth ? new Date().getFullYear() - pf.birth : null, h = pf.height ? pf.height / 100 : null;
   const fatPct = last.fatPct != null ? last.fatPct : last.fatKg != null && last.weight ? last.fatKg / last.weight * 100 : null;
+  // 0) numbers that cannot all be true (usually a misread photo) — say so before analysing them
+  const off = [];
+  if (fatPct != null && (fatPct < 3 || fatPct > 60)) off.push(`체지방률 ${r1(fatPct)}%는 사람에게서 거의 나오지 않는 값이에요`);
+  if (last.fatKg != null && last.weight && last.fatPct != null && Math.abs(last.fatPct - last.fatKg / last.weight * 100) > 1.5) off.push(`체지방률(${last.fatPct}%)과 체지방량÷체중(${r1(last.fatKg / last.weight * 100)}%)이 달라요`);
+  if (last.muscle != null && last.weight && last.fatKg != null && (last.muscle < (last.weight - last.fatKg) * 0.45 || last.muscle > (last.weight - last.fatKg) * 0.66)) off.push('골격근량이 제지방량과 맞지 않아요');
+  if (off.length) items.push(['bad', '이 측정값은 서로 맞지 않아요', `${off.join('. ')}. 사진 인식이 틀렸을 가능성이 커요 — 아래 기록에서 이 날짜를 지우고 다시 입력해 주세요. 아래 분석도 틀릴 수 있어요.`, '']);
   // 1) body-fat % band
   if (fatPct != null && pf.sex && age) {
     const b = bfBand(fatPct, pf.sex, age);
@@ -2395,7 +2480,7 @@ function inbodyAnalysisHtml(list) {
   if (!pf.sex || !age) need.push('성별·출생연도');
   if (!h) need.push('키');
   return `<div class="sec-h"><h2>인바디 분석</h2><span class="aside">논문 기준 참고</span></div><section class="card">
-    ${items.length ? items.map(([lv, t, d, src]) => `<div class="rec"><div class="ic ${lv}" aria-hidden="true">${ICON[lv]}</div><div><div class="t">${esc(t)}</div><div class="d">${esc(d)}</div><div class="src">근거: ${esc(src)}</div></div></div>`).join('') : '<div class="small muted">체중·체지방량을 넣으면 분석이 시작돼요.</div>'}
+    ${items.length ? items.map(([lv, t, d, src]) => `<div class="rec"><div class="ic ${lv}" aria-hidden="true">${ICON[lv]}</div><div><div class="t">${esc(t)}</div><div class="d">${esc(d)}</div>${src ? `<div class="src">근거: ${esc(src)}</div>` : ''}</div></div>`).join('') : '<div class="small muted">체중·체지방량을 넣으면 분석이 시작돼요.</div>'}
     ${need.length ? `<div class="note">${need.join(', ')}을 넣으면 체지방 범위·FFMI도 계산해요 → 아래 "내 정보"</div>` : ''}
     <div class="note">인바디(BIA)는 몸의 수분에 민감해서, 아침 공복·화장실 다녀온 뒤·운동 전처럼 같은 조건에서 재야 비교할 수 있어요 (Kyle 2004).</div></section>`;
 }
@@ -2638,7 +2723,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2957,6 +3042,16 @@ const ACT = {
     const w = num('#ib-w'), m = num('#ib-m'), fk = num('#ib-fk'); let fp = num('#ib-fp');
     if (fp == null && fk != null && w) fp = r1(fk / w * 100);
     if (w == null && m == null && fk == null && fp == null && !state.ibPhoto) { toast('숫자나 사진 중 하나는 넣어주세요'); return; }
+    // last check before saving (typed or read from a photo): the sheet's numbers must add up
+    const bad = [], wa = num('#ib-x-water'), pr = num('#ib-x-protein'), mi = num('#ib-x-mineral');
+    if (w && fk != null && num('#ib-fp') != null && Math.abs(num('#ib-fp') - fk / w * 100) > 1) bad.push(`체지방률 ${num('#ib-fp')}%가 체지방량÷체중(${r1(fk / w * 100)}%)과 달라요`);
+    if (w && fk != null && wa != null && pr != null && mi != null && Math.abs(w - (wa + pr + mi + fk)) > 1.5) bad.push(`체중 ${w}kg이 체수분+단백질+무기질+체지방 합(${r1(wa + pr + mi + fk)}kg)과 달라요`);
+    if (w && fk != null && fk >= w * 0.7) bad.push(`체지방량 ${fk}kg이 체중에 비해 너무 커요`);
+    if (w && fk != null && m != null && (m < (w - fk) * 0.45 || m > (w - fk) * 0.66)) bad.push(`골격근량 ${m}kg이 제지방량(${r1(w - fk)}kg)의 보통 범위(45–66%)를 벗어나요`);
+    const still = $$('#ib-w.ocrunsure, #ib-m.ocrunsure, #ib-fk.ocrunsure, #ib-fp.ocrunsure').map(el => ({ 'ib-w': '체중', 'ib-m': '골격근량', 'ib-fk': '체지방량', 'ib-fp': '체지방률' })[el.id]);
+    if (still.length) bad.push(`${still.join(', ')}은(는) 사진에서 검증하지 못한 값이에요`);
+    if (bad.length && !state.ibForce) { askConfirm(`숫자를 한 번 더 확인해 주세요:\n• ${bad.join('\n• ')}\n\n결과지와 같다면 그대로 저장하세요.`, '그대로 저장', () => { state.ibForce = true; ACT['ib-save'](); }); return; }
+    state.ibForce = false;
     const id = 'ib' + uid();
     const e = { id, date: $('#ib-date').value || today(), weight: w, muscle: m, fatKg: fk, fatPct: fp, hasPhoto: !!state.ibPhoto };
     for (const [k] of IB_EXTRA.concat(IB_SEG)) { const v = num('#ib-x-' + k); if (v != null) e[k] = v; }
@@ -3057,6 +3152,8 @@ document.addEventListener('pointerover', ev => { if (ev.pointerType === 'mouse')
 document.addEventListener('pointerout', ev => { if (ev.pointerType === 'mouse' && ev.target.closest('[data-tip]')) hideTip(); });
 for (const type of ['input', 'change']) {
   document.addEventListener(type, ev => {
+    // a value you typed over yourself no longer counts as an unverified photo reading
+    if (type === 'input' && ev.target.classList && ev.target.classList.contains('ocrunsure')) ev.target.classList.remove('ocrunsure');
     const el = ev.target.closest('[data-on]');
     if (el && ON[el.dataset.on]) ON[el.dataset.on](el, ev);
   });
