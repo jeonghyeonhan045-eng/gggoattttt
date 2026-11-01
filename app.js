@@ -626,6 +626,77 @@ function openRoutineSheet() {
   }).join('') : '<div class="empty">아직 기록된 운동이 없어요.</div>', { kind: 'routine' });
 }
 
+/* Korean particle by final consonant: jo('벤치프레스','이','가') → '벤치프레스가' (English/digits: treated by sound-less rule → second form) */
+function jo(w, a, b) { const c = w.charCodeAt(w.length - 1); return w + (c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? a : b); }
+/* ---------- finishing a workout: summary, body map, feedback ---------- */
+function sessionReport(k) {
+  const d = dayRO(k), sets = d.sets || [], str = sets.filter(s => !isCardioSet(s));
+  const E = bodyEnergy(), ex = dayExercise(k, E.bw);
+  const ts = sets.map(s => s.t).filter(Boolean).sort((a, b) => a - b);
+  const mins = ts.length > 1 ? Math.round((ts[ts.length - 1] - ts[0]) / 60000) + 2 : null;
+  const vol = str.reduce((a, s) => a + setKg(s) * (+s.r || 0), 0);
+  const reg = {};
+  for (const s of str) { const e = eqById(s.eq) || s; for (const [r, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m))) reg[r] = (reg[r] || 0) + v; }
+  const flags = prFlags(), prs = str.filter(s => flags.has(s.id));
+  // each exercise vs. its previous session (best estimated 1RM)
+  const byEq = {}; for (const s of str) (byEq[s.eq] = byEq[s.eq] || []).push(s);
+  const cmp = Object.entries(byEq).map(([eq, list]) => {
+    const prev = prevSessionOfEq(eq, k), best = Math.max(...list.map(setE1));
+    const pb = prev ? Math.max(...prev.sets.map(setE1)) : null;
+    const name = (eqById(eq) || list[0]).name;
+    if (!pb || !best) return { name, st: 'new' };
+    const pct = (best - pb) / pb;
+    return { name, st: pct >= 0.01 ? 'up' : pct <= -0.03 ? 'down' : 'same', pct };
+  });
+  const groups = STRENGTH_MUSCLES.filter(m => str.some(s => s.m === m));
+  const [wa, wb] = weekRange(0, k), wk = muscleVolume(setsBetween(wa, wb));
+  const wkCar = setsBetween(wa, wb).filter(isCardioSet).reduce((a, s) => a + (+s.mins || 0), 0);
+  return { sets, str, mins, vol, ex, reg, prs, cmp, groups, wk, wkCar, car: sets.filter(isCardioSet) };
+}
+function finishHtml(k) {
+  const R = sessionReport(k), d = dayRO(k), c = d.check || {};
+  const max = Math.max(0, ...Object.values(R.reg));
+  const ranked = Object.entries(R.reg).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1]);
+  const fb = [];
+  if (R.prs.length) fb.push(['good', `PR ${R.prs.length}개`, `${[...new Set(R.prs.map(s => (eqById(s.eq) || s).name))].slice(0, 3).join(', ')}에서 최고 기록을 넘었어요.`]);
+  const up = R.cmp.filter(x => x.st === 'up'), dn = R.cmp.filter(x => x.st === 'down'), same = R.cmp.filter(x => x.st === 'same'), nw = R.cmp.filter(x => x.st === 'new');
+  if (up.length + dn.length + same.length) {
+    const lv = dn.length > up.length ? 'warn' : up.length ? 'good' : 'info';
+    fb.push([lv, `지난번보다 ↑${up.length} · =${same.length} · ↓${dn.length}`, dn.length > up.length
+      ? `${jo(dn.slice(0, 2).map(x => x.name).join(', '), '이', '가')} 지난번보다 낮았어요(추정 1RM 기준). 하루 이틀은 흔한 일이에요. 2주 넘게 이어지면 잠·식사·볼륨을 점검하세요.`
+      : up.length ? `${jo(up.slice(0, 2).map(x => x.name).join(', '), '이', '가')} 지난번보다 올랐어요. 이렇게 조금씩 오르는 게 근육이 늘고 있다는 가장 확실한 신호예요.`
+      : '지난번과 비슷하게 했어요. 같은 무게에서 횟수가 범위 위쪽까지 차면 다음엔 무게를 올려보세요.']);
+  }
+  if (nw.length) fb.push(['info', `처음 한 종목 ${nw.length}개`, `${nw.slice(0, 3).map(x => x.name).join(', ')} — 오늘 기록이 다음번 비교 기준이 돼요.`]);
+  if (R.groups.length) {
+    // this week so far (last 7 days) for the groups trained today
+    const W = R.groups.map(m => { const v = R.wk.vol[m], [lo, hi] = volRange(m); return { m, v, lo, hi, st: v < lo ? 'low' : v > hi ? 'high' : 'ok' }; });
+    const low = W.filter(x => x.st === 'low'), high = W.filter(x => x.st === 'high');
+    fb.push([low.length ? 'info' : 'good', `최근 7일 누적 · ${W.map(x => `${mName(x.m)} ${r1(x.v)}`).join(' · ')}세트`,
+      low.length ? `${low.map(x => `${jo(mName(x.m), '은', '는')} ${r1(x.lo - x.v)}세트`).join(', ')} 더 하면 효과적인 범위(근육당 주 ${low[0].lo}세트 이상)에 들어가요. 이번 주 남은 운동에서 나눠 채우면 돼요.`
+        : high.length ? `${high.map(x => mName(x.m)).join(', ')} 볼륨이 높은 편이에요. 효과는 더 있지만 회복이 따라오는지 보세요.` : '오늘 한 부위들은 이번 주 효과적인 범위 안이에요.', 'Schoenfeld 2017 · Pelland 2024']);
+  }
+  if (R.mins && R.mins > 100 && R.str.length) fb.push(['info', `운동 시간 ${R.mins}분`, '세트 사이 휴식이 길었거나 종목이 많았어요. 시간이 부족하면 보조 종목을 줄이고 메인 종목에 집중하세요.']);
+  const gk = goalKey();
+  if (goalBase(gk) === 'cut' && R.str.length) fb.push(['info', `목표: ${GOALS[gk].l}`, '감량 중엔 무게를 지키는 게 근육 유지의 핵심이에요. 오늘 무게가 지난번만큼 나왔다면 잘 하고 있는 거예요.']);
+  if ((gk === 'health' || goalBase(gk) === 'cut') && !R.car.length) fb.push(['info', '유산소 없음', '목표에 맞게 걷기·사이클을 20–30분 더하면 주 150분 권장량을 채우기 쉬워요.']);
+  const carMin = R.car.reduce((a, s) => a + (+s.mins || 0), 0);
+  if (carMin) { const wkCar = R.wkCar; fb.push([wkCar >= 150 ? 'good' : 'info', `유산소 ${trimNum(carMin)}분 · 최근 7일 ${trimNum(wkCar)}분`, wkCar >= 150 ? '건강 권장량(주 150–300분)을 채웠어요.' : `건강 권장량은 주 150–300분이에요. ${trimNum(150 - wkCar)}분 남았어요.`, 'WHO 2020']); }
+  const tiles = R.str.length ? [[R.mins ? `${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [fmtInt(R.ex.total), 'kcal 소모']]
+    : [[`${trimNum(carMin)}분`, '유산소'], [`${R.car.length}`, '종목'], [fmtInt(R.ex.carK), 'kcal 소모'], [fmtInt(R.ex.total), '총 소모']];
+  return `<div class="tiles fin-tiles">${tiles.map(([v, l]) => `<div class="tile"><div class="k">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
+    ${ranked.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">오늘 쓴 부위</h2><span class="aside">진할수록 많이</span></div>
+      <div class="bodymaps fin-maps">${bodySvg('front', R.reg, max, '앞')}${bodySvg('back', R.reg, max, '뒤')}</div>
+      <div class="fin-rank">${ranked.slice(0, 6).map(([r, v], i) => `<span><b>${i + 1}</b> ${REGIONS[r]} <i>${r1(v)}</i></span>`).join('')}</div>` : ''}
+    ${fb.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">피드백</h2></div>
+      ${fb.map(([lv, t, dd, src]) => `<div class="mixtip"><b><span class="status ${lv}">${ICON[lv]}</span> ${esc(t)}</b><div class="d">${esc(dd)}</div>${src ? `<div class="src">근거: ${esc(src)}</div>` : ''}</div>`).join('')}` : ''}
+    <div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">오늘 컨디션</h2><span class="aside">디로딩 판단에 쓰여요 · 선택</span></div>
+    <div class="scale">${[1, 2, 3, 4, 5].map(n => `<button class="${c.cond === n ? 'on' : ''}" data-act="fin-cond" data-v="${n}">${n}</button>`).join('')}</div>
+    <div class="note" style="margin-top:4px">1 = 매우 힘듦 · 5 = 아주 좋음</div>
+    ${k === today() ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">다음 운동</h2></div>${recCardHtml(k)}` : ''}
+    <div class="grid2" style="margin-top:14px"><button class="btn" data-act="day-resume">이어서 하기</button><button class="btn primary" data-act="sheet-close">완료</button></div>`;
+}
+function openFinish(k) { state.sheet = { kind: 'finish', k }; openSheet(k === today() ? '오늘 운동 마무리' : dateLabel(k), '수고했어요 💪', finishHtml(k), state.sheet); }
 function viewWorkout() {
   const k = state.date, d = dayRO(k), S = DB.settings;
   const c = d.check || {};
@@ -645,12 +716,16 @@ function viewWorkout() {
 
   // 1) today's workout + the main action
   h += `<div class="sec-h" style="${firstTime || installHint() ? '' : 'margin-top:6px'}"><h2>${k === today() ? '오늘의 운동' : esc(dateLabel(k)) + ' 운동'}</h2><span class="aside">${sets.length ? `${sets.filter(s => !isCardioSet(s)).length}세트` : ''}</span></div>
+  ${sets.length && d.fin ? `<section class="card fincard"><div class="row between" style="gap:10px"><div><b>✓ ${k === today() ? '오늘' : ''} 운동 완료</b><div class="small muted">${(() => { const R = sessionReport(k); return [R.mins ? `${R.mins}분` : '', `${R.str.length}세트`, R.car.length ? `유산소 ${trimNum(R.car.reduce((a, s) => a + (+s.mins || 0), 0))}분` : ''].filter(Boolean).join(' · '); })()}</div></div>
+      <button class="btn sm primary" data-act="fin-open">요약·피드백</button></div>
+      <button class="linkbtn" style="margin-top:6px" data-act="day-resume">↺ 이어서 하기 (마무리 취소)</button></section>`
+    : sets.length ? `<button class="btn block finbtn" data-act="day-finish">✓ ${k === today() ? '오늘' : '이날'} 운동 마무리하기</button>` : ''}
   ${P0 && !hasPlan && !sets.length ? `<section class="card nextcard"><div class="row between" style="gap:10px">
       <div style="min-width:0"><div class="small muted">진행 중 · ${esc(P0.name)}</div><div style="font-weight:800;font-size:16px">오늘은 ${esc(nextDay.t)}</div>
       <div class="small muted" style="margin-top:2px">${new Set(nextDay.ex.map(x => x[0])).size}종목 · ${esc([...new Set(nextDay.ex.map(([id]) => (eqById(id) || {}).name).filter(Boolean))].slice(0, 3).join(', '))}…</div></div>
       <button class="btn primary" data-act="prog-start" data-p="${P0.id}" data-d="${progDay(P0, DB.prog.next)}">시작</button></div></section>` : ''}
   ${!sets.length && !hasPlan && k === today() ? recCardHtml(k) : ''}
-  <div class="cta-row two">
+  <div class="cta-row two ${sets.length && d.fin ? 'hidden' : ''}">
     <button class="btn primary big" data-act="picker-open"><span style="font-size:20px;line-height:1">+</span> 운동 추가</button>
     <button class="btn big" data-act="routines-open">📋 루틴</button>
   </div>`;
@@ -1102,7 +1177,7 @@ function refreshSetSheet() {
 const navIcon = t => { const b = document.querySelector(`nav button[data-tab="${t}"] svg`); return b ? b.outerHTML : ''; };
 /* detailed help, shown in settings (the tutorial is the short version) */
 const GUIDE = [
-  ['운동 기록', ['운동 탭 + 운동 추가 → 부위·이름으로 기구 찾기. 자주·최근에 쓴 기구와 직접 추가한 기구가 맨 위에 와요.', '세트 표: 세트 수(3–6)를 고르고, 한 세트 끝날 때마다 ✓. 무게·횟수는 앞 세트 값이 자동으로 채워지고, 다르게 했으면 숫자만 고쳐서 ✓.', '✓를 누르면 휴식 타이머가 돌아요(화면 오른쪽 위 시계). 마지막 세트를 체크하면 다음 운동 고르기 화면으로 넘어가요.', '지난번 기록과 "오늘 추천"(무게를 올릴 때인지)이 같이 보여요. kg/lb는 기구에 적힌 대로 고르면 분석은 kg로 환산돼요.', '목록에 없는 기구는 "직접 추가" — 이름·브랜드를 보고 어느 부위를 쓰는지 앱이 판단해서 그림으로 보여주고 분석에 넣어요.', '뒤로가기는 지금 열린 화면만 닫아요. 앱을 끄려면 첫 화면에서 두 번 누르세요.']],
+  ['운동 기록', ['운동 탭 + 운동 추가 → 부위·이름으로 기구 찾기. 자주·최근에 쓴 기구와 직접 추가한 기구가 맨 위에 와요.', '세트 표: 세트 수(3–6)를 고르고, 한 세트 끝날 때마다 ✓. 무게·횟수는 앞 세트 값이 자동으로 채워지고, 다르게 했으면 숫자만 고쳐서 ✓.', '✓를 누르면 휴식 타이머가 돌아요(화면 오른쪽 위 시계). 마지막 세트를 체크하면 다음 운동 고르기 화면으로 넘어가요.', '지난번 기록과 "오늘 추천"(무게를 올릴 때인지)이 같이 보여요. kg/lb는 기구에 적힌 대로 고르면 분석은 kg로 환산돼요.', '목록에 없는 기구는 "직접 추가" — 이름·브랜드를 보고 어느 부위를 쓰는지 앱이 판단해서 그림으로 보여주고 분석에 넣어요.', '운동이 끝나면 위쪽 "운동 마무리하기" — 오늘 쓴 부위를 해부도로 보여주고, 지난번 대비 기록·이번 주 볼륨·목표에 맞춘 피드백을 줘요. 더 하려면 "이어서 하기"로 취소하면 돼요.', '뒤로가기는 지금 열린 화면만 닫아요. 앱을 끄려면 첫 화면에서 두 번 누르세요.']],
   ['루틴', ['📋 루틴: 맨 위 "추천"은 성별·목표에 맞춘 프로그램이에요. 아래에서 다른 프로그램도 전부 볼 수 있어요.', '프로그램을 시작하면 오늘 할 종목·세트가 계획으로 깔리고, 다음 날은 순서대로 다음 날짜 루틴이 나와요.', '"부위로 고르기"는 여러 프로그램에서 그 부위를 주로 하는 날만 모아서 보여줘요(예: 엉덩이).', '각 프로그램에 목표, 지킬 점, 참고 영상(유튜브 검색) 링크가 있어요. 오늘 한 운동은 이름을 붙여 내 루틴으로 저장할 수 있어요.']],
   ['기록을 넣으면 생기는 것 (분석 탭)', ['운동한 부위: 해부도에 이번 주(또는 4주) 많이 한 부위일수록 빨갛게. 주로 쓴 근육은 1세트, 같이 쓴 근육은 0.25–0.5세트로 계산해요.', '부위별 주간 세트: 최근 2주 평균. 연구가 효과적이라고 보는 근육당 주 10–20세트와 비교해요. 막대를 누르면 윗가슴·광배·햄스트링 같은 세부 부위가 나와요(세부는 참고용).', '목표에 맞춘 운동: 고른 목표(살 빼기·증량 등)에 따라 볼륨·무게 유지·유산소에 대한 조언이 달라져요.', '종목 구성 참고: 4주 기록에서 빠진 각도(인클라인, 레그 컬 등)를 짚어줘요. 강요가 아니라 참고예요.', '디로딩 판단: 8주 볼륨·컨디션 흐름을 보고 쉬어갈 때인지 알려줘요. 점진적 과부하: 기구별 추정 1RM이 오르는지 봐요.', '칼로리 소모: 운동 시간과 종류로 계산해요. 인바디가 있으면 제지방 기준, 없으면 키·나이·체중, 그것도 없으면 평균값을 써요.']],
   ['인바디', ['바디 탭에서 결과지 사진을 올리면 숫자를 읽어서 칸에 채워줘요. 잘못 읽힌 칸은 고치면 돼요(사진은 기기 안에서만 처리).', '체중·골격근량·체지방만 넣어도 되고, 내장지방·부위별 근육·위상각 등 추가 항목을 넣으면 그만큼 분석이 늘어요.', '체지방률·제지방지수·내장지방·복부지방률·근감소 지표 등을 논문 기준과 비교해서 풀어서 알려줘요. 성별·나이·키가 있어야 정확해요.', '목표를 고르면 하루 칼로리와 탄·단·지 목표가 계산돼요(살 빼기는 단백질을 더 높게). 2–3주 체중 추세를 보고 맞는 속도인지도 알려줘요.']],
@@ -2482,7 +2557,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2714,6 +2789,10 @@ const ACT = {
   'routine-load': () => openRoutineSheet(),
   'routines-open': () => openRoutines(),
   'tut-go': el => tutShow(+el.dataset.i),
+  'day-finish': () => { const k = state.date; day(k).fin = Date.now(); state.openEq = '-'; save(); render(); openFinish(k); },
+  'fin-open': () => openFinish(state.date),
+  'day-resume': () => { const k = state.date; delete day(k).fin; save(); if (state.sheet && state.sheet.kind === 'finish') closeSheet(); render(); toast('이어서 기록해요'); },
+  'fin-cond': el => { const d = day(state.sheet.k); d.check = Object.assign({}, d.check, { cond: +el.dataset.v }); save(); setSheetBody(finishHtml(state.sheet.k), true); render(); },
   'tut-tap': () => {
     const st = tutSteps()[state.tutI]; if (!st || !st.tap) return;
     if (typeof st.tap === 'string') { state.tab = st.tap; render(); window.scrollTo(0, 0); }

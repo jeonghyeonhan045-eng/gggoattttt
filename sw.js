@@ -1,5 +1,5 @@
 /* 오운완 service worker: always tries the network first so updates show up right away; falls back to the saved copy offline */
-const CACHE = 'ounwan-v3.9.0';
+const CACHE = 'ounwan-v4.0.0';
 const SHELL = ['./', 'index.html', 'styles.css', 'data.js', 'anatomy.js', 'app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'capacitor.js'];
 
