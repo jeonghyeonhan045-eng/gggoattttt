@@ -2222,9 +2222,9 @@ function parseInbody(text) {
   const numsIn = l => (l.replace(/\([^)]*\)?/g, ' ').match(/(?<![\d.])\d{1,4}(?:\.\d{1,3})?(?![\d])/g) || []).map(x => ({ v: +x, dec: x.includes('.') }));
   // a number whose decimal point was lost (475 → 4.75, 824 → 82.4) is rescued by the field's range
   const fit = (n, lo, hi) => { for (const d of [1, 10, 100]) { const v = n.v / d; if (v >= lo && v <= hi && (d === 1 || !n.dec)) return Math.round(v * 100) / 100; } return null; };
-  const cands = (re, lo, hi, avoid, first) => {
+  const cands = (re, lo, hi, avoid, first, src) => {
     const out = [];
-    for (const l of lines) {
+    for (const l of src || lines) {
       if (!re.test(l) || (avoid && avoid.test(l))) continue;
       const after = l.split(re).slice(1).join(' ');
       for (const n of numsIn(after)) { const v = fit(n, lo, hi); if (v != null) { out.push({ v, dec: n.dec || v !== n.v }); if (first) break; } }
@@ -2241,11 +2241,15 @@ function parseInbody(text) {
   const minC = cands(/무\s*기\s*질|mineral/i, 1, 8, null, true);
   const fatC = [...cands(/체\s*지\s*방\s*량|body fat mass/i, 1, 120), ...cands(/체\s*지\s*방(?!\s*[률율량])\s*\(?\s*k?g?/i, 1, 120, /분\s*석|레\s*벨|률|율/i)];
   const ffmC = cands(/제\s*지\s*방\s*량|fat free mass|lean body mass/i, 15, 150);
-  const muC = cands(/골\s*격\s*근\s*량|skeletal muscle mass|\bSMM\b/i, 8, 80);
+  // 골격근량 is often misread (글격근람, 끌격근량…) because it sits next to a bar chart
+  const muRe = /[골글끌]\s*[격걱]\s*[근군]\s*[량람랑]|skeletal muscle mass|\bSMM\b/i;
+  // the history block repeats the label with the oldest value first, so it is read separately below
+  const hiIdx = lines.findIndex(l => /신\s*체\s*변\s*화|composition history/i.test(l));
+  const muC = cands(muRe, 8, 80, null, false, hiIdx < 0 ? lines : lines.slice(0, hiIdx)).filter(x => x.dec);
   const pctC = cands(/체\s*지\s*방\s*률|percent body fat|\bPBF\b/i, 2, 65);
   // body-composition-history block at the bottom: latest weight / SMM / PBF are the last decimals on each row
   const hi = lines.findIndex(l => /신\s*체\s*변\s*화|composition history/i.test(l));
-  const hist = hi < 0 ? [] : lines.slice(hi + 1, hi + 14).flatMap(l => numsIn(l).filter(n => n.dec).map(n => n.v));
+  const hist = hi < 0 ? [] : lines.slice(hi + 1, hi + 14).map(l => numsIn(l).filter(n => n.dec).map(n => n.v)).filter(a => a.length).map(a => a[a.length - 1]);
   const unsure = [];
 
   const water = best(waterC), prot = best(protC), mineral = best(minC);
@@ -2290,10 +2294,17 @@ function parseInbody(text) {
   const okMu = m => ffm ? m >= ffm * 0.45 && m <= ffm * 0.66 : W ? m >= W * 0.25 && m <= W * 0.62 : true;
   const muAll = [...muC.filter(x => okMu(x.v)), ...hist.filter(okMu).map(v => ({ v, dec: true }))];
   Mu = best(muAll);
+  // the first digit is often eaten by the bar next to it (40.8 → 10.8): try the other first digits and
+  // keep the repair only when exactly one fits the fat-free-mass range
+  if (Mu == null && ffm) {
+    const fixes = new Set();
+    for (const x of muC) { const t = x.v.toFixed(1); if (t.length < 4) continue; for (let d = 1; d <= 9; d++) { const v = +(d + t.slice(1)); if (okMu(v)) fixes.add(v); } }
+    if (fixes.size === 1) { Mu = [...fixes][0]; unsure.push('muscle'); var muFixed = true; }
+  }
   if (Mu == null) { const m = best(muC); if (m != null) { Mu = m; unsure.push('muscle'); } }
   if (Mu != null && !muC.some(x => x.v === Mu) && !ffm) unsure.push('muscle');
 
-  const r = { weight: W, muscle: Mu, fatKg: Fk, fatPct: Fp, unsure };
+  const r = { weight: W, muscle: Mu, fatKg: Fk, fatPct: Fp, unsure, muFixed: typeof muFixed !== 'undefined' };
   if (water != null) r.water = water; if (prot != null) r.protein = prot; if (mineral != null) r.mineral = mineral;
   const X = {
     bmr: [/기\s*초\s*대\s*사\s*량|basal metabolic/i], vfl: [/내\s*장\s*지\s*방\s*레\s*벨|visceral fat level/i], whr: [/복\s*부\s*지\s*방\s*률|허\s*리\s*엉\s*덩\s*이|waist.?hip/i],
@@ -2304,8 +2315,11 @@ function parseInbody(text) {
   if (r.score == null) { const i = lines.findIndex(l => /인\s*바\s*디\s*점\s*수|inbody score/i.test(l)); if (i >= 0) for (const l of lines.slice(i, i + 3)) { const m = l.match(/\b(\d{2,3})\s*\/?\s*100/); if (m && +m[1] <= 100) { r.score = +m[1]; break; } } }
   // basal metabolic rate cross-check (Katch-McArdle-like: InBody uses 370 + 21.6 × FFM)
   if (r.bmr != null && ffm && Math.abs(r.bmr - (370 + 21.6 * ffm)) > 120) delete r.bmr;
-  const dm = T.match(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/);
-  if (dm) r.date = `${dm[1]}-${String(dm[2]).padStart(2, '0')}-${String(dm[3]).padStart(2, '0')}`;
+  for (const dm of T.matchAll(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/g)) {
+    const y = +dm[1], mo = +dm[2], d = +dm[3];
+    if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && y >= 2000) { r.date = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`; break; }
+  }
+  if (r.date && r.date > today()) delete r.date;
   return r;
 }
 let tessLoading = null;
@@ -2382,7 +2396,7 @@ async function ocrInbody(file) {
     else {
       const NAME = { weight: '체중', muscle: '골격근량', fatKg: '체지방량', fatPct: '체지방률' }, V = r.verify || {};
       const how = Object.entries(V).filter(([, v]) => v !== 'none').map(([k, v]) => `${NAME[k]} ${v === 'both' ? '✓✓' : '✓'}`).join(' · ');
-      say(`<b>${got}개 항목을 읽었어요.</b> ${how ? `검증: ${how} <span class="muted">(✓✓ = 두 번 읽어 같고 합계도 맞음, ✓ = 둘 중 하나로 확인)</span>. ` : ''}주황색 칸이 사진에서 읽은 값이에요.${r.unsure.length ? ` <b class="warnc">빨간 칸(${r.unsure.map(k => NAME[k]).join(', ')})은 다른 숫자와 맞춰보지 못했으니 결과지와 꼭 비교하세요.</b>` : ' 저장 전에 한 번만 결과지와 비교해 주세요.'}${r.muscle == null || r.weight == null || r.fatKg == null ? ' 못 읽은 칸은 직접 넣어주세요.' : ''}`, r.unsure.length ? 'warn' : 'ok');
+      say(`<b>${got}개 항목을 읽었어요.</b> ${how ? `검증: ${how} <span class="muted">(✓✓ = 두 번 읽어 같고 합계도 맞음, ✓ = 둘 중 하나로 확인)</span>. ` : ''}주황색 칸이 사진에서 읽은 값이에요.${r.muFixed ? ` <b class="warnc">골격근량은 앞자리가 그래프와 겹쳐 흐리게 읽혀서, 제지방량과 맞는 값(${r.muscle}kg)으로 추정했어요. 결과지와 같은지 꼭 확인하세요.</b>` : ''}${r.unsure.filter(k => !(k === 'muscle' && r.muFixed)).length ? ` <b class="warnc">빨간 칸(${r.unsure.filter(k => !(k === 'muscle' && r.muFixed)).map(k => NAME[k]).join(', ')})은 다른 숫자와 맞춰보지 못했으니 결과지와 꼭 비교하세요.</b>` : r.muFixed ? '' : ' 저장 전에 한 번만 결과지와 비교해 주세요.'}${r.muscle == null || r.weight == null || r.fatKg == null ? ' 못 읽은 칸은 직접 넣어주세요.' : ''}`, r.unsure.length ? 'warn' : 'ok');
     }
   } catch (e) {
     say('글자 인식을 불러오지 못했어요(인터넷 연결 확인). 숫자는 직접 입력해 주세요.', 'bad');
@@ -2479,10 +2493,52 @@ function inbodyAnalysisHtml(list) {
   const need = [];
   if (!pf.sex || !age) need.push('성별·출생연도');
   if (!h) need.push('키');
-  return `<div class="sec-h"><h2>인바디 분석</h2><span class="aside">논문 기준 참고</span></div><section class="card">
-    ${items.length ? items.map(([lv, t, d, src]) => `<div class="rec"><div class="ic ${lv}" aria-hidden="true">${ICON[lv]}</div><div><div class="t">${esc(t)}</div><div class="d">${esc(d)}</div>${src ? `<div class="src">근거: ${esc(src)}</div>` : ''}</div></div>`).join('') : '<div class="small muted">체중·체지방량을 넣으면 분석이 시작돼요.</div>'}
-    ${need.length ? `<div class="note">${need.join(', ')}을 넣으면 체지방 범위·FFMI도 계산해요 → 아래 "내 정보"</div>` : ''}
-    <div class="note">인바디(BIA)는 몸의 수분에 민감해서, 아침 공복·화장실 다녀온 뒤·운동 전처럼 같은 조건에서 재야 비교할 수 있어요 (Kyle 2004).</div></section>`;
+  return `<div class="sec-h"><h2>인바디 피드백</h2><span class="aside">${esc(last.date)} · 목표 ${esc(goal().l)}</span></div><section class="card">
+    ${bodyNowHtml(last, fatPct, items)}
+    ${items.length ? `<details class="more ibdetail"><summary>항목별 자세히 보기 (${items.length})</summary>` + items.map(([lv, t, d, src]) => `<div class="rec"><div class="ic ${lv}" aria-hidden="true">${ICON[lv]}</div><div><div class="t">${esc(t)}</div><div class="d">${esc(d)}</div>${src ? `<div class="src">근거: ${esc(src)}</div>` : ''}</div></div>`).join('') : '<div class="small muted">체중·체지방량을 넣으면 분석이 시작돼요.</div>'}
+    ${items.length ? '</details>' : ''}
+    ${need.length ? `<div class="note">${need.join(', ')}을 넣으면 체지방 범위·근육량 수준도 판단해요 → 아래 "내 정보"</div>` : ''}</section>`;
+}
+/* current state in one line + what to do for the chosen goal (numbers, not explanations) */
+function bodyNowHtml(last, fatPct, items) {
+  const pf = DB.settings.profile || {}, age = pf.birth ? new Date().getFullYear() - pf.birth : null, h = pf.height ? pf.height / 100 : null;
+  const gk = goalKey(), base = goalBase(gk), G = GOALS[gk], M = macroPlan(), bw = last.weight || latestBodyweight();
+  const chips = [], todo = [];
+  const band = fatPct != null && pf.sex && age ? bfBand(fatPct, pf.sex, age) : null;
+  if (fatPct != null) chips.push([band ? band.lv : 'info', `체지방 ${r1(fatPct)}%${band ? ` ${band.t}` : ''}`]);
+  const ffm = last.weight && last.fatKg != null ? last.weight - last.fatKg : null, ffmi = ffm && h ? ffm / (h * h) : null;
+  let musLv = null;
+  if (ffmi && pf.sex) {
+    const cut = pf.sex === 'f' ? [14, 16, 18, 20] : [18, 20, 22, 24];
+    musLv = ffmi < cut[0] ? '적은 편' : ffmi < cut[1] ? '보통' : ffmi < cut[2] ? '많은 편' : ffmi < cut[3] ? '아주 많음' : '최상위';
+    chips.push([ffmi < cut[0] ? 'warn' : 'good', `근육량 ${musLv}`]);
+  } else if (last.muscle != null) chips.push(['info', `골격근 ${trimNum(last.muscle)}kg`]);
+  if (last.vfl != null) chips.push([last.vfl >= 10 ? 'warn' : 'good', `내장지방 ${trimNum(last.vfl)}${last.vfl >= 10 ? ' 높음' : ' 정상'}`]);
+  const risks = items.filter(([lv]) => lv === 'warn' || lv === 'bad').map(([, t]) => t.split(' · ')[0]);
+  // goal plan
+  const kg = r => r1(Math.abs(bw * r / 100)), [lo, hi] = G.rate, fatHigh = band && (band.lv === 'warn' || band.lv === 'bad') && band.t !== '낮음', fatLow = band && band.t === '낮음';
+  if (M) todo.push(`하루 <b>${fmtInt(M.kcal)}kcal</b> · 단백질 <b>${M.p}g</b> (한 끼 ${Math.round(M.p / 4)}g씩 4번)`);
+  if (bw) todo.push(lo >= 0 && hi > 0 ? (lo === 0 ? `체중 주 <b>0~+${kg(hi)}kg</b> (한 달 최대 +${r1(bw * hi / 100 * 4.3)}kg)` : `체중 주 <b>+${kg(lo)}~${kg(hi)}kg</b> (한 달 +${r1(bw * lo / 100 * 4.3)}~${r1(bw * hi / 100 * 4.3)}kg)`) : hi <= 0 ? `체중 주 <b>−${kg(Math.abs(hi))}~${kg(Math.abs(lo))}kg</b> (한 달 −${r1(bw * Math.abs(hi) / 100 * 4.3)}~${r1(bw * Math.abs(lo) / 100 * 4.3)}kg)` : `체중은 <b>±${kg(hi)}kg/주</b> 안에서 유지`);
+  if (base === 'leanbulk' || base === 'bulk') {
+    if (fatHigh) todo.unshift(`<b class="warnc">체지방이 높은 편이라 지금은 증량보다 "체형 바꾸기"나 "살 빼기"가 더 맞아요.</b> 증량하면 지방이 같이 늘기 쉬워요`);
+    else if (fatPct != null && band) todo.push(`체지방이 ${band.t}라 증량을 시작하기 좋은 상태예요. ${pf.sex === 'f' ? '28' : '18'}%를 넘으면 증량 속도를 줄이세요`);
+    todo.push(gk === 'strength' ? '메인 종목(스쿼트·벤치·데드)은 1–6회로 무겁게, 같은 동작을 주 2–3회 — 추정 1RM이 오르는지 분석 탭에서 확인' : '근육마다 주 10–20세트, 같은 무게에서 횟수가 늘면 증량 — 분석 탭 "점진적 과부하"로 확인');
+  } else if (base === 'cut') {
+    if (fatLow || (fatPct != null && fatPct < (pf.sex === 'f' ? 18 : 10))) todo.unshift(`<b class="warnc">이미 체지방이 낮아요.</b> 더 빼면 근육·컨디션 손실이 커지니 주 0.5% 이하로 천천히, 4주마다 1주는 유지 칼로리로`);
+    todo.push('세트는 줄여도 무게는 유지 — 무게가 떨어지면 칼로리를 조금 올리세요');
+  } else if (base === 'recomp') {
+    todo.push('체중은 거의 그대로, 근력운동 주 3회 이상 + 단백질 우선');
+  } else {
+    if (last.vfl != null && last.vfl >= 10) todo.push('내장지방 낮추기: 유산소 주 150분 이상 + 근력운동 주 2회');
+    else todo.push('근력운동 주 2회 이상, 유산소 주 150분이면 충분해요');
+  }
+  // what the next InBody should show
+  const next = base === 'leanbulk' || base === 'bulk' ? `골격근 +0.3kg 이상, 체지방 증가는 근육 증가의 ${base === 'bulk' ? '2' : '1'}배 이하면`
+    : base === 'cut' ? '체지방 −1~2kg, 골격근 감소는 0.3kg 이내면' : base === 'recomp' ? '골격근은 늘고 체지방은 줄었으면' : '골격근·체지방 변화가 ±0.5kg 안이면';
+  todo.push(`4주 뒤 아침 공복에 다시 재서 → <b>${next}</b> 순조로워요`);
+  return `<div class="ibnow">${chips.map(([lv, t]) => `<span class="ibchip ${lv}">${esc(t)}</span>`).join('')}</div>
+    ${risks.length ? `<div class="ibrisk">⚠ 확인할 것: ${esc(risks.join(' · '))}</div>` : ''}
+    <div class="ibtodo"><div class="k">${esc(G.l)} — 이렇게 하세요</div><ol>${todo.map(t => `<li>${t}</li>`).join('')}</ol></div>`;
 }
 function profileHtml() {
   const pf = DB.settings.profile || {};
@@ -2579,13 +2635,15 @@ function macroCardHtml() {
       <div><div class="k">탄수화물</div><div class="v">${M.c}g</div><div class="k">${pct(M.c * 4)}% · ${r1(M.c / M.bw)}g/kg</div></div>
       <div><div class="k">지방</div><div class="v">${M.f}g</div><div class="k">${pct(M.f * 9)}% · ${r1(M.f / M.bw)}g/kg</div></div>
     </div>
-    <ul class="mlist">
+    <div class="small" style="margin-top:8px">유지 칼로리 ${fmtInt(M.tdee)}kcal → <b>${esc(adj || g.l)}</b></div>
+    <details class="more"><summary>계산 방법</summary><ul class="mlist">
       <li>기초대사량 ${fmtInt(M.rmr)}kcal — ${esc(M.rmrHow)}</li>
       <li>일상 생활 ×1.2 + 운동 하루 평균 ${fmtInt(M.exAvg)}kcal (최근 4주 주 ${M.days}회 기록) = 유지 ${fmtInt(M.tdee)}kcal → ${esc(adj)}</li>
       <li>단백질 ${esc(M.pHow)}. 한 끼 약 ${M.perMeal}g씩 하루 4끼로 나누면 효율적이에요</li>
       <li>지방은 칼로리의 ${M.key === 'cut' ? '20' : '25'}%(최소 체중 1kg당 0.6g), 나머지가 탄수화물이에요${M.c / M.bw < 3 && M.key !== 'cut' ? ' — 고강도 운동량이 많으면 탄수화물을 조금 더 늘려도 돼요' : ''}</li>
     </ul>
-    <div class="note">출발점이에요. 2–3주 체중 추세가 목표 속도(위 "목표 체중 속도")와 다르면 하루 100–200kcal씩 조정하세요. 근거: Helms 2014 · Iraki 2019 · Morton 2018 · Garthe 2011 · Schoenfeld 2018</div></section>`;
+    </details>
+    <div class="note">2–3주 체중 추세가 목표 속도와 다르면 하루 100–200kcal씩 조정. 근거: Helms 2014 · Iraki 2019 · Morton 2018 · Garthe 2011 · Schoenfeld 2018</div></section>`;
 }
 
 function goalCardHtml(list) {
@@ -2725,7 +2783,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.6 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.8 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 

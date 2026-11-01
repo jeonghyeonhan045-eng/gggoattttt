@@ -673,3 +673,14 @@ input.ocrunsure { border-color: var(--bad, #d43a3a) !important; background: colo
 .ocrstat.warn { padding: 9px 11px; background: color-mix(in srgb, #d43a3a 8%, var(--bg2)); }
 .ocrstat .warnc { color: #d43a3a; }
 .cfm-msg { white-space: pre-line; }
+.ibnow { display: flex; flex-wrap: wrap; gap: 6px; }
+.ibchip { font-size: 13px; font-weight: 800; padding: 5px 10px; border-radius: 999px; background: var(--bg2); color: var(--ink2); }
+.ibchip.good { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+.ibchip.warn, .ibchip.bad { background: color-mix(in srgb, #d43a3a 13%, transparent); color: #d43a3a; }
+.ibrisk { margin-top: 8px; font-size: 13px; color: #d43a3a; font-weight: 700; }
+.ibtodo { margin-top: 12px; background: var(--bg2); border-radius: 12px; padding: 10px 12px; }
+.ibtodo .k { font-size: 12px; font-weight: 800; color: var(--acc); margin-bottom: 4px; }
+.ibtodo ol { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.55; }
+.ibtodo li + li { margin-top: 4px; }
+.ibtodo .warnc { color: #d43a3a; }
+.ibdetail { margin-top: 10px; }
