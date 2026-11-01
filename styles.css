@@ -609,3 +609,7 @@ input.ocrfill { border-color: var(--acc); background: var(--acc-soft); }
 .tut-table .r.next { background: color-mix(in srgb, var(--acc) 8%, transparent); }
 .tut-table .ck { width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--line2); display: inline-grid; place-items: center; margin: auto; color: var(--ink3); }
 .tut-table .ck.on { background: var(--good); border-color: var(--good); color: #fff; }
+.guide { border-bottom: 1px solid var(--line); }
+.guide > summary { padding: 12px 2px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.guide ul { margin: 0 0 12px; padding-left: 20px; font-size: 13.5px; line-height: 1.55; color: var(--ink2); }
+.guide li + li { margin-top: 6px; }

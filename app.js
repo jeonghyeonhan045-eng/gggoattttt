@@ -1083,23 +1083,36 @@ function refreshSetSheet() {
 
 /* ---------- first-run tutorial ---------- */
 const navIcon = t => { const b = document.querySelector(`nav button[data-tab="${t}"] svg`); return b ? b.outerHTML : ''; };
+/* detailed help, shown in settings (the tutorial is the short version) */
+const GUIDE = [
+  ['운동 기록', ['운동 탭 + 운동 추가 → 부위·이름으로 기구 찾기. 자주·최근에 쓴 기구와 직접 추가한 기구가 맨 위에 와요.', '세트 표: 세트 수(3–6)를 고르고, 한 세트 끝날 때마다 ✓. 무게·횟수는 앞 세트 값이 자동으로 채워지고, 다르게 했으면 숫자만 고쳐서 ✓.', '✓를 누르면 휴식 타이머가 돌아요(화면 오른쪽 위 시계). 마지막 세트를 체크하면 다음 운동 고르기 화면으로 넘어가요.', '지난번 기록과 "오늘 추천"(무게를 올릴 때인지)이 같이 보여요. kg/lb는 기구에 적힌 대로 고르면 분석은 kg로 환산돼요.', '목록에 없는 기구는 "직접 추가" — 이름·브랜드를 보고 어느 부위를 쓰는지 앱이 판단해서 그림으로 보여주고 분석에 넣어요.', '뒤로가기는 지금 열린 화면만 닫아요. 앱을 끄려면 첫 화면에서 두 번 누르세요.']],
+  ['루틴', ['📋 루틴: 맨 위 "추천"은 성별·목표에 맞춘 프로그램이에요. 아래에서 다른 프로그램도 전부 볼 수 있어요.', '프로그램을 시작하면 오늘 할 종목·세트가 계획으로 깔리고, 다음 날은 순서대로 다음 날짜 루틴이 나와요.', '"부위로 고르기"는 여러 프로그램에서 그 부위를 주로 하는 날만 모아서 보여줘요(예: 엉덩이).', '각 프로그램에 목표, 지킬 점, 참고 영상(유튜브 검색) 링크가 있어요. 오늘 한 운동은 이름을 붙여 내 루틴으로 저장할 수 있어요.']],
+  ['기록을 넣으면 생기는 것 (분석 탭)', ['운동한 부위: 해부도에 이번 주(또는 4주) 많이 한 부위일수록 빨갛게. 주로 쓴 근육은 1세트, 같이 쓴 근육은 0.25–0.5세트로 계산해요.', '부위별 주간 세트: 최근 2주 평균. 연구가 효과적이라고 보는 근육당 주 10–20세트와 비교해요. 막대를 누르면 윗가슴·광배·햄스트링 같은 세부 부위가 나와요(세부는 참고용).', '목표에 맞춘 운동: 고른 목표(살 빼기·증량 등)에 따라 볼륨·무게 유지·유산소에 대한 조언이 달라져요.', '종목 구성 참고: 4주 기록에서 빠진 각도(인클라인, 레그 컬 등)를 짚어줘요. 강요가 아니라 참고예요.', '디로딩 판단: 8주 볼륨·컨디션 흐름을 보고 쉬어갈 때인지 알려줘요. 점진적 과부하: 기구별 추정 1RM이 오르는지 봐요.', '칼로리 소모: 운동 시간과 종류로 계산해요. 인바디가 있으면 제지방 기준, 없으면 키·나이·체중, 그것도 없으면 평균값을 써요.']],
+  ['인바디', ['바디 탭에서 결과지 사진을 올리면 숫자를 읽어서 칸에 채워줘요. 잘못 읽힌 칸은 고치면 돼요(사진은 기기 안에서만 처리).', '체중·골격근량·체지방만 넣어도 되고, 내장지방·부위별 근육·위상각 등 추가 항목을 넣으면 그만큼 분석이 늘어요.', '체지방률·제지방지수·내장지방·복부지방률·근감소 지표 등을 논문 기준과 비교해서 풀어서 알려줘요. 성별·나이·키가 있어야 정확해요.', '목표를 고르면 하루 칼로리와 탄·단·지 목표가 계산돼요(살 빼기는 단백질을 더 높게). 2–3주 체중 추세를 보고 맞는 속도인지도 알려줘요.']],
+  ['기록 탭 · 기타', ['기록 탭: 날짜별로 한 운동을 달력으로 보고, 지난 날짜를 눌러 수정할 수 있어요. 위쪽 ‹ › 로 날짜를 옮겨 지난 운동을 나중에 입력해도 돼요.', 'PR 보드: 같은 동작이면 브랜드가 달라도 같이 비교해요.', '기록은 이 기기(브라우저)에 저장돼요. 브라우저 데이터를 지우면 사라지니 주의하세요.']],
+];
+function guideHtml() {
+  return GUIDE.map(([t, list]) => `<details class="guide"><summary>${t}</summary><ul>${list.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>`).join('');
+}
 function tutorialHtml(i) {
   const pf = DB.settings.profile || {}, gk = DB.settings.mode;
   const demo = musclePeekHtml('바벨 힙 쓰러스트', '힙 쓰러스트', '다리', true);
   const steps = [
-    { t: '오운완에 오신 걸 환영해요', b: `<p>운동한 걸 기록하면, 어느 부위를 얼마나 했는지 알아서 분석해줘요.</p>
+    { t: '오운완에 오신 걸 환영해요', b: `<p>운동을 기록하면 어느 부위를 얼마나 했는지, 쉬어야 할 때인지까지 알아서 분석해줘요.</p>
       <div class="tut-tabs">${[['workout', '운동', '오늘 운동 기록'], ['records', '기록', '지난 운동 달력'], ['analysis', '분석', '부위·볼륨·디로딩'], ['body', '바디', '인바디·체중·목표']].map(([k, l, d]) => `<div><span class="ic">${navIcon(k)}</span><b>${l}</b><small>${d}</small></div>`).join('')}</div>
-      <p class="muted small">1분이면 끝나요. 언제든 설정(⚙)에서 다시 볼 수 있어요.</p>` },
-    { t: '1. 운동 고르기', b: `<ol class="tut-ol"><li>운동 탭에서 <b class="tut-btn">+ 운동 추가</b>를 눌러요.</li><li>부위나 이름으로 기구를 찾아요. 헬스장 기구 이름·브랜드로 찾으면 돼요.</li><li>목록에 없으면 <b>직접 추가</b> — 이름만 넣으면 어느 부위인지 앱이 알아서 판단해요.</li></ol>
-      <p class="small muted">뭘 할지 모르겠으면 <b class="tut-btn">📋 루틴</b>에서 프로그램을 고르면 오늘 할 운동이 한 번에 깔려요.</p>` },
+      <p class="muted small">2분이면 끝나요. 자세한 설명은 설정(⚙) → 기능 설명에 있어요.</p>` },
+    { t: '1. 운동 고르기', b: `<ol class="tut-ol"><li>운동 탭에서 <b class="tut-btn">+ 운동 추가</b> → 부위나 이름으로 기구를 찾아요.</li><li>자주 쓰는 기구는 맨 위로 올라와요.</li><li>목록에 없으면 <b>직접 추가</b>. 이름만 넣으면 어느 부위인지 앱이 판단해요.</li><li>뭘 할지 모르겠으면 <b class="tut-btn">📋 루틴</b>. 프로그램을 고르면 오늘 할 운동이 한 번에 깔려요.</li></ol>` },
     { t: '2. 세트 기록하기', b: `<div class="tut-table"><div class="h"><span>세트</span><span>kg</span><span>회</span><span></span></div><div class="r done"><span>1</span><span>40</span><span>10</span><span class="ck on">✓</span></div><div class="r next"><span>2</span><span>40</span><span>10</span><span class="ck">✓</span></div></div>
-      <ol class="tut-ol"><li>세트가 끝날 때마다 <b>✓</b>만 누르세요. 무게·횟수는 앞 세트에서 자동으로 채워져요.</li><li>실제로 한 횟수가 다르면 숫자만 고치고 ✓.</li><li>✓를 누르면 휴식 타이머가 돌고, 마지막 세트까지 끝나면 다음 운동 고르기로 넘어가요.</li></ol>` },
-    { t: '3. 어디를 쓰는지 · 얼마나 했는지', b: `${demo}<p>기구마다 쓰는 부위를 그림으로 보여주고, 분석 탭에서 이번 주에 많이 한 부위가 빨갛게 표시돼요.</p><p class="small muted">부위별 주간 세트, 디로딩 시점, 무게가 오르는지도 분석 탭에서 봐요.</p>` },
-    { t: '4. 나에 맞추기', b: `<p class="small muted" style="margin-top:0">고르면 루틴 추천과 분석 조언이 여기에 맞춰져요. 나중에 바꿀 수 있어요.</p>
+      <ol class="tut-ol"><li>한 세트 끝날 때마다 <b>✓</b>만 누르세요. 숫자는 앞 세트에서 채워져요.</li><li>실제 횟수가 다르면 숫자만 고치고 ✓.</li><li>✓ → 휴식 타이머 시작. 마지막 세트까지 끝나면 다음 운동 고르기로 넘어가요.</li></ol>` },
+    { t: '3. 기록하면 이렇게 돼요', b: `${demo}<ul class="tut-ol"><li><b>분석 탭</b>: 이번 주 많이 한 부위가 해부도에 빨갛게, 부위별 주간 세트가 연구 기준(근육당 주 10–20세트)과 비교돼요.</li><li>무게가 오르는지, 쉬어야 할 때(디로딩)인지, 빠진 종목은 없는지 알려줘요.</li><li>운동 시간으로 칼로리 소모도 계산해요.</li></ul>` },
+    { t: '4. 인바디', b: `<ol class="tut-ol"><li><b>바디 탭</b>에서 인바디 결과지 사진을 올리면 숫자가 자동으로 채워져요. 틀린 칸만 고치세요.</li><li>체지방률·내장지방·근육량 등을 논문 기준으로 풀어서 알려줘요.</li><li>목표에 맞춰 하루 칼로리와 탄·단·지 양을 계산하고, 체중 변화 속도가 맞는지 봐줘요.</li></ol>
+      <p class="small muted">인바디가 없어도 돼요. 체중만 넣어도 칼로리 계산에 쓰여요.</p>` },
+    { t: '5. 나에 맞추기', b: `<p class="small muted" style="margin-top:0">인바디 분석·칼로리 계산·루틴 추천에 쓰여요. 바디 탭에서 언제든 바꿀 수 있어요.</p>
       <div class="field"><label>성별</label><div class="seg">${[['f', '여성'], ['m', '남성']].map(([v, l]) => `<button class="${pf.sex === v ? 'on' : ''}" data-act="tut-sex" data-v="${v}">${l}</button>`).join('')}</div></div>
+      <div class="grid2"><div class="field"><label>출생연도</label><input id="tut-birth" type="number" inputmode="numeric" placeholder="예: 1995" value="${pf.birth || ''}" data-on="tut-pf" data-k="birth"></div>
+        <div class="field"><label>키 (cm)</label><input id="tut-height" type="number" inputmode="decimal" placeholder="예: 165" value="${pf.height || ''}" data-on="tut-pf" data-k="height"></div></div>
       <div class="field"><label>목표</label><div class="chips goalchips">${GOAL_ORDER.map(v => `<button class="chip ${gk === v ? 'on' : ''}" data-act="tut-goal" data-v="${v}">${GOALS[v].l}</button>`).join('')}</div>
-        ${GOALS[gk] ? `<div class="note">${esc(GOALS[gk].d)}</div>` : ''}</div>
-      <p class="small muted">인바디 결과지가 있으면 바디 탭에서 사진만 올려도 숫자가 채워지고, 논문 기준으로 풀어서 알려줘요.</p>` },
+        ${GOALS[gk] ? `<div class="note">${esc(GOALS[gk].d)}</div>` : ''}</div>` },
   ];
   const st = steps[i], last = i === steps.length - 1;
   return `<div class="tut"><div class="tut-dots">${steps.map((_, j) => `<span class="${j === i ? 'on' : ''}"></span>`).join('')}</div>
@@ -2371,7 +2384,7 @@ function openSettings(focus) {
   const S = DB.settings, G = S.goals;
   state.sheet = { kind: 'settings' };
   openSheet('설정', '오운완', `
-    <button class="btn block" style="margin-bottom:10px" data-act="tut-open">처음 사용법 다시 보기</button>
+    <button class="btn block" style="margin-bottom:10px" data-act="tut-open">처음 사용법 다시 보기 (2분)</button>
     <div class="setlist">
       <div class="item"><div class="main"><div class="t">기본 무게 단위</div><div class="d">새 기구의 기본값. 기구별로 마지막 단위를 따로 기억해요.</div></div>
         <div class="unitseg"><button class="${S.unit === 'kg' ? 'on' : ''}" data-act="st-unit" data-u="kg">kg</button><button class="${S.unit === 'lb' ? 'on' : ''}" data-act="st-unit" data-u="lb">lb</button></div></div>
@@ -2394,6 +2407,8 @@ function openSettings(focus) {
       <div class="note">체중 기준 대략적인 시작값이에요. 칼로리는 체중×30(유지)에 목표별 배수(살 빼기 80% · 체형 바꾸기 95% · 천천히 증량 107% · 빠르게 증량 115%), 단백질은 살 빼기·체형 바꾸기 2.0g/kg, 나머지 1.6–1.8g/kg, 지방 0.9g/kg, 나머지는 탄수화물. 2–3주 체중 변화를 보고 조정하세요.</div></div>
     <button class="btn primary block" style="margin-top:12px" data-act="st-save-goals">목표 저장</button>` : ''}
 
+    <div class="sec-h"><h2 style="font-size:15px">기능 설명</h2><span class="aside">누르면 펼쳐져요</span></div>
+    ${guideHtml()}
     <div class="sec-h"><h2 style="font-size:15px">참고 논문</h2><span class="aside">${REFS.length}편</span></div>
     <details class="more" style="margin-top:0"><summary>분석·추천에 쓴 논문 보기</summary>
       <ol class="reflist" style="padding-left:18px;margin:6px 0 0">${REFS.map(r => `<li>${esc(r.text)} <a href="${esc(r.url)}" target="_blank" rel="noopener">링크</a><span class="use">→ ${esc(r.use)}</span></li>`).join('')}</ol>
@@ -2403,7 +2418,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.6 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2758,6 +2773,10 @@ const ON = {
   'check-sleep': (el, ev) => { if (ev.type !== 'change') return; const d = day(state.date); const v = parseFloat(el.value); d.check.sleep = v > 0 ? v : null; save(); state.checkOpen = true; render(); },
   'fq': (el, ev) => { if (ev.type !== 'input') return; state.sheet.q = el.value; renderFoodList(); },
   'amt-q': el => { state.sheet.qty = parseFloat(el.value) || 0; $('#amt-prev').innerHTML = amountPreview(); },
+  'tut-pf': el => {
+    const k = el.dataset.k, v = parseFloat(el.value), ok = k === 'birth' ? v >= 1930 && v <= 2015 : v >= 120 && v <= 230;
+    DB.settings.profile = Object.assign({}, DB.settings.profile, { [k]: ok ? v : null }); save();
+  },
   'ce-infer': (el, ev) => {
     if (ev.type === 'change' && el.tagName === 'INPUT') return;
     const S = state.sheet; if (!S || S.kind !== 'ceq') return;
@@ -2825,7 +2844,7 @@ applyTheme();
 state._lastToday = today();
 render();
 timerLoop();
-if (!DB.settings.tutDone && !allSets().length && !lsGet('ironlog_hint_off')) setTimeout(() => openTutorial(0), 400);
+if (!DB.settings.tutDone) setTimeout(() => openTutorial(0), 400);
 if (isNative && P.App) {
   try {
     P.App.addListener('backButton', () => {
