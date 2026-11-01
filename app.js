@@ -27,7 +27,8 @@ const chosung = s => Array.from(norm(s)).map(c => { const k = c.charCodeAt(0) - 
 const isChoQuery = q => q.length > 0 && Array.from(q).every(c => CHO.includes(c));
 function matchQ(text, q) { if (!q) return true; const t = norm(text); return t.includes(q) || (isChoQuery(q) && chosung(text).includes(q)); }
 const mcls = m => 'm-' + (MKEY[m] || 'full');
-const mtag = m => `<span class="mtag ${mcls(m)}">${esc(m)}</span>`;
+const mName = m => (m === '다리' ? '하체' : m);
+const mtag = m => `<span class="mtag ${mcls(m)}">${esc(mName(m))}</span>`;
 const fmtSec = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
 function dateLabel(k) {
   const t = today();
@@ -723,7 +724,7 @@ function viewWorkout() {
     <div class="body"><div class="note" style="margin:0 0 8px">세트 기록 없이 운동한 날 달력에 표시할 때 쓰세요.</div>
     <div class="chips">${STRENGTH_MUSCLES.concat(['유산소', '전신']).map(m => {
       const on = mus.all.includes(m), auto = mus.auto.has(m);
-      return `<button class="chip ${on ? 'done' : ''} ${auto ? 'auto' : ''}" data-act="done-toggle" data-m="${esc(m)}">${on ? '✓ ' : ''}${esc(m)}</button>`;
+      return `<button class="chip ${on ? 'done' : ''} ${auto ? 'auto' : ''}" data-act="done-toggle" data-m="${esc(m)}">${on ? '✓ ' : ''}${esc(mName(m))}</button>`;
     }).join('')}</div></div>
   </details>`;
   return h;
@@ -844,7 +845,7 @@ function pickerHtml() {
   return `<div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <input id="eq-q" type="search" placeholder="검색 (예: 벤치, 익스텐션, ㄹㅇㅍ)" value="${esc(state.eqQ)}" data-on="eq-q" autocomplete="off"></div>
   <div class="seg" style="margin-top:10px">${EQ_VIEWS.map(([v, l]) => `<button class="${state.eqView === v ? 'on' : ''}" data-act="eq-view" data-v="${v}">${l}</button>`).join('')}</div>
-  <div class="chips scrollx ${['all', 'machine', 'free'].includes(state.eqView) ? '' : 'hidden'}" style="margin-top:8px" id="eq-mchips">${['전체'].concat(STRENGTH_MUSCLES, ['전신']).map(m => `<button class="chip ${state.eqM === m ? 'on' : ''}" data-act="eq-m" data-m="${esc(m)}">${esc(m)}</button>`).join('')}</div>
+  <div class="chips scrollx ${['all', 'machine', 'free'].includes(state.eqView) ? '' : 'hidden'}" style="margin-top:8px" id="eq-mchips">${['전체'].concat(STRENGTH_MUSCLES, ['전신']).map(m => `<button class="chip ${state.eqM === m ? 'on' : ''}" data-act="eq-m" data-m="${esc(m)}">${esc(mName(m))}</button>`).join('')}</div>
   <div class="eqlist" id="eqlist"></div>
   <button class="btn block" style="margin-top:8px" data-act="custom-eq">+ 목록에 없는 기구 직접 추가</button>`;
 }
@@ -1649,6 +1650,28 @@ function viewAnalysis() {
     : '<div class="small muted">특별히 손볼 부분이 없어요. 지금처럼 꾸준히!</div>'}
   </section>`;
 
+  // body map: which regions got the work
+  {
+    const days = state.mapP === '28' ? 28 : 7, vals = {};
+    for (const s of setsBetween(addDays(today(), -(days - 1)), today())) {
+      if (isCardioSet(s)) continue;
+      const e = eqById(s.eq) || s;
+      for (const [k, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m))) vals[k] = (vals[k] || 0) + v;
+    }
+    const ranked = Object.entries(vals).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1]);
+    const max = ranked.length ? ranked[0][1] : 0;
+    const none = Object.keys(REGIONS).filter(k => !(vals[k] >= 0.5));
+    h += `<div class="sec-h"><h2>운동한 부위</h2><div class="seg" style="width:150px">${[['7', '이번 주'], ['28', '4주']].map(([v, l]) => `<button class="${(state.mapP || '7') === v ? 'on' : ''}" data-act="map-p" data-v="${v}">${l}</button>`).join('')}</div></div>
+    <section class="card">
+      ${ranked.length ? `<div class="bodymaps">${bodySvg('front', vals, max, '앞')}${bodySvg('back', vals, max, '뒤')}</div>
+        <div class="heatlegend"><span>적게</span><i style="background:${heatColor(0.15)}"></i><i style="background:${heatColor(0.5)}"></i><i style="background:${heatColor(0.8)}"></i><i style="background:${heatColor(1)}"></i><span>많이</span></div>
+        <div class="maprank">${ranked.slice(0, 5).map(([k, v], i) => `<div><b>${i + 1}</b> ${REGIONS[k]} <span class="num">${r1(v)}세트</span></div>`).join('')}</div>
+        ${none.length ? `<div class="small muted" style="margin-top:6px">거의 안 한 부위: ${none.map(k => REGIONS[k]).join(' · ')}</div>` : ''}
+        <div class="note">세트마다 주로 쓰는 근육 1, 보조 근육 0.5–0.25로 계산해요. 직접 추가한 기구도 이름(인클라인, 하이 로우, 해머 컬 등)과 동작 종류로 어느 부위인지 자동으로 나눠요. 부위를 누르면 세트 수가 보여요.</div>`
+      : '<div class="small muted">근력 운동을 기록하면 어느 부위를 했는지 해부도에 색으로 보여줘요.</div>'}
+    </section>`;
+  }
+
   // energy expenditure
   {
     const E = ES.E, srcLbl = { inbody: '인바디 기반', formula: '체중·키·나이 기반', avg: '평균 수치 기반' }[E.src];
@@ -2287,7 +2310,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2565,6 +2588,7 @@ const ACT = {
   'cal-move': el => { const [y, m] = state.calM.split('-').map(Number); const d = new Date(y, m - 1 + +el.dataset.d, 1); state.calM = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; render(); },
   'day-open': el => openDaySheet(el.dataset.k),
   'goto-day': el => { state.date = el.dataset.k; state.tab = el.dataset.tab; closeSheet(); render(); window.scrollTo(0, 0); },
+  'map-p': el => { state.mapP = el.dataset.v; const y = window.scrollY; render(); window.scrollTo(0, y); },
   'stat-p': el => { state.statP = el.dataset.v; const y = window.scrollY; render(); window.scrollTo(0, y); },
 
   'ib-save': () => {
