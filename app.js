@@ -636,7 +636,7 @@ function viewWorkout() {
   const hasPlan = !!(d.plan && d.plan.eqs && d.plan.eqs.length);
   const firstTime = !allSets().length && !hasPlan;
   const P0 = DB.prog && PROGRAMS.find(p => p.id === DB.prog.id);
-  const nextDay = P0 && P0.days[DB.prog.next % P0.days.length];
+  const nextDay = P0 && P0.days[progDay(P0, DB.prog.next)];
 
   let h = installHint();
   if (firstTime) h += `<section class="card startcard">
@@ -648,7 +648,7 @@ function viewWorkout() {
   ${P0 && !hasPlan && !sets.length ? `<section class="card nextcard"><div class="row between" style="gap:10px">
       <div style="min-width:0"><div class="small muted">진행 중 · ${esc(P0.name)}</div><div style="font-weight:800;font-size:16px">오늘은 ${esc(nextDay.t)}</div>
       <div class="small muted" style="margin-top:2px">${new Set(nextDay.ex.map(x => x[0])).size}종목 · ${esc([...new Set(nextDay.ex.map(([id]) => (eqById(id) || {}).name).filter(Boolean))].slice(0, 3).join(', '))}…</div></div>
-      <button class="btn primary" data-act="prog-start" data-p="${P0.id}" data-d="${DB.prog.next % P0.days.length}">시작</button></div></section>` : ''}
+      <button class="btn primary" data-act="prog-start" data-p="${P0.id}" data-d="${progDay(P0, DB.prog.next)}">시작</button></div></section>` : ''}
   ${!sets.length && !hasPlan && k === today() ? recCardHtml(k) : ''}
   <div class="cta-row two">
     <button class="btn primary big" data-act="picker-open"><span style="font-size:20px;line-height:1">+</span> 운동 추가</button>
@@ -760,10 +760,10 @@ function routinesHtml() {
   const d = dayRO(state.date), todays = d.sets || [];
   let h = '';
   if (P0) {
-    const nx = DB.prog.next % P0.days.length, nd = P0.days[nx];
+    const nx = progDay(P0, DB.prog.next), nd = P0.days[nx];
     h += `<section class="card nextcard" style="margin-bottom:6px"><div class="small muted">진행 중인 프로그램</div>
       <div class="row between" style="gap:8px;margin-top:2px"><b style="font-size:16px">${esc(P0.name)}</b><button class="btn sm ghost" data-act="prog-open" data-p="${P0.id}">보기</button></div>
-      <div class="grid2" style="margin-top:10px"><button class="btn primary" data-act="prog-start" data-p="${P0.id}" data-d="${nx}">다음: ${esc(nd.t)}</button><button class="btn" data-act="prog-stop">그만하기</button></div></section>`;
+      <div class="grid2" style="margin-top:10px"><button class="btn primary" data-act="prog-start" data-p="${P0.id}" data-d="${nx}">다음: ${esc(nd.t)}${P0.rep ? ` · ${progWeek(P0, DB.prog.next)}주차` : ''}</button><button class="btn" data-act="prog-stop">그만하기</button></div></section>`;
   }
   h += `<div class="sec-h" style="margin-top:8px"><h2 style="font-size:16px">내 루틴</h2><span class="aside">${DB.routines.length}개</span></div>`;
   h += DB.routines.length ? DB.routines.map(r => `<div class="myrt"><button class="main" data-act="my-start" data-id="${r.id}"><b>${esc(r.name)}</b>
@@ -781,12 +781,14 @@ function routinesHtml() {
   if ((state.rtM || '전체') === '전체') {
     const sex = (DB.settings.profile || {}).sex, gk = goalKey();
     const ids = gk === 'strength' ? ['sl5', 'bbb', 'phul'] : gk === 'health' ? ['fatloss3', 'fb3'] : gk === 'contest' ? (sex === 'f' ? ['glute3', 'fatloss3', 'wul4'] : ['ul4', 'phul', 'fatloss3'])
-      : sex === 'f' ? (gk === 'cut' ? ['fatloss3', 'glute3'] : gk === 'recomp' ? ['glute3', 'fatloss3', 'wul4'] : ['glute3', 'wul4', 'fb3'])
+      : sex === 'f' ? (gk === 'cut' ? ['fatloss3', 'sc12', 'glute3'] : gk === 'recomp' ? ['sc12', 'glute3', 'fatloss3'] : gk === 'keep' ? ['db2', 'mach3', 'sc12'] : ['sc12', 'glute3', 'wul4'])
       : sex === 'm' ? (gk === 'cut' ? ['fatloss3', 'ul4'] : gk === 'leanbulk' || gk === 'bulk' ? ['ul4', 'phul', 'ppl'] : ['fb3', 'ul4'])
       : ['fb3', 'glute3', 'fatloss3'];
     h += `<div class="sec-h"><h2 style="font-size:16px">추천</h2><span class="aside">${sex ? `${sex === 'f' ? '여성' : '남성'} · ${esc(goal().l)}` : '성별을 고르면 맞춰드려요'}</span></div>
       <div class="row" style="gap:6px;margin-bottom:8px"><span class="small muted">성별</span><div class="seg" style="width:150px">${[['f', '여성'], ['m', '남성']].map(([v, l]) => `<button class="${sex === v ? 'on' : ''}" data-act="rt-sex" data-v="${v}">${l}</button>`).join('')}</div><span class="small muted" style="margin-left:auto">목표는 바디 탭</span></div>
       ${ids.map(id => PROGRAMS.find(p => p.id === id)).filter(Boolean).map(card).join('')}`;
+    const fem = PROGRAMS.filter(p => p.fem && !ids.includes(p.id));
+    if (sex === 'f' && fem.length) h += `<details class="more" style="margin-top:4px"><summary>여성 추천 루틴 ${fem.length}개 더 보기</summary>${fem.map(card).join('')}</details>`;
   }
   // pick by body part: every program day that mainly trains it
   const M = state.rtM || '전체';
@@ -808,6 +810,10 @@ function routinesHtml() {
   h += `<div class="sec-h"><h2 style="font-size:16px">보디빌더 · 코치 루틴</h2><span class="aside">선수·코치들의 방식</span></div>` + PROGRAMS.filter(isPro).map(card).join('');
   return h;
 }
+/* program sequence: plain programs cycle their days; `rep`/`block` programs run each block of `block` days `rep` times (e.g. A·B·C for 4 weeks, then the next phase) */
+const progLen = p => p.rep ? p.days.length * p.rep : p.days.length;
+const progDay = (p, n) => { n = (n || 0) % progLen(p); return p.rep ? Math.floor(n / (p.block * p.rep)) * p.block + n % p.block : n; };
+const progWeek = (p, n) => Math.floor(((n || 0) % progLen(p)) / p.block) + 1;
 const ytLink = q => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
 // a search for one day of a program: "<program> <body parts of that day>"
 const dayQuery = (p, d) => `${(PROGRAM_INFO[p.id] || {}).yt || p.name} ${d.t.replace(/\(.*?\)/g, '').replace(/[·]/g, ' ').replace(/\d주차/g, '').replace(/\s+/g, ' ').trim()} 운동`;
@@ -839,7 +845,7 @@ function dayMuscles(dd) {
 function openRoutines() { openSheet('루틴', '어떤 루틴으로 할까요?', routinesHtml(), { kind: 'routines' }); }
 function openProgram(id) {
   const p = PROGRAMS.find(x => x.id === id); if (!p) return;
-  const nx = DB.prog && DB.prog.id === id ? DB.prog.next % p.days.length : 0;
+  const nx = DB.prog && DB.prog.id === id ? progDay(p, DB.prog.next) : 0;
   const h = `<button class="linkbtn" data-act="routines-open">← 루틴 목록</button>
     <div class="row" style="gap:6px;flex-wrap:wrap"><span class="mtag" style="--mc:var(--acc)">${esc(p.per)}</span><span class="mtag" style="--mc:var(--ink3)">${esc(p.lv)}</span><span class="small muted">${esc(p.who)}</span></div>
     <div style="margin-top:8px;font-size:14px">${esc(p.desc)}</div>
@@ -1458,7 +1464,7 @@ function recCardHtml(k) {
     <button class="btn sm block" style="margin-top:8px" data-act="rec-plan" data-t="${T}" data-k="full">${T === k ? '이걸로 시작' : '내일 계획에 넣기'}</button></section>`;
   const P0 = DB.prog && PROGRAMS.find(p => p.id === DB.prog.id);
   if (P0 && T !== k) {
-    const nd = P0.days[DB.prog.next % P0.days.length];
+    const nd = P0.days[progDay(P0, DB.prog.next)];
     return `<section class="card reccard"><div class="small muted">${when} 추천</div><div class="row between" style="gap:8px"><b style="font-size:16px">${esc(nd.t)}</b><span class="small muted">${esc(P0.name)} 다음 차례</span></div>
       ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '컨디션이 떨어져 있어요.'} 하루 쉬고 해도 프로그램 순서는 그대로예요.</div>` : ''}</section>`;
   }
@@ -2468,7 +2474,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.7 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.8 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2718,7 +2724,10 @@ const ACT = {
   'prog-open': el => openProgram(el.dataset.p),
   'prog-start': el => {
     const p = PROGRAMS.find(x => x.id === el.dataset.p), i = +el.dataset.d, d = p.days[i];
-    DB.prog = { id: p.id, next: (i + 1) % p.days.length };
+    // position in the full sequence (programs with `rep` repeat each block of days for several weeks)
+    let n = DB.prog && DB.prog.id === p.id && progDay(p, DB.prog.next) === i ? DB.prog.next : 0;
+    if (progDay(p, n) !== i) for (let k = 0; k < progLen(p); k++) if (progDay(p, k) === i) { n = k; break; }
+    DB.prog = { id: p.id, next: (n + 1) % progLen(p) };
     startPlan(d.ex, `${p.name} · ${d.t}`, null);
     day(state.date).plan.prog = p.id; save(); render();
   },
