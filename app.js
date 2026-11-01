@@ -896,12 +896,16 @@ function routinesHtml() {
   }
   // every program by level (non-athlete programs first inside each level)
   const TIERS = [[1, '초급', '운동 0–1년 · 주 2–3회 · 매번 조금씩 증량할 수 있는 시기'], [2, '중급', '1–3년 · 주 4–6회 분할 · 주 단위로 증량·볼륨 관리'], [3, '상급', '3년 이상 · 고볼륨이나 드롭세트·강제 반복 같은 강도 기법 · 회복 관리 필수']];
-  const LV = state.rtLv || 0;
+  const LV = state.rtLv || 0, SX = state.rtSx || (DB.settings.profile || {}).sex || 'a';
+  // women: women-focused + unisex plans; men: everything except the women-focused ones
+  const inSx = p => SX === 'a' ? true : SX === 'f' ? !!(p.fem || p.uni) : !p.fem || !!p.uni;
   h += `<div class="sec-h"><h2 style="font-size:16px">수준별 루틴</h2><span class="aside">운동 경력 기준</span></div>
+    <div class="seg" style="margin-bottom:8px">${[['f', '여성 루틴'], ['m', '남성 루틴'], ['a', '전체']].map(([v, l]) => `<button class="${SX === v ? 'on' : ''}" data-act="rt-sx" data-v="${v}">${l}</button>`).join('')}</div>
     <div class="chips rtchips">${[[0, '전체'], ...TIERS].map(([t, l]) => `<button class="chip ${LV === t ? 'on' : ''}" data-act="rt-lv" data-v="${t}">${l}</button>`).join('')}</div>`;
   for (const [t, l, d] of TIERS) {
     if (LV && LV !== t) continue;
-    const list = PROGRAMS.filter(p => (p.tier || 2) === t).sort((x, y) => isPro(x) - isPro(y));
+    const list = PROGRAMS.filter(p => (p.tier || 2) === t && inSx(p)).sort((x, y) => (SX === 'f' ? !!y.fem - !!x.fem : 0) || isPro(x) - isPro(y));
+    if (!list.length) continue;
     h += `<div class="tierh"><b class="tier t${t}">${l}</b><span>${d}</span></div>` + list.map(card).join('');
   }
   return h;
@@ -917,9 +921,9 @@ const expTier = () => { const e = (DB.settings.profile || {}).exp; return e != n
 const progDays = p => { const m = /주 (\d)/.exec(p.per); return m ? +m[1] : p.id === 'mentzer' ? 1 : p.id === 'haney' ? 5 : p.id === 'y3t' ? 4 : 3; };
 // programs that suit each goal, best first
 const GOAL_PROGS = {
-  cut: ['fatloss3', 'db2', 'mach3', 'ul4', 'sc12', 'glute3', 'fb3'], contest: ['ul4', 'phul', 'wul4', 'glute3', 'fatloss3', 'ppl'],
-  recomp: ['sc12', 'glute3', 'ul4', 'fb3', 'phul', 'wul4'], keep: ['db2', 'mach3', 'fb3', 'ul4'], health: ['fatloss3', 'db2', 'mach3', 'fb3'],
-  strength: ['sl5', 'bbb', 'phul', 'regpark', 'ul4'], leanbulk: ['ul4', 'phul', 'sc12', 'glute3', 'wul4', 'ppl', 'phat', 'fb3', 'sl5'],
+  cut: ['fatloss3', 'circuit3', 'db2', 'mach3', 'ul4', 'sc12', 'glute3', 'fb3'], contest: ['ul4', 'phul', 'wul4', 'gg12', 'gluteadv5', 'glute3', 'fatloss3', 'ppl'],
+  recomp: ['sc12', 'gg12', 'glute3', 'ul4', 'fb3', 'phul', 'wul4'], keep: ['db2', 'mach3', 'fb3', 'ul4'], health: ['fatloss3', 'circuit3', 'db2', 'mach3', 'fb3'],
+  strength: ['sl5', 'bbb', 'phul', 'regpark', 'ul4'], leanbulk: ['ul4', 'phul', 'sc12', 'gg12', 'glute3', 'wul4', 'gluteadv5', 'ppl', 'phat', 'fb3', 'sl5'],
   bulk: ['ppl', 'phul', 'phat', 'ul4', 'bbb', 'arnold', 'fb3', 'sl5'],
 };
 function recPrograms() {
@@ -932,7 +936,7 @@ function recPrograms() {
     if (F) sc -= Math.abs((F === 5 ? 5.5 : F) - d) * 1.6; // fits the days you can train
     sc += gi >= 0 ? 4 - gi * 0.4 : 0;                     // suits the goal
     if (pf.sex === 'f' && p.fem) sc += 1.5;
-    if (pf.sex === 'm' && ['sc12', 'glute3', 'wul4'].includes(p.id)) sc -= 4; // glute-centred plans
+    if (pf.sex === 'm' && p.fem && !p.uni) sc -= 4; // glute-centred plans
     if (isPro(p) && T < 3) sc -= 2;
     const why = [t > T ? '한 단계 위 수준' : '', F ? `주 ${d}일${Math.abs((F === 5 ? 5.5 : F) - d) < 1 ? ' — 가능한 횟수와 맞음' : ''}` : `주 ${d}일`, gi >= 0 ? `${goal().l}에 맞음` : ''].filter(Boolean).join(' · ');
     return { p, sc, why };
@@ -1542,6 +1546,8 @@ const SPLITS = [
   { k: 'push', l: '가슴 · 어깨 · 삼두', ms: ['가슴', '어깨'], acc: '팔', accRe: /트라이|삼두|푸시다운|스컬|오버헤드.*익스텐션|딥/ },
   { k: 'pull', l: '등 · 이두', ms: ['등'], acc: '팔', accRe: /컬/ },
   { k: 'legs', l: '하체 · 코어', ms: ['다리'], acc: '코어' },
+  // side/rear delts are small and get little from pressing, so they may come back the next day
+  { k: 'shoulder', l: '어깨 · 팔', ms: ['어깨'], acc: '팔' },
 ];
 function lastTrained(m, before) {
   let last = null;
@@ -1556,14 +1562,18 @@ function recommendNext(T) {
   // consecutive training days right before T
   let streak = 0; for (let k = addDays(T, -1); trainedDay(k) && streak < 14; k = addDays(k, -1)) streak++;
   const c = dayRO(addDays(T, -1)).check || {}, tired = (c.cond && c.cond <= 2) || (c.sore && c.sore >= 4);
+  // shoulders: count only direct sets — pressing (indirect 0.5) works the front delt, not the side/rear
+  const have = m => m === '어깨' ? info[m].dir : info[m].vol;
   const opts = SPLITS.map(sp => {
-    const ready = sp.ms.every(m => info[m].days >= 2);
-    const need = sp.ms.reduce((a, m) => a + Math.max(0, 10 - info[m].vol), 0) / sp.ms.length;
+    const ready = sp.ms.every(m => info[m].days >= (sp.k === 'shoulder' ? 1 : 2));
+    const need = sp.ms.reduce((a, m) => a + Math.max(0, 10 - have(m)), 0) / sp.ms.length;
     const rested = Math.min(...sp.ms.map(m => info[m].days));
-    return Object.assign({}, sp, { ready, need, rested, score: need + Math.min(rested, 7) * 0.8 });
+    return Object.assign({}, sp, { ready, need, rested, score: need + Math.min(rested, 7) * 0.8 - (sp.k === 'shoulder' ? 3 : 0) });
   }).filter(o => o.ready).sort((a, b) => b.score - a.score);
-  const rest = streak >= 3 || tired;
-  return { T, best: opts[0] || null, info, streak, tired, rest };
+  const rest = streak >= 3 || tired, best = opts[0] || null;
+  // few direct shoulder sets this week → add two shoulder moves to whatever day comes next
+  const addSh = !!best && !best.ms.includes('어깨') && info['어깨'].dir < 8 && info['어깨'].days >= 1;
+  return { T, best, info, streak, tired, rest, addSh };
 }
 /* a balanced session for each split: the user's own equipment first, then staples */
 function pickEq(filter, n, prefer) {
@@ -1576,6 +1586,14 @@ function pickEq(filter, n, prefer) {
 function recExercises(sp) {
   const T = t => e => t.includes(e.type);
   const add = (ids, tg) => ids.map(id => [id, tg]);
+  const shAdd = () => [...add(pickEq(T(['레터럴 레이즈']), 1, ['fw-lateral', 'cb-lateral']), '3×12–15'), ...add(pickEq(T(['리어 델트']), 1, ['cb-facepull', 'fw-reardelt']), '3×12–15')];
+  if (sp.addSh) return [...recExercises(Object.assign({}, sp, { addSh: false })), ...shAdd()];
+  if (sp.k === 'shoulder') return [
+    ...add(pickEq(T(['숄더 프레스']), 1, ['fw-db-ohp', 'fw-ohp']), '3×8–12'),
+    ...add(pickEq(T(['레터럴 레이즈']), 2, ['fw-lateral', 'cb-lateral']), '3×12–15'),
+    ...add(pickEq(T(['리어 델트']), 1, ['cb-facepull', 'fw-reardelt']), '3×12–15'),
+    ...add(pickEq(T(['바이셉 컬']), 1, ['fw-dbcurl', 'fw-bbcurl']), '3×10–12'),
+    ...add(pickEq(T(['트라이셉 익스텐션']), 1, ['cb-pushdown', 'fw-ohext']), '3×10–12')];
   if (sp.k === 'push') return [
     ...add(pickEq(e => e.m === '가슴' && !/인클라인/.test(e.name) && T(['벤치프레스', '체스트 프레스'])(e), 1, ['fw-bench', 'fw-db-bench']), '3×6–10'),
     ...add(pickEq(e => e.m === '가슴' && /인클라인/.test(e.name), 1, ['fw-incline-db', 'fw-incline-bb']), '3×8–12'),
@@ -1612,12 +1630,14 @@ function recCardHtml(k) {
   }
   const b = R.best;
   if (!b) return `<section class="card reccard"><div class="small muted">${when} 추천</div><b style="font-size:16px">쉬는 날</b><div class="small muted" style="margin-top:2px">주요 부위가 모두 최근 이틀 안에 운동했어요. 같은 부위는 48시간 정도 쉬는 게 일반적이에요.</div></section>`;
-  const why = b.ms.map(m => { const x = R.info[m]; return `${m} ${x.last ? `${x.days}일 전` : '직접 한 적 없음'} · 최근 7일 ${r1(x.dir)}세트`; }).join(' / ');
+  const why = b.ms.map(m => { const x = R.info[m]; return `${mName(m)} ${x.last ? `${x.days}일 전` : '직접 한 적 없음'} · 최근 7일 ${r1(x.dir)}세트`; }).join(' / ');
+  const sh = R.info['어깨'], shWhy = R.addSh ? `어깨 직접 최근 7일 ${r1(sh.dir)}세트 — 프레스는 앞어깨 위주라 옆·뒤 어깨는 따로 해야 해요. 작은 근육이라 다른 날에 2종목씩 붙여 자주 해도 괜찮아요.`
+    : b.k === 'shoulder' ? '가슴·등·하체는 아직 회복 중이에요. 옆·뒤 어깨는 작은 근육이라 이어서 해도 괜찮아요.' : '';
   return `<section class="card reccard"><div class="small muted">${when} 추천</div>
-    <div class="row between" style="gap:8px"><b style="font-size:16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(b.l)}</b></div>
-    <div class="small muted" style="margin-top:2px">${esc(why)}</div>
+    <div class="row between" style="gap:8px"><b style="font-size:16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(b.l)}${R.addSh ? ' + 옆·뒤 어깨' : ''}</b></div>
+    <div class="small muted" style="margin-top:2px">${esc(why)}</div>${shWhy ? `<div class="small" style="margin-top:4px">${esc(shWhy)}</div>` : ''}
     ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '어제 컨디션이 낮거나 근육통이 심했어요.'} 하루 쉬어도 손해 없어요.</div>` : ''}
-    <button class="btn sm block" style="margin-top:8px" data-act="rec-plan" data-t="${T}" data-k="${b.k}">${T === k ? '추천 종목으로 시작' : '내일 계획에 넣기'}</button></section>`;
+    <button class="btn sm block" style="margin-top:8px" data-act="rec-plan" data-t="${T}" data-k="${b.k}${R.addSh ? '+sh' : ''}">${T === k ? '추천 종목으로 시작' : '내일 계획에 넣기'}</button></section>`;
 }
 
 function weekSummary(w) {
@@ -2618,7 +2638,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2774,7 +2794,9 @@ const ACT = {
   'eq-expand': el => { state.openEq = el.classList.contains('compact') ? el.dataset.eq : '-'; render(); },
   'plan-open': () => { state.planOpen = true; render(); },
   'rec-plan': el => {
-    const sp = el.dataset.k === 'full' ? { k: 'full', l: '전신' } : SPLITS.find(x => x.k === el.dataset.k), T = el.dataset.t;
+    const [kk, plus] = el.dataset.k.split('+'), T = el.dataset.t;
+    const base = kk === 'full' ? { k: 'full', l: '전신' } : SPLITS.find(x => x.k === kk);
+    const sp = plus === 'sh' ? Object.assign({}, base, { addSh: true, l: `${base.l} + 옆·뒤 어깨` }) : base;
     const list = sp.k === 'full' ? PROGRAMS.find(p => p.id === 'fb3').days[0].ex : recExercises(sp);
     if (T === state.date) { startPlan(list, `추천 · ${sp.l}`, null); return; }
     const eqs = [], tg = {}; for (const [id, t] of list) if (!eqs.includes(id)) { eqs.push(id); tg[id] = t; }
@@ -2874,6 +2896,7 @@ const ACT = {
   'tut-exp': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { exp: +el.dataset.v }); save(); setSheetBody(tutorialHtml(state.tutI), true); },
   'tut-freq': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { freq: +el.dataset.v }); save(); setSheetBody(tutorialHtml(state.tutI), true); },
   'rt-sex': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { sex: el.dataset.v }); save(); setSheetBody(routinesHtml(), true); },
+  'rt-sx': el => { state.rtSx = el.dataset.v; setSheetBody(routinesHtml(), true); },
   'rt-lv': el => { state.rtLv = +el.dataset.v; setSheetBody(routinesHtml(), true); },
   'rt-m': el => { state.rtM = el.dataset.m; setSheetBody(routinesHtml(), true); },
   // one day from a program, without signing up for the whole program
