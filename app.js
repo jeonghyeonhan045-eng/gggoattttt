@@ -2310,7 +2310,14 @@ function parseInbody(text) {
     bmr: [/기\s*초\s*대\s*사\s*량|basal metabolic/i], vfl: [/내\s*장\s*지\s*방\s*레\s*벨|visceral fat level/i], whr: [/복\s*부\s*지\s*방\s*률|허\s*리\s*엉\s*덩\s*이|waist.?hip/i],
     ecw: [/세\s*포\s*외\s*수\s*분\s*비|ECW\s*\/?\s*TBW|ECW ratio/i], pa: [/위\s*상\s*각|phase angle/i], score: [/인\s*바\s*디\s*점\s*수|inbody score/i],
   };
-  for (const [k, , , lo, hiV] of IB_EXTRA) { if (!X[k] || r[k] != null) continue; const v = best(cands(X[k][0], lo, hiV, X[k][1], true)); if (v != null) r[k] = v; }
+  // visceral fat level: the value sits under the label, next to a "낮음 10 높음" scale whose 10 is not the reading
+  const vi = lines.findIndex(l => /내\s*장\s*지\s*방\s*레\s*벨|visceral fat level/i.test(l));
+  if (vi >= 0) {
+    const pool = lines.slice(vi, vi + 3).join(' ').replace(/\([^)]*\)/g, ' ').match(/(?<![\d.])\d{1,2}(?![\d.])/g) || [];
+    const ints = pool.map(Number).filter(n => n >= 1 && n <= 30), other = ints.filter(n => n !== 10);
+    if (other.length) r.vfl = other[0]; else if (ints.filter(n => n === 10).length >= 2) r.vfl = 10;
+  }
+  for (const [k, , , lo, hiV] of IB_EXTRA) { if (!X[k] || r[k] != null || k === 'vfl') continue; const v = best(cands(X[k][0], lo, hiV, X[k][1], true)); if (v != null) r[k] = v; }
   // inbody score sits on the line below its label on most sheets
   if (r.score == null) { const i = lines.findIndex(l => /인\s*바\s*디\s*점\s*수|inbody score/i.test(l)); if (i >= 0) for (const l of lines.slice(i, i + 3)) { const m = l.match(/\b(\d{2,3})\s*\/?\s*100/); if (m && +m[1] <= 100) { r.score = +m[1]; break; } } }
   // basal metabolic rate cross-check (Katch-McArdle-like: InBody uses 370 + 21.6 × FFM)
@@ -2327,6 +2334,45 @@ function loadTess() {
   if (window.Tesseract) return Promise.resolve();
   if (tessLoading) return tessLoading;
   return (tessLoading = new Promise((ok, bad) => { const s = document.createElement('script'); s.src = 'tess/tesseract.min.js'; s.onload = ok; s.onerror = () => { tessLoading = null; bad(new Error('load')); }; document.head.appendChild(s); }));
+}
+/* find a label word in the first reading, cut out its row to the right (where the bar chart ends in the number),
+   enlarge it and read digits only */
+async function zoomRow(worker, canvas, data, labelRe, inHistory) {
+  try {
+    // Korean comes back one syllable per "word", so match whole lines and take the label's own words
+    const lines = (data.blocks || []).flatMap(b => (b.paragraphs || []).flatMap(p => p.lines || []));
+    const hist = lines.find(l => /신체변화|history/i.test((l.text || '').replace(/\s/g, '')));
+    const histY = hist ? hist.bbox.y0 : Infinity;
+    const out = [];
+    for (const ln of lines) {
+      const t = (ln.text || '').replace(/\s/g, '');
+      if (!labelRe.test(t) || /분석|지방|analysis/i.test(t)) continue;
+      // main table rows sit above the history block; the history row's latest value is its right-most number
+      const isHist = ln.bbox.y0 >= histY || (histY === Infinity && ln === lines.filter(l => labelRe.test((l.text || '').replace(/\s/g, ''))).slice(-1)[0] && lines.indexOf(ln) > lines.length * 0.7);
+      if (!!inHistory !== isHist) continue;
+      const ws = (ln.words || []).slice().sort((a, b) => a.bbox.x0 - b.bbox.x0);
+      let end = -1; for (let i = 0; i < ws.length; i++) if (/[근군량람랑]|muscle/i.test(ws[i].text)) end = i; else if (end >= 0 && /\d/.test(ws[i].text)) break;
+      if (end < 0) continue;
+      const lab = { x0: ws[0].bbox.x0, y0: Math.min(...ws.slice(0, end + 1).map(w => w.bbox.y0)), x1: ws[end].bbox.x1, y1: Math.max(...ws.slice(0, end + 1).map(w => w.bbox.y1)) };
+      const h = lab.y1 - lab.y0, lw = Math.max(lab.x1 - lab.x0, h * 3);
+      let cx0 = lab.x1, cx1 = inHistory ? canvas.width : Math.min(canvas.width, lab.x1 + lw * 5), cy0 = Math.max(0, lab.y0 - h * 0.5), cy1 = Math.min(canvas.height, lab.y1 + h * 0.5);
+      // main row: the number the first reading found (e.g. "10.8") is boxed — re-read just that box, widened a little
+      // to the left where a digit touching the bar gets lost
+      const numW = !inHistory && ws.slice(end + 1).filter(w => /\d+\.\d/.test(w.text)).pop();
+      if (numW) { const nh = numW.bbox.y1 - numW.bbox.y0; cx0 = Math.max(0, numW.bbox.x0 - nh * 0.9); cx1 = Math.min(canvas.width, numW.bbox.x1 + nh * 0.3); cy0 = Math.max(0, numW.bbox.y0 - nh * 0.35); cy1 = Math.min(canvas.height, numW.bbox.y1 + nh * 0.35); }
+      const S = 3, c = document.createElement('canvas'); c.width = Math.round((cx1 - cx0) * S); c.height = Math.round((cy1 - cy0) * S);
+      if (c.width < 20 || c.height < 10) continue;
+      c.getContext('2d').drawImage(canvas, cx0, cy0, cx1 - cx0, cy1 - cy0, 0, 0, c.width, c.height);
+      await worker.setParameters({ tessedit_char_whitelist: '0123456789.', tessedit_pageseg_mode: '7' });
+      for (const img of [c, binarize(c)]) {
+        const { data: d } = await worker.recognize(img);
+        const ns = (d.text.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2').match(/\d{1,3}\.\d/g) || []).map(Number);
+        out.push(...(inHistory ? ns.slice(-1) : ns));
+      }
+      if (out.length) break;
+    }
+    return out;
+  } catch (e) { return []; }
 }
 // black-and-white copy (Otsu threshold) for a second reading of hard photos
 function binarize(src) {
@@ -2357,6 +2403,7 @@ function ocrCanvas(img) {
 }
 async function ocrInbody(file) {
   const st = $('#ib-ocr'); const say = (t, cls) => { if (st) { st.className = 'ocrstat ' + (cls || ''); st.innerHTML = t; } };
+  let ocrDone = false, zooming = false;
   say('사진에서 숫자를 읽는 중… <span class="muted">처음 한 번은 글자 인식 데이터(약 8MB)를 받느라 30초쯤 걸려요</span>', 'busy');
   try {
     await loadTess();
@@ -2365,9 +2412,9 @@ async function ocrInbody(file) {
     const canvas = ocrCanvas(img); URL.revokeObjectURL(url);
     const worker = await Tesseract.createWorker(['kor', 'eng'], 1, {
       workerPath: 'tess/worker.min.js', corePath: 'tess/', langPath: 'tess', gzip: true,
-      logger: m => { if (m.status === 'recognizing text') say(`사진에서 숫자를 읽는 중… ${Math.round(m.progress * 100)}%`, 'busy'); },
+      logger: m => { if (!ocrDone && !zooming && m.status === 'recognizing text') say(`사진에서 숫자를 읽는 중… ${Math.round(m.progress * 100)}%`, 'busy'); },
     });
-    const { data } = await worker.recognize(canvas);
+    const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true });
     // always read twice (colour-stretched + black-and-white) and compare; a value is trusted only if
     // both readings agree or the sheet's own arithmetic (weight = water + protein + minerals + fat) confirms it
     say('검증을 위해 한 번 더 읽는 중… <span class="muted">흑백으로 다시 읽어 두 결과를 비교해요</span>', 'busy');
@@ -2384,7 +2431,24 @@ async function ocrInbody(file) {
       r.verify[k] = agree && byMath ? 'both' : agree ? 'twice' : byMath ? 'math' : 'none';
       if (r.verify[k] === 'none' && !r.unsure.includes(k)) r.unsure.push(k);
     }
+    // skeletal muscle still missing or guessed: zoom into its row and read digits only
+    if (r.muscle == null || r.muFixed || r.unsure.includes('muscle')) {
+      say('골격근량 줄을 확대해서 다시 읽는 중…', 'busy'); zooming = true;
+      const MRE = /[골글끌]?[격걱][근군][량람랑]|격근|skeletal/i;
+      const ffm = r.weight != null && r.fatKg != null ? r.weight - r.fatKg : null;
+      const ok = v => ffm ? v >= ffm * 0.45 && v <= ffm * 0.66 : v >= 10 && v <= 70;
+      // 1) the muscle row enlarged, 2) the latest point of the body-composition-history row
+      const z1 = (await zoomRow(worker, canvas, data, MRE)).filter(ok);
+      const z2 = (await zoomRow(worker, canvas, data, MRE, true)).filter(ok);
+      const pick = z1.find(v => z2.includes(v) || v === r.muscle) ?? z2.find(v => v === r.muscle) ?? z1[0] ?? z2[0];
+      if (pick != null) {
+        const confirmed = z1.includes(pick) + z2.includes(pick) + (pick === r.muscle) >= 2;
+        r.muscle = pick; r.muFixed = !confirmed;
+        if (confirmed) { r.unsure = r.unsure.filter(k => k !== 'muscle'); r.verify.muscle = 'zoom'; }
+      }
+    }
     window.__ocrText = text; // kept for troubleshooting a misread sheet
+    ocrDone = true;
     await worker.terminate();
     const fill = (id, v, unsure) => { const el = $(id); if (el && v != null) { el.value = v; el.classList.add('ocrfill'); el.classList.toggle('ocrunsure', !!unsure); } };
     fill('#ib-w', r.weight, r.unsure.includes('weight')); fill('#ib-m', r.muscle, r.unsure.includes('muscle')); fill('#ib-fk', r.fatKg, r.unsure.includes('fatKg')); fill('#ib-fp', r.fatPct, r.unsure.includes('fatPct'));
@@ -2395,7 +2459,7 @@ async function ocrInbody(file) {
     if (!got) say('숫자를 찾지 못했어요. 결과지 전체가 밝고 반듯하게 나오게 다시 찍거나, 직접 입력해 주세요.', 'bad');
     else {
       const NAME = { weight: '체중', muscle: '골격근량', fatKg: '체지방량', fatPct: '체지방률' }, V = r.verify || {};
-      const how = Object.entries(V).filter(([, v]) => v !== 'none').map(([k, v]) => `${NAME[k]} ${v === 'both' ? '✓✓' : '✓'}`).join(' · ');
+      const how = Object.entries(V).filter(([, v]) => v !== 'none').map(([k, v]) => `${NAME[k]} ${v === 'both' ? '✓✓' : v === 'zoom' ? '✓(확대)' : '✓'}`).join(' · ');
       say(`<b>${got}개 항목을 읽었어요.</b> ${how ? `검증: ${how} <span class="muted">(✓✓ = 두 번 읽어 같고 합계도 맞음, ✓ = 둘 중 하나로 확인)</span>. ` : ''}주황색 칸이 사진에서 읽은 값이에요.${r.muFixed ? ` <b class="warnc">골격근량은 앞자리가 그래프와 겹쳐 흐리게 읽혀서, 제지방량과 맞는 값(${r.muscle}kg)으로 추정했어요. 결과지와 같은지 꼭 확인하세요.</b>` : ''}${r.unsure.filter(k => !(k === 'muscle' && r.muFixed)).length ? ` <b class="warnc">빨간 칸(${r.unsure.filter(k => !(k === 'muscle' && r.muFixed)).map(k => NAME[k]).join(', ')})은 다른 숫자와 맞춰보지 못했으니 결과지와 꼭 비교하세요.</b>` : r.muFixed ? '' : ' 저장 전에 한 번만 결과지와 비교해 주세요.'}${r.muscle == null || r.weight == null || r.fatKg == null ? ' 못 읽은 칸은 직접 넣어주세요.' : ''}`, r.unsure.length ? 'warn' : 'ok');
     }
   } catch (e) {
@@ -2783,7 +2847,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.8 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
