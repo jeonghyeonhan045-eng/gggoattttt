@@ -581,3 +581,31 @@ input.ocrfill { border-color: var(--acc); background: var(--acc-soft); }
 .rvol .num { text-align: right; font-family: var(--mono); font-weight: 700; color: var(--ink); }
 .rvol .status { font-size: 11px; justify-content: flex-end; }
 .mvol .r .indl { display: block; font-size: 11px; font-weight: 400; }
+.mpeek { display: flex; gap: 10px; align-items: center; background: var(--bg2); border-radius: 12px; padding: 6px 12px 6px 6px; margin: 0 0 10px; }
+.mpeek .mp-maps { display: flex; gap: 0; flex: 0 0 auto; }
+.mpeek .bodymap { width: 56px; height: auto; }
+.mpeek.big .bodymap { width: 64px; }
+.mpeek .bodymap .mzlbl { font-size: 18px; }
+.mpeek .mp-txt { min-width: 0; font-size: 13px; line-height: 1.35; }
+.mpeek .mp-txt .k { font-size: 11px; color: var(--ink3); }
+.mpeek .mp-txt span { color: var(--ink2); }
+.tut h3 { font-size: 19px; margin: 6px 0 10px; }
+.tut p { font-size: 14px; line-height: 1.55; margin: 8px 0; }
+.tut-dots { display: flex; gap: 5px; justify-content: center; }
+.tut-dots span { width: 6px; height: 6px; border-radius: 3px; background: var(--line2); transition: width .2s; }
+.tut-dots span.on { width: 18px; background: var(--acc); }
+.tut-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.tut-tabs > div { background: var(--bg2); border-radius: 12px; padding: 10px; display: grid; grid-template-columns: 26px 1fr; column-gap: 8px; align-items: center; }
+.tut-tabs .ic { grid-row: span 2; color: var(--acc); }
+.tut-tabs .ic svg { width: 22px; height: 22px; display: block; }
+.tut-tabs small { color: var(--ink3); font-size: 11.5px; }
+.tut-ol { padding-left: 20px; margin: 8px 0; font-size: 14px; line-height: 1.55; }
+.tut-ol li + li { margin-top: 6px; }
+.tut-btn { display: inline-block; padding: 1px 8px; border-radius: 8px; background: var(--bg2); border: 1px solid var(--line2); font-size: 13px; }
+.tut-table { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 10px 0; font-family: var(--mono); font-size: 14px; }
+.tut-table > div { display: grid; grid-template-columns: 40px 1fr 1fr 44px; align-items: center; text-align: center; padding: 7px 4px; }
+.tut-table .h { background: var(--bg2); font-size: 11px; color: var(--ink3); font-family: inherit; }
+.tut-table .r.done { color: var(--ink3); }
+.tut-table .r.next { background: color-mix(in srgb, var(--acc) 8%, transparent); }
+.tut-table .ck { width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--line2); display: inline-grid; place-items: center; margin: auto; color: var(--ink3); }
+.tut-table .ck.on { background: var(--good); border-color: var(--good); color: #fff; }

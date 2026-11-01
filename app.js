@@ -775,10 +775,20 @@ function routinesHtml() {
       <div class="row between"><b>${esc(p.name)}</b><span class="small muted">${esc(p.per)}</span></div>
       <div class="small muted" style="margin:2px 0 4px">${esc(p.who)} · ${esc(p.lv)}${PROGRAM_INFO[p.id] ? ` · <b class="goaltag">${esc(PROGRAM_INFO[p.id].goal.split(' (')[0])}</b>` : ''}</div>
       <div class="small">${esc(p.desc)}</div></button>`;
+  // suggestions that follow sex + goal (every program stays open to everyone below)
+  if ((state.rtM || '전체') === '전체') {
+    const sex = (DB.settings.profile || {}).sex, gk = goalKey();
+    const ids = sex === 'f' ? (gk === 'cut' ? ['fatloss3', 'glute3'] : gk === 'recomp' ? ['glute3', 'fatloss3', 'wul4'] : ['glute3', 'wul4', 'fb3'])
+      : sex === 'm' ? (gk === 'cut' ? ['fatloss3', 'ul4'] : gk === 'leanbulk' || gk === 'bulk' ? ['ul4', 'phul', 'ppl'] : ['fb3', 'ul4'])
+      : ['fb3', 'glute3', 'fatloss3'];
+    h += `<div class="sec-h"><h2 style="font-size:16px">추천</h2><span class="aside">${sex ? `${sex === 'f' ? '여성' : '남성'} · ${esc(goal().l)}` : '성별을 고르면 맞춰드려요'}</span></div>
+      <div class="row" style="gap:6px;margin-bottom:8px"><span class="small muted">성별</span><div class="seg" style="width:150px">${[['f', '여성'], ['m', '남성']].map(([v, l]) => `<button class="${sex === v ? 'on' : ''}" data-act="rt-sex" data-v="${v}">${l}</button>`).join('')}</div><span class="small muted" style="margin-left:auto">목표는 바디 탭</span></div>
+      ${ids.map(id => PROGRAMS.find(p => p.id === id)).filter(Boolean).map(card).join('')}`;
+  }
   // pick by body part: every program day that mainly trains it
   const M = state.rtM || '전체';
   h += `<div class="sec-h"><h2 style="font-size:16px">부위로 고르기</h2><span class="aside">${M === '전체' ? '루틴 전체' : '루틴의 그 날만'}</span></div>
-    <div class="chips rtchips">${['전체', '가슴', '등', '어깨', '하체', '팔', '전신'].map(m => `<button class="chip ${m === M ? 'on' : ''}" data-act="rt-m" data-m="${m}">${m}</button>`).join('')}</div>`;
+    <div class="chips rtchips">${['전체', '가슴', '등', '어깨', '하체', '엉덩이', '팔', '전신'].map(m => `<button class="chip ${m === M ? 'on' : ''}" data-act="rt-m" data-m="${m}">${m}</button>`).join('')}</div>`;
   if (M !== '전체') {
     const days = [];
     for (const p of PROGRAMS) p.days.forEach((dd, i) => { if (dayMuscles(dd).has(M) && !days.some(([q, x]) => q === p && x.t === dd.t)) days.push([p, dd, i]); });
@@ -813,8 +823,10 @@ function progInfoHtml(p) {
 /* which body parts a program day mainly trains (share of its target sets) */
 function dayMuscles(dd) {
   const n = {}; let tot = 0;
-  for (const [id, t] of dd.ex) { const e = eqById(id); if (!e) continue; const m = e.m === '다리' ? '하체' : e.m === '코어' ? null : e.m === '전신' ? '하체' : e.m; const k = tgSets(t); tot += k; if (m) n[m] = (n[m] || 0) + k; }
+  let gl = 0;
+  for (const [id, t] of dd.ex) { const e = eqById(id); if (!e) continue; if (e.kind !== 'cardio') gl += ((regionsOf(e.name, e.type, e.m).glutes || 0) >= 1 ? tgSets(t) : 0); const m = e.m === '다리' ? '하체' : e.m === '코어' ? null : e.m === '전신' ? '하체' : e.m; const k = tgSets(t); tot += k; if (m) n[m] = (n[m] || 0) + k; }
   const out = new Set(Object.entries(n).filter(([, v]) => v / tot >= 0.25).map(([m]) => m));
+  n['엉덩이'] = gl; if (tot && gl / tot >= 0.4) out.add('엉덩이');
   out.share = m => m === '전신' ? 1 : (n[m] || 0) / tot;
   // full body = real lower-body work and real upper-body work in the same day
   const up = ['가슴', '등', '어깨', '팔'].reduce((x, m) => x + (n[m] || 0), 0);
@@ -984,6 +996,7 @@ function setSheetHtml(e) {
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">${mtag(e.m)}<span class="mtag" style="--mc:var(--ink3)">${esc(type)}</span>
       <a class="btn sm ghost" style="margin-left:auto" href="${ytLink(`${e.name} 자세`)}" target="_blank" rel="noopener">▶ 자세</a>
       <button class="btn sm ghost" data-act="fav" data-eq="${esc(e.id)}">${fav ? '★' : '☆'} 즐겨찾기</button></div>
+    ${musclePeekHtml(e.name, type, e.m)}
     ${top}
     <div class="row between" style="margin-top:12px;gap:8px">
       <div class="setcount"><span class="small muted">세트</span>${[3, 4, 5, 6].map(n => `<button class="${todays.length + S.rows.length === n ? 'on' : ''}" data-act="set-count" data-n="${n}">${n}</button>`).join('')}</div>
@@ -1068,6 +1081,35 @@ function refreshSetSheet() {
   setSheetBody(S.kind === 'cardio' ? cardioSheetHtml(e) : setSheetHtml(e), true);
 }
 
+/* ---------- first-run tutorial ---------- */
+const navIcon = t => { const b = document.querySelector(`nav button[data-tab="${t}"] svg`); return b ? b.outerHTML : ''; };
+function tutorialHtml(i) {
+  const pf = DB.settings.profile || {}, gk = DB.settings.mode;
+  const demo = musclePeekHtml('바벨 힙 쓰러스트', '힙 쓰러스트', '다리', true);
+  const steps = [
+    { t: '오운완에 오신 걸 환영해요', b: `<p>운동한 걸 기록하면, 어느 부위를 얼마나 했는지 알아서 분석해줘요.</p>
+      <div class="tut-tabs">${[['workout', '운동', '오늘 운동 기록'], ['records', '기록', '지난 운동 달력'], ['analysis', '분석', '부위·볼륨·디로딩'], ['body', '바디', '인바디·체중·목표']].map(([k, l, d]) => `<div><span class="ic">${navIcon(k)}</span><b>${l}</b><small>${d}</small></div>`).join('')}</div>
+      <p class="muted small">1분이면 끝나요. 언제든 설정(⚙)에서 다시 볼 수 있어요.</p>` },
+    { t: '1. 운동 고르기', b: `<ol class="tut-ol"><li>운동 탭에서 <b class="tut-btn">+ 운동 추가</b>를 눌러요.</li><li>부위나 이름으로 기구를 찾아요. 헬스장 기구 이름·브랜드로 찾으면 돼요.</li><li>목록에 없으면 <b>직접 추가</b> — 이름만 넣으면 어느 부위인지 앱이 알아서 판단해요.</li></ol>
+      <p class="small muted">뭘 할지 모르겠으면 <b class="tut-btn">📋 루틴</b>에서 프로그램을 고르면 오늘 할 운동이 한 번에 깔려요.</p>` },
+    { t: '2. 세트 기록하기', b: `<div class="tut-table"><div class="h"><span>세트</span><span>kg</span><span>회</span><span></span></div><div class="r done"><span>1</span><span>40</span><span>10</span><span class="ck on">✓</span></div><div class="r next"><span>2</span><span>40</span><span>10</span><span class="ck">✓</span></div></div>
+      <ol class="tut-ol"><li>세트가 끝날 때마다 <b>✓</b>만 누르세요. 무게·횟수는 앞 세트에서 자동으로 채워져요.</li><li>실제로 한 횟수가 다르면 숫자만 고치고 ✓.</li><li>✓를 누르면 휴식 타이머가 돌고, 마지막 세트까지 끝나면 다음 운동 고르기로 넘어가요.</li></ol>` },
+    { t: '3. 어디를 쓰는지 · 얼마나 했는지', b: `${demo}<p>기구마다 쓰는 부위를 그림으로 보여주고, 분석 탭에서 이번 주에 많이 한 부위가 빨갛게 표시돼요.</p><p class="small muted">부위별 주간 세트, 디로딩 시점, 무게가 오르는지도 분석 탭에서 봐요.</p>` },
+    { t: '4. 나에 맞추기', b: `<p class="small muted" style="margin-top:0">고르면 루틴 추천과 분석 조언이 여기에 맞춰져요. 나중에 바꿀 수 있어요.</p>
+      <div class="field"><label>성별</label><div class="seg">${[['f', '여성'], ['m', '남성']].map(([v, l]) => `<button class="${pf.sex === v ? 'on' : ''}" data-act="tut-sex" data-v="${v}">${l}</button>`).join('')}</div></div>
+      <div class="field"><label>목표</label><div class="chips goalchips">${GOAL_ORDER.map(v => `<button class="chip ${gk === v ? 'on' : ''}" data-act="tut-goal" data-v="${v}">${GOALS[v].l}</button>`).join('')}</div>
+        ${GOALS[gk] ? `<div class="note">${esc(GOALS[gk].d)}</div>` : ''}</div>
+      <p class="small muted">인바디 결과지가 있으면 바디 탭에서 사진만 올려도 숫자가 채워지고, 논문 기준으로 풀어서 알려줘요.</p>` },
+  ];
+  const st = steps[i], last = i === steps.length - 1;
+  return `<div class="tut"><div class="tut-dots">${steps.map((_, j) => `<span class="${j === i ? 'on' : ''}"></span>`).join('')}</div>
+    <h3>${st.t}</h3>${st.b}
+    <div class="grid2" style="margin-top:16px">${i ? `<button class="btn" data-act="tut-go" data-i="${i - 1}">이전</button>` : `<button class="btn ghost" data-act="tut-end">건너뛰기</button>`}
+      ${last ? `<button class="btn primary" data-act="tut-end" data-then="routines">루틴 고르러 가기</button>` : `<button class="btn primary" data-act="tut-go" data-i="${i + 1}">다음</button>`}</div>
+    ${last ? `<button class="btn block ghost" style="margin-top:8px" data-act="tut-end">바로 기록 시작</button>` : ''}</div>`;
+}
+function openTutorial(i = 0) { state.tutI = i; DB.settings.tutDone = 1; save(); state.sheet = { kind: 'tutorial' }; openSheet('사용법', '처음 시작하기', tutorialHtml(i), state.sheet); }
+
 /* ---------- custom equipment sheet ---------- */
 function openCustomEq(id) {
   const ex = id ? DB.customEq.find(e => e.id === id) : null;
@@ -1079,13 +1121,14 @@ function openCustomEq(id) {
   const typeOpts = TYPE_NAMES.map(t => `<option value="${esc(t)}" ${(ex ? ex.type : auto) === t ? 'selected' : ''}>${esc(t)}</option>`).join('');
   openSheet(ex ? '내 기구 수정' : '내 기구 추가', ex ? ex.name : '새 기구', `
     <div class="field"><label>기구 / 운동 이름</label><input id="ce-name" placeholder="예: 익스텐션, 스미스 인클라인" value="${esc(name)}" data-on="ce-infer"></div>
-    <div class="field"><label>브랜드 · 선택</label><input id="ce-brand" placeholder="예: 뉴텍, Panatta" value="${esc(ex ? ex.brand : '')}"></div>
+    <div class="field"><label>브랜드 · 선택</label><input id="ce-brand" data-on="ce-infer" placeholder="예: 뉴텍, Panatta" value="${esc(ex ? ex.brand : '')}"></div>
     <div class="grid2">
       <div class="field"><label>주 부위</label><select id="ce-m" data-on="ce-infer">${MUSCLES.map(x => `<option ${x === m ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
       <div class="field"><label>기본 단위</label><select id="ce-u"><option value="kg" ${defU === 'kg' ? 'selected' : ''}>kg</option><option value="lb" ${defU === 'lb' ? 'selected' : ''}>lb</option></select></div>
     </div>
     <div class="field"><label>운동 패턴 (비교·분석 기준)</label><select id="ce-type" data-on="ce-type">${typeOpts}<option value="__self" ${ex && !TYPE_INFO[ex.type] ? 'selected' : ''}>독립 운동 (다른 기구와 비교 안 함)</option></select>
       <div class="note" id="ce-hint">${auto ? `이름과 부위로 <b>${esc(auto)}</b>(으)로 자동 분류했어요. ` : ''}같은 패턴의 기구끼리 PR·진행 상황을 함께 비교해요. 예) "뉴텍 익스텐션"(다리) ↔ Hammer Strength 레그 익스텐션.</div></div>
+    <div class="field"><label>쓰는 부위 (이름·브랜드·패턴으로 자동 판단)</label><div id="ce-musc">${musclePeekHtml(name, ex ? ex.type : auto, m) || '<div class="small muted">이름을 넣으면 어느 부위를 쓰는지 그림으로 보여드려요.</div>'}</div></div>
     <button class="btn primary block" style="margin-top:14px;padding:13px" data-act="ce-save">${ex ? '저장' : '추가하기'}</button>
     ${ex ? `<button class="btn block danger ghost" style="margin-top:8px" data-act="ce-del" data-id="${esc(ex.id)}">이 기구 삭제 (기록은 유지)</button>` : ''}`, state.sheet);
 }
@@ -2328,6 +2371,7 @@ function openSettings(focus) {
   const S = DB.settings, G = S.goals;
   state.sheet = { kind: 'settings' };
   openSheet('설정', '오운완', `
+    <button class="btn block" style="margin-bottom:10px" data-act="tut-open">처음 사용법 다시 보기</button>
     <div class="setlist">
       <div class="item"><div class="main"><div class="t">기본 무게 단위</div><div class="d">새 기구의 기본값. 기구별로 마지막 단위를 따로 기억해요.</div></div>
         <div class="unitseg"><button class="${S.unit === 'kg' ? 'on' : ''}" data-act="st-unit" data-u="kg">kg</button><button class="${S.unit === 'lb' ? 'on' : ''}" data-act="st-unit" data-u="lb">lb</button></div></div>
@@ -2359,7 +2403,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2590,6 +2634,12 @@ const ACT = {
   },
   'routine-load': () => openRoutineSheet(),
   'routines-open': () => openRoutines(),
+  'tut-go': el => { state.tutI = +el.dataset.i; setSheetBody(tutorialHtml(state.tutI)); },
+  'tut-sex': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { sex: el.dataset.v }); save(); setSheetBody(tutorialHtml(state.tutI), true); },
+  'tut-goal': el => { DB.settings.mode = el.dataset.v; save(); setSheetBody(tutorialHtml(state.tutI), true); },
+  'tut-end': el => { DB.settings.tutDone = 1; save(); closeSheet(); state.tab = 'workout'; render(); if (el.dataset.then === 'routines') setTimeout(openRoutines, 50); },
+  'tut-open': () => { closeSheet(); setTimeout(() => openTutorial(0), 30); },
+  'rt-sex': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { sex: el.dataset.v }); save(); setSheetBody(routinesHtml(), true); },
   'rt-m': el => { state.rtM = el.dataset.m; setSheetBody(routinesHtml(), true); },
   // one day from a program, without signing up for the whole program
   'day-start': el => { const p = PROGRAMS.find(x => x.id === el.dataset.p), d = p.days[+el.dataset.d]; startPlan(d.ex, `${p.name} · ${d.t}`, null); day(state.date).plan.prog = p.id; save(); render(); },
@@ -2713,9 +2763,11 @@ const ON = {
     const S = state.sheet; if (!S || S.kind !== 'ceq') return;
     const t = inferType($('#ce-name').value, $('#ce-m').value);
     if (!S.typeTouched && t) $('#ce-type').value = t;
+    const ct = $('#ce-type').value, mp = musclePeekHtml(`${$('#ce-brand').value} ${$('#ce-name').value}`, ct === '__self' ? t : ct, $('#ce-m').value);
+    $('#ce-musc').innerHTML = mp || '<div class="small muted">이름을 넣으면 어느 부위를 쓰는지 그림으로 보여드려요.</div>';
     $('#ce-hint').innerHTML = (t ? `이름과 부위로 <b>${esc(t)}</b>(으)로 자동 분류했어요. ` : '자동 분류가 안 되면 직접 골라주세요. ') + '같은 패턴의 기구끼리 PR·진행 상황을 함께 비교해요.';
   },
-  'ce-type': () => { if (state.sheet) state.sheet.typeTouched = true; },
+  'ce-type': (el, ev) => { if (state.sheet) state.sheet.typeTouched = true; ON['ce-infer']($('#ce-name'), { type: 'input' }); },
   'pf-birth': (el, ev) => { if (ev.type !== 'change') return; const v = parseInt(el.value, 10); DB.settings.profile = Object.assign({}, DB.settings.profile, { birth: v >= 1930 && v <= 2015 ? v : null }); save(); render(); },
   'pf-height': (el, ev) => { if (ev.type !== 'change') return; const v = parseFloat(el.value); DB.settings.profile = Object.assign({}, DB.settings.profile, { height: v >= 120 && v <= 230 ? v : null }); save(); render(); },
   'st-autorest': el => { DB.settings.autoRest = el.checked; save(); },
@@ -2773,6 +2825,7 @@ applyTheme();
 state._lastToday = today();
 render();
 timerLoop();
+if (!DB.settings.tutDone && !allSets().length && !lsGet('ironlog_hint_off')) setTimeout(() => openTutorial(0), 400);
 if (isNative && P.App) {
   try {
     P.App.addListener('backButton', () => {

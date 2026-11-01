@@ -453,6 +453,8 @@ const REFS = [
   { id: 'bell22', short: 'Bell 외 2022', text: 'Bell L 외. "You can\'t shoot another bullet until you\'ve reloaded the gun": Coaches\' perceptions, practices and experiences of deloading. Front Sports Act Living 4, 2022.', url: 'https://doi.org/10.3389/fspor.2022.1073223', use: '코치 실무: 4–8주마다, 5–7일, 볼륨 30–50% 감소, RIR 1–3 추가 또는 무게 약 10% 감소. 계획 + 데이터 기반 병행.' },
   { id: 'bell23', short: 'Bell 외 2023', text: 'Bell L 외. Integrating Deloading into Strength and Physique Sports Training Programmes: An International Delphi Consensus Approach. Sports Med Open 9, 2023.', url: 'https://doi.org/10.1186/s40798-023-00633-0', use: '디로딩 = 피로 해소를 위한 계획된 훈련 스트레스 감소 기간 (전문가 합의 정의).' },
   { id: 'helms14', short: 'Helms 외 2014', text: 'Helms ER, Aragon AA, Fitschen PJ. Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation. J Int Soc Sports Nutr 11:20, 2014.', url: 'https://doi.org/10.1186/1550-2783-11-20', use: '감량 시 주당 체중의 0.5–1% 감소, 단백질 제지방 1kg당 2.3–3.1g, 지방 칼로리의 15–30%, 나머지 탄수화물.' },
+  { id: 'plotkin23', short: 'Plotkin 외 2023', text: 'Plotkin DL 외. Hip thrust and back squat training elicit similar gluteus muscle hypertrophy and transfer similarly to the deadlift. Front Physiol 14:1279170, 2023.', url: 'https://doi.org/10.3389/fphys.2023.1279170', use: '9주간 힙 쓰러스트와 스쿼트의 엉덩이 근비대는 비슷했고, 스쿼트는 대퇴사두·내전근도 키움. 애플힙 루틴에 둘을 섞은 근거.' },
+  { id: 'willis12', short: 'Willis 외 2012', text: 'Willis LH 외. Effects of aerobic and/or resistance training on body mass and fat mass in overweight or obese adults. J Appl Physiol 113(12):1831–1837, 2012.', url: 'https://pubmed.ncbi.nlm.nih.gov/23019316/', use: '체중·지방 감소는 유산소(단독·병행)가 컸고, 제지방 증가는 근력운동(단독·병행)에서만. 다이어트 루틴에 근력+유산소를 같이 넣은 근거.' },
   { id: 'bickel11', short: 'Bickel 외 2011', text: 'Bickel CS, Cross JM, Bamman MM. Exercise dosing to retain resistance training adaptations in young and older adults. Med Sci Sports Exerc 43(7):1177–1187, 2011.', url: 'https://doi.org/10.1249/MSS.0b013e318207c15d', use: '근비대를 만든 뒤 주 1회·볼륨 1/9로 줄여도 젊은 성인은 근육 크기를 유지. 줄일 땐 세트보다 강도(무게)를 지키는 게 핵심.' },
   { id: 'who20', short: 'WHO 2020', text: 'Bull FC 외. World Health Organization 2020 guidelines on physical activity and sedentary behaviour. Br J Sports Med 54:1451–1462, 2020.', url: 'https://doi.org/10.1136/bjsports-2020-102955', use: '성인 중강도 유산소 주 150–300분(고강도 75–150분) + 근력운동 주 2회 이상.' },
   { id: 'vissers13', short: 'Vissers 외 2013', text: 'Vissers D 외. The effect of exercise on visceral adipose tissue in overweight adults: a systematic review and meta-analysis. PLoS One 8(2):e56415, 2013.', url: 'https://doi.org/10.1371/journal.pone.0056415', use: '체중 변화가 없어도 유산소 운동은 내장지방을 줄였고, 근력운동 단독 효과는 뚜렷하지 않았음.' },
@@ -464,6 +466,15 @@ const REFS = [
 /* ---------- 루틴 라이브러리 ----------
    ex: [equipment id, target]. Targets are "sets×reps"; programs that use percentages explain them in note. */
 const PROGRAM_INFO = {
+ "glute3": { "goal": "엉덩이 근비대 (전신 3일)", "for": "엉덩이 라인을 키우고 싶은 사람, 입문–중급",
+  "keys": ["힙 쓰러스트는 맨 위에서 1초 멈추고 엉덩이를 꽉 조이기 — 허리를 꺾지 말고 갈비뼈를 내린 채로", "스쿼트·런지도 엉덩이를 힙 쓰러스트만큼 키웠어요. 둘 다 섞는 게 좋아요", "스쿼트는 깊게 앉을수록 엉덩이가 더 컸어요 (허벅지가 바닥과 평행 이하)", "엉덩이 주 10–20세트, 같은 무게에서 횟수가 늘면 증량"],
+  "refs": [{ "t": "Plotkin 외 2023 · 힙 쓰러스트 vs 스쿼트", "u": "https://doi.org/10.3389/fphys.2023.1279170" }, { "t": "Kubo 외 2019 · 스쿼트 깊이와 엉덩이", "u": "https://doi.org/10.1007/s00421-019-04181-y" }], "yt": "힙 쓰러스트 엉덩이 운동 루틴" },
+ "wul4": { "goal": "하체·엉덩이 근비대 + 상체 유지", "for": "하체를 우선 키우고 싶은 초중급",
+  "keys": ["하체 날을 먼저, 컨디션 좋은 날에", "엉덩이·하체는 주 2회 이상 자극 — 같은 볼륨이면 나눠 하는 게 회복에 유리", "상체는 등·어깨 위주로 자세 라인 잡기", "범위 위쪽 횟수를 채우면 증량"],
+  "refs": [], "yt": "하체 엉덩이 상하체 분할 루틴" },
+ "fatloss3": { "goal": "체지방 감량 + 근육 유지", "for": "다이어트 중인 입문자",
+  "keys": ["체중·지방은 유산소가 더 많이 줄였고, 근육은 근력운동이 지켰어요 — 둘을 같이 할 때 결과가 가장 좋았어요", "유산소는 주 150–300분이 목표 (빠르게 걷기 포함)", "감량 중엔 무게를 줄이지 말고 세트를 줄이기", "식단이 감량의 대부분 — 바디 탭 목표를 '살 빼기'로"],
+  "refs": [{ "t": "Willis 외 2012 · 유산소/근력/병행 비교", "u": "https://pubmed.ncbi.nlm.nih.gov/23019316/" }, { "t": "WHO 2020 신체활동 지침", "u": "https://doi.org/10.1136/bjsports-2020-102955" }], "yt": "다이어트 전신 운동 루틴 헬스장" },
  "fb3": {
   "goal": "기초 근력 + 근육",
   "for": "운동 입문, 쉬다가 복귀",
@@ -728,6 +739,24 @@ const PROGRAMS = [
       { l: 'B', t: '전신 B', ex: [['fw-rdl', '3×8'], ['fw-ohp', '3×8'], ['lf-pulldown', '3×10'], ['lf-legpress', '2×12'], ['cb-pushdown', '2×12']] }],
     desc: 'A와 B를 번갈아 주 3회(예: 월 A · 수 B · 금 A). 운동을 막 시작했거나 쉬다가 돌아왔을 때.',
     note: '모든 세트를 목표 횟수로 성공하면 다음번에 무게를 한 단계 올리세요.' },
+  { id: 'glute3', name: '애플힙 전신 3일', who: '엉덩이 집중 · Contreras 방식 참고', lv: '입문–중급', per: '주 3일', days: [
+      { l: 'A', t: '엉덩이 · 힙 쓰러스트 중심', ex: [['fw-hipthrust', '4×8–12'], ['fw-goblet', '3×10'], ['lf-pulldown', '3×10'], ['fw-db-ohp', '3×10'], ['tg-abduction', '3×15–20']] },
+      { l: 'B', t: '엉덩이 · 허벅지 뒤 중심', ex: [['fw-rdl', '3×8–10'], ['fw-bss', '3×10'], ['cb-row', '3×10'], ['fw-incline-db', '3×10'], ['g80-glute', '3×12–15']] },
+      { l: 'C', t: '엉덩이 · 고반복', ex: [['fw-hipthrust', '3×12–15'], ['lf-legpress', '3×12'], ['tg-legcurl', '3×12'], ['lf-pulldown', '3×12'], ['tg-abduction', '3×20']] }],
+    desc: '엉덩이 운동을 매번 넣고 상체는 가볍게 유지하는 전신 3일. A·B·C를 돌아가며 주 3회.',
+    note: '엉덩이는 주 10–20세트 정도가 쌓이도록 구성했어요. 범위 위쪽 횟수를 모든 세트에서 채우면 증량.' },
+  { id: 'wul4', name: '하체 비중 상하체 4일', who: '일반적인 구성 · 하체 위주', lv: '초중급', per: '주 4일', days: [
+      { l: '하1', t: '하체 · 엉덩이 무겁게', ex: [['fw-squat', '4×6–8'], ['fw-hipthrust', '4×8'], ['fw-rdl', '3×8'], ['tg-abduction', '3×15']] },
+      { l: '상1', t: '상체 · 등·어깨', ex: [['lf-pulldown', '3×10'], ['cb-row', '3×10'], ['fw-db-ohp', '3×10'], ['fw-lateral', '3×15'], ['cb-pushdown', '2×12']] },
+      { l: '하2', t: '하체 · 엉덩이 볼륨', ex: [['fw-bss', '3×10'], ['lf-legpress', '3×12'], ['tg-legcurl', '3×12'], ['g80-glute', '3×15'], ['fw-hipthrust', '2×15']] },
+      { l: '상2', t: '상체 · 가슴·팔', ex: [['fw-incline-db', '3×10'], ['cb-row', '3×12'], ['fw-lateral', '3×15'], ['fw-dbcurl', '2×12'], ['cy-abcrunch', '3×12']] }],
+    desc: '하체·엉덩이 2일, 상체 2일. 하체를 더 키우고 싶지만 상체 라인도 같이 잡고 싶을 때.',
+    note: '하체 날은 2–3회 여유를 남기고, 엉덩이 볼륨 날은 1–2회 여유까지.' },
+  { id: 'fatloss3', name: '다이어트 전신 3일 + 유산소', who: '근력+유산소 병행 · 연구 기반 구성', lv: '입문', per: '주 3일', days: [
+      { l: 'A', t: '전신 A + 유산소', ex: [['fw-goblet', '3×12'], ['lf-chest-press', '3×12'], ['lf-pulldown', '3×12'], ['fw-rdl', '3×12'], ['pc-tread', '1×20–30분']] },
+      { l: 'B', t: '전신 B + 유산소', ex: [['lf-legpress', '3×12'], ['fw-db-ohp', '3×12'], ['cb-row', '3×12'], ['fw-hipthrust', '3×12'], ['mx-ellip', '1×20–30분']] }],
+    desc: '근력운동으로 근육을 지키고 유산소로 소모를 늘리는 감량용 구성. A·B를 번갈아 주 3회, 다른 날 걷기를 더하면 좋아요.',
+    note: '휴식은 60–90초로 짧게. 무게는 12회를 겨우 채우는 정도로 유지하고, 줄이지 마세요.' },
   { id: 'sl5', name: '스트롱리프트 5×5', who: 'Mehdi · StrongLifts', lv: '입문', per: '주 3일', days: [
       { l: 'A', t: '워크아웃 A', ex: [['fw-squat', '5×5'], ['fw-bench', '5×5'], ['fw-bbrow', '5×5']] },
       { l: 'B', t: '워크아웃 B', ex: [['fw-squat', '5×5'], ['fw-ohp', '5×5'], ['fw-deadlift', '1×5']] }],

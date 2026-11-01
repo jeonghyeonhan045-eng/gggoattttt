@@ -144,12 +144,12 @@ function heatColor(f) {
   const c = a[1].map((v, i) => Math.round(v + (b[1][i] - v) * t));
   return `rgb(${c.join(',')})`;
 }
-function bodySvg(view, vals, max, label) {
+function bodySvg(view, vals, max, label, tipFn) {
   const parts = view === 'front' ? BODY_FRONT : BODY_BACK;
   const poly = (pts, key) => {
     const v = vals[key] || 0, fill = heatColor(max ? v / max : 0);
     const p = []; for (let i = 0; i < pts.length; i += 2) p.push(pts[i] + ',' + pts[i + 1]);
-    return `<polygon points="${p.join(' ')}" class="mz ${fill ? 'on' : ''}" style="${fill ? `fill:${fill}` : ''}" data-tip="${REGIONS[key]} · ${Math.round(v * 10) / 10}세트"></polygon>`;
+    return `<polygon points="${p.join(' ')}" class="mz ${fill ? 'on' : ''}" style="${fill ? `fill:${fill}` : ''}" data-tip="${tipFn ? tipFn(key, v) : `${REGIONS[key]} · ${Math.round(v * 10) / 10}세트`}"></polygon>`;
   };
   let half = '', center = '';
   for (const [k, list] of Object.entries(parts)) for (const pts of list) half += poly(pts, k);
@@ -181,4 +181,19 @@ function regionTotals(from, to) {
     for (const [k, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m))) vals[k] = (vals[k] || 0) + v;
   }
   return vals;
+}
+
+/* which regions one exercise works, drawn like the muscle sticker on a gym machine */
+const FRONT_REG = new Set(Object.keys(BODY_FRONT).concat(Object.keys(BODY_FRONT_CENTER)));
+const BACK_REG = new Set(Object.keys(BODY_BACK));
+function musclePeekHtml(name, type, m, big) {
+  const R = regionsOf(name, type, m), keys = Object.keys(R);
+  if (!keys.length) return '';
+  const prim = keys.filter(k => R[k] >= 1), sec = keys.filter(k => R[k] < 1).sort((a, b) => R[b] - R[a]);
+  const tip = (k, v) => `${REGIONS[k]} · ${v >= 1 ? '주로 씀' : v ? '같이 씀' : ''}`;
+  const hasF = keys.some(k => FRONT_REG.has(k)), hasB = keys.some(k => BACK_REG.has(k));
+  const views = [hasF && ['front', '앞'], hasB && ['back', '뒤']].filter(Boolean);
+  return `<div class="mpeek ${big ? 'big' : ''}"><div class="mp-maps">${views.map(([v, l]) => bodySvg(v, R, 1, l, tip)).join('')}</div>
+    <div class="mp-txt"><div class="k">주로 쓰는 부위</div><b>${prim.map(k => REGIONS[k]).join(' · ') || '–'}</b>
+      ${sec.length ? `<div class="k" style="margin-top:6px">같이 쓰는 부위</div><span>${sec.map(k => REGIONS[k]).join(' · ')}</span>` : ''}</div></div>`;
 }
