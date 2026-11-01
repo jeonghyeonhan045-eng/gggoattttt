@@ -95,7 +95,57 @@ const NAME_REG = [
 // the six analysis groups each region belongs to (to fall back on when a type is unknown)
 const GROUP_REG = { 가슴: { chestL: 1, chestU: 0.5 }, 등: { lats: 1, midback: 1 }, 어깨: { deltF: 0.5, deltS: 1, deltR: 0.5 }, 팔: { biceps: 1, triceps: 1 }, 다리: { quads: 1, hams: 0.5, glutes: 0.5 }, 코어: { abs: 1, oblique: 0.5 }, 전신: { quads: 0.5, glutes: 0.5, abs: 0.5 } };
 
-function regionsOf(name, type, m) {
+/* grips: same machine, different emphasis. Values replace the pattern's default map.
+   Back: Lusk 2010 (pronated > supinated for lats on pulldowns; width made little difference),
+   Padovan 2025 (seated row: narrow → more lats, wide → more trapezius and side delts). Press/curl: common mechanics. */
+const GRIP_ICON = {
+  wide: '<path d="M2 12h32"/><rect x="3" y="6" width="5" height="6" rx="2"/><rect x="28" y="6" width="5" height="6" rx="2"/>',
+  mid: '<path d="M2 12h32"/><rect x="9" y="6" width="5" height="6" rx="2"/><rect x="22" y="6" width="5" height="6" rx="2"/>',
+  close: '<path d="M2 12h32"/><rect x="12" y="6" width="5" height="6" rx="2"/><rect x="19" y="6" width="5" height="6" rx="2"/>',
+  under: '<path d="M2 9h32"/><rect x="9" y="9" width="5" height="6" rx="2"/><rect x="22" y="9" width="5" height="6" rx="2"/>',
+  neutral: '<path d="M18 3v4M18 7l-5 9M18 7l5 9"/><rect x="10" y="12" width="5" height="6" rx="2" transform="rotate(90 12.5 15)"/><rect x="21" y="12" width="5" height="6" rx="2" transform="rotate(90 23.5 15)"/>',
+  hammer: '<rect x="8" y="4" width="4" height="14" rx="1.5"/><rect x="24" y="4" width="4" height="14" rx="1.5"/><path d="M5 11h10M21 11h10"/>',
+  reverse: '<path d="M2 12h32"/><rect x="9" y="6" width="5" height="6" rx="2"/><rect x="22" y="6" width="5" height="6" rx="2"/><path d="M11 4l2-2M24 4l2-2"/>',
+};
+const GRIPS = {
+  lat: [
+    ['wide', '와이드 오버', { lats: 1, midback: 0.5, traps: 0.25, deltR: 0.25, biceps: 0.25, forearm: 0.25 }, '어깨보다 넓게, 손등이 위. 광배근 위주(위·바깥쪽 등 넓이).'],
+    ['mid', '어깨너비 오버', null, '기본 그립. 광배근 + 이두.'],
+    ['neutral', 'V바 · 뉴트럴', { lats: 1, midback: 0.5, biceps: 0.5, deltR: 0.25, forearm: 0.25 }, '손바닥이 마주 보게. 팔꿈치가 몸 옆으로 내려와 광배 아래쪽·등 중앙.'],
+    ['under', '언더핸드', { lats: 1, midback: 0.5, biceps: 0.5, deltR: 0.25, forearm: 0.25 }, '손바닥이 나를 향하게. 연구에선 오버핸드보다 광배 활성이 조금 낮았고, 이두는 생각보다 차이가 없었어요.'],
+  ],
+  row: [
+    ['wide', '와이드 (팔꿈치 벌림)', { midback: 1, traps: 0.75, deltR: 0.75, deltS: 0.25, lats: 0.25, biceps: 0.5, forearm: 0.25 }, '팔꿈치를 옆으로 벌려 당기기. 승모·등 중앙·뒤어깨 위주(등 두께).'],
+    ['mid', '어깨너비', null, '기본 그립. 등 중앙 + 광배.'],
+    ['neutral', '클로즈 · V바', { lats: 1, midback: 0.75, biceps: 0.5, deltR: 0.25, traps: 0.25, forearm: 0.25 }, '좁게, 팔꿈치를 옆구리에 붙여 당기기. 광배근 활성이 더 컸어요.'],
+    ['under', '언더핸드', { lats: 1, midback: 0.5, biceps: 0.75, deltR: 0.25, forearm: 0.25 }, '손바닥이 위. 팔꿈치가 몸에 붙어 광배 아래쪽·이두가 더 쓰여요.'],
+  ],
+  press: [
+    ['wide', '와이드', { chestL: 1, chestU: 0.25, deltF: 0.5, triceps: 0.25 }, '넓게 잡으면 가슴 비중이 커지고 팔(삼두) 비중이 줄어요. 어깨가 불편하면 피하세요.'],
+    ['mid', '기본', null, '팔꿈치 각도 45–60°의 기본 그립.'],
+    ['close', '클로즈', { triceps: 1, chestL: 0.75, chestU: 0.25, deltF: 0.5 }, '어깨너비보다 좁게. 삼두 비중이 커져요.'],
+  ],
+  curl: [
+    ['under', '언더 (기본)', null, '손바닥이 위. 이두 위주.'],
+    ['hammer', '해머 · 뉴트럴', { biceps: 1, forearm: 1 }, '손바닥이 마주 보게. 상완요골근(팔뚝 바깥)과 상완근을 더 써요.'],
+    ['reverse', '리버스 (오버)', { forearm: 1, biceps: 0.5 }, '손등이 위. 팔뚝(전완) 위주, 이두 비중은 줄어요.'],
+  ],
+};
+function gripGroup(type, name) {
+  if (/해머|hammer|리버스\s*컬|reverse\s*curl|친업|chin/i.test(name || '')) return null; // grip is in the exercise itself
+  if (type === '랫 풀다운' || type === '풀업') return 'lat';
+  if (type === '로우') return 'row';
+  if (type === '벤치프레스' || type === '체스트 프레스' || type === '인클라인 프레스') return 'press';
+  if (type === '바이셉 컬') return 'curl';
+  return null;
+}
+function regionsOf(name, type, m, grip) {
+  const G = grip && GRIPS[gripGroup(type, name)], g = G && G.find(x => x[0] === grip);
+  if (g && g[2]) {
+    const out = Object.assign({}, g[2]);
+    if (type === '인클라인 프레스' || /인클라인|incline/i.test(name || '')) { out.chestU = 1; out.chestL = Math.min(out.chestL || 0, 0.5); }
+    return out;
+  }
   const out = Object.assign({}, TYPE_REG[type] || GROUP_REG[m] || {});
   for (const [re, add] of NAME_REG) if (re.test(name || '')) for (const [k, v] of Object.entries(add)) out[k] = v === 0 ? 0 : Math.max(out[k] || 0, v);
   // a curl named for arms (not legs) is a biceps curl
@@ -178,7 +228,7 @@ function regionTotals(from, to) {
   for (const s of setsBetween(from, to)) {
     if (isCardioSet(s)) continue;
     const e = eqById(s.eq) || s;
-    for (const [k, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m))) vals[k] = (vals[k] || 0) + v;
+    for (const [k, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m, s.grip))) vals[k] = (vals[k] || 0) + v;
   }
   return vals;
 }
@@ -186,8 +236,8 @@ function regionTotals(from, to) {
 /* which regions one exercise works, drawn like the muscle sticker on a gym machine */
 const FRONT_REG = new Set(Object.keys(BODY_FRONT).concat(Object.keys(BODY_FRONT_CENTER)));
 const BACK_REG = new Set(Object.keys(BODY_BACK));
-function musclePeekHtml(name, type, m, big) {
-  const R = regionsOf(name, type, m), keys = Object.keys(R);
+function musclePeekHtml(name, type, m, big, grip) {
+  const R = regionsOf(name, type, m, grip), keys = Object.keys(R);
   if (!keys.length) return '';
   const prim = keys.filter(k => R[k] >= 1), sec = keys.filter(k => R[k] < 1).sort((a, b) => R[b] - R[a]);
   const tip = (k, v) => `${REGIONS[k]} · ${v >= 1 ? '주로 씀' : v ? '같이 씀' : ''}`;

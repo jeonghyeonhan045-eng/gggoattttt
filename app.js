@@ -65,11 +65,12 @@ function load() {
   if (raw) {
     try {
       const d = JSON.parse(raw);
-      const def = DEFAULTS();
+      // keep the defaults' nested objects before merging: Object.assign(def, d) would replace them with the stored ones
+      const def = DEFAULTS(), defSettings = def.settings, defTimer = def.timer;
       DB = Object.assign(def, d);
-      DB.settings = Object.assign(def.settings, d.settings || {});
+      DB.settings = Object.assign(defSettings, d.settings || {});
       DB.settings.goals = Object.assign(DEFAULTS().settings.goals, (d.settings || {}).goals || {});
-      DB.timer = Object.assign(def.timer, d.timer || {});
+      DB.timer = Object.assign(defTimer, d.timer || {});
     } catch (e) { DB = DEFAULTS(); }
   } else {
     DB = DEFAULTS();
@@ -150,7 +151,7 @@ function eqById(id) {
 const typeOfEq = e => e.type || inferType(e.name, e.m) || e.name;
 const isCardioType = t => !!(TYPE_INFO[t] && TYPE_INFO[t].cardio);
 const isCardioSet = s => s.mins != null || isCardioType(s.type);
-const unitFor = eqId => DB.eqUnit[eqId] || DB.settings.unit;
+const unitFor = eqId => DB.eqUnit[eqId] || DB.settings.unit || 'kg';
 const setKg = s => (s.kg != null ? s.kg : toKg(+s.w || 0, s.u || 'kg'));
 // Epley estimate. Reps capped at 15 — estimates get unreliable beyond that.
 const e1rm = (kg, r) => (kg > 0 ? kg * (1 + Math.min(r, 15) / 30) : 0);
@@ -636,7 +637,7 @@ function sessionReport(k) {
   const mins = ts.length > 1 ? Math.round((ts[ts.length - 1] - ts[0]) / 60000) + 2 : null;
   const vol = str.reduce((a, s) => a + setKg(s) * (+s.r || 0), 0);
   const reg = {};
-  for (const s of str) { const e = eqById(s.eq) || s; for (const [r, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m))) reg[r] = (reg[r] || 0) + v; }
+  for (const s of str) { const e = eqById(s.eq) || s; for (const [r, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m, s.grip))) reg[r] = (reg[r] || 0) + v; }
   const flags = prFlags(), prs = str.filter(s => flags.has(s.id));
   // each exercise vs. its previous session (best estimated 1RM)
   const byEq = {}; for (const s of str) (byEq[s.eq] = byEq[s.eq] || []).push(s);
@@ -863,17 +864,18 @@ function routinesHtml() {
       <div class="row between"><b>${esc(p.name)}</b><span class="small muted">${esc(p.per)}</span></div>
       <div class="small muted" style="margin:2px 0 4px"><b class="tier t${p.tier || 2}">${esc(p.lv)}</b> ${esc(p.who)}${PROGRAM_INFO[p.id] ? ` · <b class="goaltag">${esc(PROGRAM_INFO[p.id].goal.split(' (')[0])}</b>` : ''}</div>
       <div class="small">${esc(p.desc)}</div>${p.why ? `<div class="small tierwhy">${esc(p.lv)}인 이유 · ${esc(p.why)}</div>` : ''}</button>`;
-  // suggestions that follow sex + goal (every program stays open to everyone below)
+  // suggestions: experience + days per week (self-reported) + goal + sex; every program stays open below
   if ((state.rtM || '전체') === '전체') {
-    const sex = (DB.settings.profile || {}).sex, gk = goalKey();
-    const ids = gk === 'strength' ? ['sl5', 'bbb', 'phul'] : gk === 'health' ? ['fatloss3', 'fb3'] : gk === 'contest' ? (sex === 'f' ? ['glute3', 'fatloss3', 'wul4'] : ['ul4', 'phul', 'fatloss3'])
-      : sex === 'f' ? (gk === 'cut' ? ['fatloss3', 'sc12', 'glute3'] : gk === 'recomp' ? ['sc12', 'glute3', 'fatloss3'] : gk === 'keep' ? ['db2', 'mach3', 'sc12'] : ['sc12', 'glute3', 'wul4'])
-      : sex === 'm' ? (gk === 'cut' ? ['fatloss3', 'ul4'] : gk === 'leanbulk' || gk === 'bulk' ? ['ul4', 'phul', 'ppl'] : ['fb3', 'ul4'])
-      : ['fb3', 'glute3', 'fatloss3'];
-    h += `<div class="sec-h"><h2 style="font-size:16px">추천</h2><span class="aside">${sex ? `${sex === 'f' ? '여성' : '남성'} · ${esc(goal().l)}` : '성별을 고르면 맞춰드려요'}</span></div>
-      <div class="row" style="gap:6px;margin-bottom:8px"><span class="small muted">성별</span><div class="seg" style="width:150px">${[['f', '여성'], ['m', '남성']].map(([v, l]) => `<button class="${sex === v ? 'on' : ''}" data-act="rt-sex" data-v="${v}">${l}</button>`).join('')}</div><span class="small muted" style="margin-left:auto">목표는 바디 탭</span></div>
-      ${ids.map(id => PROGRAMS.find(p => p.id === id)).filter(Boolean).map(card).join('')}`;
-    const fem = PROGRAMS.filter(p => p.fem && !ids.includes(p.id));
+    const pf = DB.settings.profile || {}, sex = pf.sex, gk = goalKey(), R = recPrograms();
+    const seg = (act, cur, opts, w) => `<div class="seg" style="${w ? `width:${w}` : ''}">${opts.map(([v, l]) => `<button class="${cur == v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    h += `<div class="sec-h"><h2 style="font-size:16px">추천</h2><span class="aside">${esc([pf.exp != null ? EXP_OPTS[pf.exp][1] : '', pf.freq ? `주 ${FREQ_L[pf.freq]}` : '', sex ? (sex === 'f' ? '여성' : '남성') : '', goal().l].filter(Boolean).join(' · '))}</span></div>
+      <div class="rtpf">
+        <div><span class="small muted">경력</span>${seg('rt-exp', pf.exp, EXP_OPTS.map(([, l], i) => [i, l]))}</div>
+        <div><span class="small muted">주 횟수</span>${seg('rt-freq', pf.freq, Object.entries(FREQ_L))}</div>
+        <div><span class="small muted">성별</span>${seg('rt-sex', sex, [['f', '여성'], ['m', '남성']], '150px')}<span class="small muted" style="margin-left:auto">목표는 바디 탭</span></div>
+      </div>
+      ${R.map(({ p, why }) => card(p).replace('</button>', `<div class="small recwhy">✓ ${esc(why)}</div></button>`)).join('')}`;
+    const ids = R.map(x => x.p.id), fem = PROGRAMS.filter(p => p.fem && !ids.includes(p.id) && (p.tier || 2) <= expTier() + 1);
     if (sex === 'f' && fem.length) h += `<details class="more" style="margin-top:4px"><summary>여성 추천 루틴 ${fem.length}개 더 보기</summary>${fem.map(card).join('')}</details>`;
   }
   // pick by body part: every program day that mainly trains it
@@ -908,6 +910,35 @@ function routinesHtml() {
 const progLen = p => p.rep ? p.days.length * p.rep : p.days.length;
 const progDay = (p, n) => { n = (n || 0) % progLen(p); return p.rep ? Math.floor(n / (p.block * p.rep)) * p.block + n % p.block : n; };
 const progWeek = (p, n) => Math.floor(((n || 0) % progLen(p)) / p.block) + 1;
+/* ---------- program recommendation ---------- */
+const EXP_OPTS = [[1, '처음'], [1, '1년 미만'], [2, '1–3년'], [3, '3년 이상']]; // [tier, label]
+const FREQ_L = { 2: '2회', 3: '3회', 4: '4회', 5: '5–6회' };
+const expTier = () => { const e = (DB.settings.profile || {}).exp; return e != null ? EXP_OPTS[e][0] : 1; };
+const progDays = p => { const m = /주 (\d)/.exec(p.per); return m ? +m[1] : p.id === 'mentzer' ? 1 : p.id === 'haney' ? 5 : p.id === 'y3t' ? 4 : 3; };
+// programs that suit each goal, best first
+const GOAL_PROGS = {
+  cut: ['fatloss3', 'db2', 'mach3', 'ul4', 'sc12', 'glute3', 'fb3'], contest: ['ul4', 'phul', 'wul4', 'glute3', 'fatloss3', 'ppl'],
+  recomp: ['sc12', 'glute3', 'ul4', 'fb3', 'phul', 'wul4'], keep: ['db2', 'mach3', 'fb3', 'ul4'], health: ['fatloss3', 'db2', 'mach3', 'fb3'],
+  strength: ['sl5', 'bbb', 'phul', 'regpark', 'ul4'], leanbulk: ['ul4', 'phul', 'sc12', 'glute3', 'wul4', 'ppl', 'phat', 'fb3', 'sl5'],
+  bulk: ['ppl', 'phul', 'phat', 'ul4', 'bbb', 'arnold', 'fb3', 'sl5'],
+};
+function recPrograms() {
+  const pf = DB.settings.profile || {}, gk = goalKey(), T = expTier(), F = pf.freq ? +pf.freq : null, pref = GOAL_PROGS[gk] || [];
+  const isPro = p => /선수 루틴|Heavy Duty|트레이너 루틴/.test(p.who);
+  const scored = PROGRAMS.map(p => {
+    const t = p.tier || 2, d = progDays(p), gi = pref.indexOf(p.id);
+    let sc = 0;
+    sc -= t > T ? (t - T) * 4 : (T - t) * 1.5;           // too hard is worse than too easy
+    if (F) sc -= Math.abs((F === 5 ? 5.5 : F) - d) * 1.6; // fits the days you can train
+    sc += gi >= 0 ? 4 - gi * 0.4 : 0;                     // suits the goal
+    if (pf.sex === 'f' && p.fem) sc += 1.5;
+    if (pf.sex === 'm' && ['sc12', 'glute3', 'wul4'].includes(p.id)) sc -= 4; // glute-centred plans
+    if (isPro(p) && T < 3) sc -= 2;
+    const why = [t > T ? '한 단계 위 수준' : '', F ? `주 ${d}일${Math.abs((F === 5 ? 5.5 : F) - d) < 1 ? ' — 가능한 횟수와 맞음' : ''}` : `주 ${d}일`, gi >= 0 ? `${goal().l}에 맞음` : ''].filter(Boolean).join(' · ');
+    return { p, sc, why };
+  }).sort((a, b) => b.sc - a.sc);
+  return scored.slice(0, 3);
+}
 const ytLink = q => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
 // a search for one day of a program: "<program> <body parts of that day>"
 const dayQuery = (p, d) => `${(PROGRAM_INFO[p.id] || {}).yt || p.name} ${d.t.replace(/\(.*?\)/g, '').replace(/[·]/g, ' ').replace(/\d주차/g, '').replace(/\s+/g, ' ').trim()} 운동`;
@@ -1072,6 +1103,19 @@ function buildRows(e, n) {
   }
   S.rows = rows;
 }
+/* ---------- grip (remembered per machine) ---------- */
+function gripOf(e) {
+  const g = gripGroup(typeOfEq(e), e.name); if (!g) return null;
+  const pref = (DB.gripPref || {})[e.id];
+  return GRIPS[g].some(x => x[0] === pref) ? pref : GRIPS[g].find(x => !x[2])[0];
+}
+function gripHtml(e, type) {
+  const g = gripGroup(type, e.name); if (!g) return '';
+  const cur = gripOf(e), opt = GRIPS[g].find(x => x[0] === cur);
+  return `<div class="grips"><div class="k">그립 <span class="muted">— 고르면 쓰는 부위가 바뀌어요</span></div>
+    <div class="gripchips">${GRIPS[g].map(([id, l]) => `<button class="${id === cur ? 'on' : ''}" data-act="set-grip" data-g="${id}"><svg viewBox="0 0 36 20" aria-hidden="true">${GRIP_ICON[id]}</svg><span>${l}</span></button>`).join('')}</div>
+    <div class="note" style="margin-top:4px">${esc(opt[3])}</div></div>`;
+}
 function setSheetHtml(e) {
   const S = state.sheet, type = typeOfEq(e);
   const prev = prevSessionOfEq(e.id, state.date);
@@ -1099,7 +1143,8 @@ function setSheetHtml(e) {
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">${mtag(e.m)}<span class="mtag" style="--mc:var(--ink3)">${esc(type)}</span>
       <a class="btn sm ghost" style="margin-left:auto" href="${ytLink(`${e.name} 자세`)}" target="_blank" rel="noopener">▶ 자세</a>
       <button class="btn sm ghost" data-act="fav" data-eq="${esc(e.id)}">${fav ? '★' : '☆'} 즐겨찾기</button></div>
-    ${musclePeekHtml(e.name, type, e.m)}
+    ${gripHtml(e, type)}
+    ${musclePeekHtml(e.name, type, e.m, false, gripOf(e))}
     ${top}
     <div class="row between" style="margin-top:12px;gap:8px">
       <div class="setcount"><span class="small muted">세트</span>${[3, 4, 5, 6].map(n => `<button class="${todays.length + S.rows.length === n ? 'on' : ''}" data-act="set-count" data-n="${n}">${n}</button>`).join('')}</div>
@@ -1188,7 +1233,7 @@ function refreshSetSheet() {
 const navIcon = t => { const b = document.querySelector(`nav button[data-tab="${t}"] svg`); return b ? b.outerHTML : ''; };
 /* detailed help, shown in settings (the tutorial is the short version) */
 const GUIDE = [
-  ['운동 기록', ['운동 탭 + 운동 추가 → 부위·이름으로 기구 찾기. 자주·최근에 쓴 기구와 직접 추가한 기구가 맨 위에 와요.', '세트 표: 세트 수(3–6)를 고르고, 한 세트 끝날 때마다 ✓. 무게·횟수는 앞 세트 값이 자동으로 채워지고, 다르게 했으면 숫자만 고쳐서 ✓.', '✓를 누르면 휴식 타이머가 돌아요(화면 오른쪽 위 시계). 마지막 세트를 체크하면 다음 운동 고르기 화면으로 넘어가요.', '지난번 기록과 "오늘 추천"(무게를 올릴 때인지)이 같이 보여요. kg/lb는 기구에 적힌 대로 고르면 분석은 kg로 환산돼요.', '목록에 없는 기구는 "직접 추가" — 이름·브랜드를 보고 어느 부위를 쓰는지 앱이 판단해서 그림으로 보여주고 분석에 넣어요.', '운동이 끝나면 위쪽 "운동 마무리하기" — 오늘 쓴 부위를 해부도로 보여주고, 지난번 대비 기록·이번 주 볼륨·목표에 맞춘 피드백을 줘요. 더 하려면 "이어서 하기"로 취소하면 돼요.', '뒤로가기는 지금 열린 화면만 닫아요. 앱을 끄려면 첫 화면에서 두 번 누르세요.']],
+  ['운동 기록', ['운동 탭 + 운동 추가 → 부위·이름으로 기구 찾기. 자주·최근에 쓴 기구와 직접 추가한 기구가 맨 위에 와요.', '세트 표: 세트 수(3–6)를 고르고, 한 세트 끝날 때마다 ✓. 무게·횟수는 앞 세트 값이 자동으로 채워지고, 다르게 했으면 숫자만 고쳐서 ✓.', '✓를 누르면 휴식 타이머가 돌아요(화면 오른쪽 위 시계). 마지막 세트를 체크하면 다음 운동 고르기 화면으로 넘어가요.', '지난번 기록과 "오늘 추천"(무게를 올릴 때인지)이 같이 보여요. kg/lb는 기구에 적힌 대로 고르면 분석은 kg로 환산돼요.', '등 운동·벤치·컬은 세트 표 위에서 그립(와이드·클로즈·V바·언더핸드 등)을 고를 수 있어요. 기구마다 마지막 그립을 기억하고, 그립에 따라 해부도·부위별 세트에 쓰는 부위가 다르게 들어가요.', '목록에 없는 기구는 "직접 추가" — 이름·브랜드를 보고 어느 부위를 쓰는지 앱이 판단해서 그림으로 보여주고 분석에 넣어요.', '운동이 끝나면 위쪽 "운동 마무리하기" — 오늘 쓴 부위를 해부도로 보여주고, 지난번 대비 기록·이번 주 볼륨·목표에 맞춘 피드백을 줘요. 더 하려면 "이어서 하기"로 취소하면 돼요.', '뒤로가기는 지금 열린 화면만 닫아요. 앱을 끄려면 첫 화면에서 두 번 누르세요.']],
   ['루틴', ['📋 루틴: 맨 위 "추천"은 성별·목표에 맞춘 프로그램이에요. 아래에서 다른 프로그램도 전부 볼 수 있어요.', '프로그램을 시작하면 오늘 할 종목·세트가 계획으로 깔리고, 다음 날은 순서대로 다음 날짜 루틴이 나와요.', '"부위로 고르기"는 여러 프로그램에서 그 부위를 주로 하는 날만 모아서 보여줘요(예: 엉덩이).', '각 프로그램에 목표, 지킬 점, 참고 영상(유튜브 검색) 링크가 있어요. 오늘 한 운동은 이름을 붙여 내 루틴으로 저장할 수 있어요.']],
   ['기록을 넣으면 생기는 것 (분석 탭)', ['운동한 부위: 해부도에 이번 주(또는 4주) 많이 한 부위일수록 빨갛게. 주로 쓴 근육은 1세트, 같이 쓴 근육은 0.25–0.5세트로 계산해요.', '부위별 주간 세트: 최근 2주 평균. 연구가 효과적이라고 보는 근육당 주 10–20세트와 비교해요. 막대를 누르면 윗가슴·광배·햄스트링 같은 세부 부위가 나와요(세부는 참고용).', '목표에 맞춘 운동: 고른 목표(살 빼기·증량 등)에 따라 볼륨·무게 유지·유산소에 대한 조언이 달라져요.', '종목 구성 참고: 4주 기록에서 빠진 각도(인클라인, 레그 컬 등)를 짚어줘요. 강요가 아니라 참고예요.', '디로딩 판단: 8주 볼륨·컨디션 흐름을 보고 쉬어갈 때인지 알려줘요. 점진적 과부하: 기구별 추정 1RM이 오르는지 봐요.', '칼로리 소모: 운동 시간과 종류로 계산해요. 인바디가 있으면 제지방 기준, 없으면 키·나이·체중, 그것도 없으면 평균값을 써요.']],
   ['인바디', ['바디 탭에서 결과지 사진을 올리면 숫자를 읽어서 칸에 채워줘요. 잘못 읽힌 칸은 고치면 돼요(사진은 기기 안에서만 처리).', '체중·골격근량·체지방만 넣어도 되고, 내장지방·부위별 근육·위상각 등 추가 항목을 넣으면 그만큼 분석이 늘어요.', '체지방률·제지방지수·내장지방·복부지방률·근감소 지표 등을 논문 기준과 비교해서 풀어서 알려줘요. 성별·나이·키가 있어야 정확해요.', '목표를 고르면 하루 칼로리와 탄·단·지 목표가 계산돼요(살 빼기는 단백질을 더 높게). 2–3주 체중 추세를 보고 맞는 속도인지도 알려줘요.']],
@@ -1217,10 +1262,13 @@ function tutSteps() {
     { at: 'nav button[data-tab="body"]', tap: 'body', t: '바디 탭', b: `<p><b>"바디" 탭을 눌러보세요.</b> 인바디와 체중을 관리하는 곳이에요.</p>` },
     { at: 'main .photo-pick', t: '바디 탭 — 인바디', b: `<ul class="tut-ol"><li><b>결과지 사진</b>을 올리면 숫자를 읽어서 칸에 채워줘요. 잘못 읽힌 칸만 고치면 돼요. 사진은 휴대폰 안에서만 처리돼요.</li><li>체지방률·내장지방·근육량·좌우 균형 등을 논문 기준과 비교해서 쉬운 말로 풀어줘요.</li><li>위의 <b>목표</b>(살 빼기, 증량 등)를 고르면 하루 칼로리와 탄수화물·단백질·지방 양을 계산하고, 체중이 맞는 속도로 변하는지 봐줘요.</li><li>인바디가 없으면 체중만 가끔 넣어도 돼요.</li></ul>` },
     { at: 'header [data-act="settings"]', t: '설정', b: `<ul class="tut-ol"><li>kg/lb 기본 단위, 휴식 타이머, 다크 모드를 바꿔요.</li><li><b>기능 설명</b>에 이 안내보다 자세한 설명이 있고, 사용법을 다시 볼 수 있어요.</li><li>분석에 쓴 논문 목록도 여기 있어요.</li></ul>` },
-    { t: '마지막으로, 나에 맞추기', b: `<p class="small muted" style="margin-top:0">인바디 분석(성별·나이 기준이 달라요), 칼로리 계산, 루틴 추천에 쓰여요. 바디 탭에서 언제든 바꿀 수 있어요.</p>
+    { t: '마지막으로, 나에 맞추기', b: `<p class="small muted" style="margin-top:0">인바디 분석(성별·나이 기준이 달라요), 칼로리 계산, 루틴 추천(경력·횟수·목표에 맞춰서)에 쓰여요. 바디 탭에서 언제든 바꿀 수 있어요.</p>
       <div class="field"><label>성별</label><div class="seg">${[['f', '여성'], ['m', '남성']].map(([v, l]) => `<button class="${pf.sex === v ? 'on' : ''}" data-act="tut-sex" data-v="${v}">${l}</button>`).join('')}</div></div>
       <div class="grid2"><div class="field"><label>출생연도</label><input id="tut-birth" type="number" inputmode="numeric" placeholder="예: 1995" value="${pf.birth || ''}" data-on="tut-pf" data-k="birth"></div>
         <div class="field"><label>키 (cm)</label><input id="tut-height" type="number" inputmode="decimal" placeholder="예: 165" value="${pf.height || ''}" data-on="tut-pf" data-k="height"></div></div>
+      <div class="field"><label>운동 경력 — 스스로 판단해서 골라주세요</label><div class="seg">${EXP_OPTS.map(([, l], i) => `<button class="${pf.exp === i ? 'on' : ''}" data-act="tut-exp" data-v="${i}">${l}</button>`).join('')}</div>
+        <div class="note">${pf.exp == null ? '꾸준히 운동한 기간 기준이에요. 쉬었다가 다시 시작하면 한 단계 낮게 고르세요.' : ['초급 루틴부터 추천해요. 동작을 익히면서 매번 조금씩 무게를 올리는 시기예요.', '초급 루틴부터 추천해요. 매번 조금씩 무게가 오른다면 아직 초급 루틴이 가장 효율적이에요.', '중급 루틴 위주로 추천해요. 주 단위로 증량·볼륨을 관리하는 시기예요.', '상급 루틴까지 추천해요. 고볼륨·강도 기법은 회복 관리가 같이 돼야 효과가 있어요.'][pf.exp]}</div></div>
+      <div class="field"><label>일주일에 운동할 수 있는 횟수 (평균 또는 계획)</label><div class="seg">${Object.entries(FREQ_L).map(([v, l]) => `<button class="${pf.freq == v ? 'on' : ''}" data-act="tut-freq" data-v="${v}">${l}</button>`).join('')}</div></div>
       <div class="field"><label>목표</label><div class="chips goalchips">${GOAL_ORDER.map(v => `<button class="chip ${gk === v ? 'on' : ''}" data-act="tut-goal" data-v="${v}">${GOALS[v].l}</button>`).join('')}</div>
         ${GOALS[gk] ? `<div class="note">${esc(GOALS[gk].d)}</div>` : ''}</div>` },
   ];
@@ -1902,7 +1950,7 @@ function viewAnalysis() {
     for (const s of setsBetween(addDays(today(), -(days - 1)), today())) {
       if (isCardioSet(s)) continue;
       const e = eqById(s.eq) || s;
-      for (const [k, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m))) vals[k] = (vals[k] || 0) + v;
+      for (const [k, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m, s.grip))) vals[k] = (vals[k] || 0) + v;
     }
     const ranked = Object.entries(vals).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1]);
     const max = ranked.length ? ranked[0][1] : 0;
@@ -2058,7 +2106,7 @@ const GOALS = {
   leanbulk: { l: '천천히 증량', d: '살은 거의 안 찌게, 근육만 천천히 늘리기', kc: 1.07, p: 1.8, rate: [0.1, 0.25], src: 'Iraki 2019' },
   bulk:     { l: '빠르게 증량', d: '근육과 힘을 빠르게 늘리기 (살도 조금 같이 붙어요)', kc: 1.15, p: 1.8, rate: [0.25, 0.5], src: 'Iraki 2019' },
   // base = which of the five above it behaves like for weight/InBody/macro checks
-  contest:  { l: '컷팅 (바디프로필)', d: '이미 근육이 있는 몸에서 체지방을 바짝 낮추기 — 천천히, 근육 손실 최소로', kc: 0.80, p: 2.3, rate: [-0.7, -0.4], src: 'Helms 2014 · Garthe 2011', base: 'cut' },
+  contest:  { l: '바프 컷팅', d: '이미 근육이 있는 몸에서 체지방을 바짝 낮추기 — 천천히, 근육 손실 최소로', kc: 0.80, p: 2.3, rate: [-0.7, -0.4], src: 'Helms 2014 · Garthe 2011', base: 'cut' },
   strength: { l: '힘 키우기', d: '드는 무게(1RM)를 늘리는 데 집중', kc: 1.05, p: 1.8, rate: [0, 0.25], src: 'Morton 2018', base: 'leanbulk' },
   health:   { l: '건강·체력', d: '근력운동과 유산소로 체력·건강 지표 챙기기', kc: 1.00, p: 1.6, rate: [-0.3, 0.3], src: 'WHO 2020', base: 'keep' },
 };
@@ -2570,7 +2618,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2600,8 +2648,8 @@ function importText(text) {
   catch (e) { toast('백업 내용을 읽을 수 없어요'); return; }
   askConfirm('현재 기록을 백업 내용으로 바꿀까요? 되돌릴 수 없어요.', '바꾸기', () => {
     try {
-      const def = DEFAULTS();
-      DB = Object.assign(def, db); DB.settings = Object.assign(def.settings, db.settings || {});
+      const def = DEFAULTS(), defSettings = def.settings;
+      DB = Object.assign(def, db); DB.settings = Object.assign(defSettings, db.settings || {});
       DB.settings.goals = Object.assign(DEFAULTS().settings.goals, (db.settings || {}).goals || {});
       DB.timer = { endAt: null, dur: DB.settings.rest, paused: null };
       PHOTOS = j.photos || {}; savePhotos(); save(); applyTheme(); closeSheet(); render();
@@ -2620,6 +2668,7 @@ function eqOrRecord(eqId) {
 function addStrengthSet(e, w, u, r, rir) {
   const wv = w > 0 ? w : 0;
   const set = { id: uid(), eq: e.id, name: e.name, brand: e.brand, m: e.m, type: typeOfEq(e), w: wv, u, kg: r1(toKg(wv, u) * 100) / 100, r, t: Date.now() };
+  const gp = gripOf(e); if (gp) set.grip = gp;
   if (rir != null) set.rir = rir;
   const before = (() => { let b = null; for (const x of allSets()) if (x.eq === e.id && x.date < state.date && !isCardioSet(x) && better(x, b)) b = x; return b; })();
   const todayBest = (() => { let b = null; for (const x of dayRO(state.date).sets) if (x.eq === e.id && better(x, b)) b = x; return b; })();
@@ -2711,6 +2760,7 @@ const ACT = {
     toast('완료 취소'); refreshSetSheet(); render();
   },
   // "세트 끝": same weight & reps as the last set; reps get confirmed with one tap during the rest
+  'set-grip': el => { const S = state.sheet; if (!S || !S.e) return; DB.gripPref = Object.assign({}, DB.gripPref, { [S.e.id]: el.dataset.g }); save(); refreshSetSheet(); },
   'set-quick': el => {
     const e = eqOrRecord(el.dataset.eq); if (!e) return;
     const last = lastSetOfEq(e.id); if (!last) { openSetSheet(e.id); return; }
@@ -2819,6 +2869,10 @@ const ACT = {
   'tut-goal': el => { DB.settings.mode = el.dataset.v; save(); setSheetBody(tutorialHtml(state.tutI), true); },
   'tut-end': el => { DB.settings.tutV = 2; save(); closeSheet(); state.tab = 'workout'; render(); if (el.dataset.then === 'routines') setTimeout(openRoutines, 50); },
   'tut-open': () => { closeSheet(); setTimeout(() => openTutorial(0), 30); },
+  'rt-exp': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { exp: +el.dataset.v }); save(); setSheetBody(routinesHtml(), true); },
+  'rt-freq': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { freq: +el.dataset.v }); save(); setSheetBody(routinesHtml(), true); },
+  'tut-exp': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { exp: +el.dataset.v }); save(); setSheetBody(tutorialHtml(state.tutI), true); },
+  'tut-freq': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { freq: +el.dataset.v }); save(); setSheetBody(tutorialHtml(state.tutI), true); },
   'rt-sex': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { sex: el.dataset.v }); save(); setSheetBody(routinesHtml(), true); },
   'rt-lv': el => { state.rtLv = +el.dataset.v; setSheetBody(routinesHtml(), true); },
   'rt-m': el => { state.rtM = el.dataset.m; setSheetBody(routinesHtml(), true); },
