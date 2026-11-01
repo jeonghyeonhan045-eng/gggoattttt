@@ -348,6 +348,12 @@ function renderTimer() {
   const bar = $('#timerbar');
   const r = timerRemain();
   const active = r != null;
+  const st = $('#sheet-timer');
+  if (st) {
+    const show = active && state.sheet && (state.sheet.kind === 'set' || state.sheet.kind === 'cardio');
+    st.classList.toggle('hidden', !show);
+    if (show) { $('#st-time').textContent = fmtSec(Math.ceil(r)); st.classList.toggle('low', r <= 10); }
+  }
   if (!active) {
     if (!bar.classList.contains('done')) { bar.classList.add('hidden'); document.body.classList.remove('has-timer'); }
     return;
@@ -1772,11 +1778,11 @@ function viewAnalysis() {
 /* body goals. rate = target weekly weight change, % of body weight (7-day averages).
    p = protein g/kg, kc = calories as a multiple of maintenance (body weight × 30). */
 const GOALS = {
-  cut:      { l: '다이어트', d: '체지방을 줄이고 근육은 지키기', kc: 0.80, p: 2.0, rate: [-1.0, -0.5], src: 'Helms 2014' },
-  recomp:   { l: '리컴프',   d: '체중은 비슷하게 · 지방↓ 근육↑', kc: 0.95, p: 2.0, rate: [-0.25, 0.1], src: 'Barakat 2020' },
-  keep:     { l: '유지',     d: '지금 몸을 유지하기', kc: 1.00, p: 1.6, rate: [-0.3, 0.3], src: 'Morton 2018' },
-  leanbulk: { l: '린매스업', d: '지방은 최소로 · 근육을 천천히', kc: 1.07, p: 1.8, rate: [0.1, 0.25], src: 'Iraki 2019' },
-  bulk:     { l: '벌크업',   d: '근육·근력 빠르게 · 지방 증가는 감수', kc: 1.15, p: 1.8, rate: [0.25, 0.5], src: 'Iraki 2019' },
+  cut:      { l: '살 빼기', d: '체지방은 줄이고 근육은 지키기', kc: 0.80, p: 2.0, rate: [-1.0, -0.5], src: 'Helms 2014' },
+  recomp:   { l: '체형 바꾸기', d: '체중은 그대로 두고 지방은 줄이고 근육은 늘리기', kc: 0.95, p: 2.0, rate: [-0.25, 0.1], src: 'Barakat 2020' },
+  keep:     { l: '지금 유지', d: '지금 몸 상태 그대로 유지하기', kc: 1.00, p: 1.6, rate: [-0.3, 0.3], src: 'Morton 2018' },
+  leanbulk: { l: '천천히 증량', d: '살은 거의 안 찌게, 근육만 천천히 늘리기', kc: 1.07, p: 1.8, rate: [0.1, 0.25], src: 'Iraki 2019' },
+  bulk:     { l: '빠르게 증량', d: '근육과 힘을 빠르게 늘리기 (살도 조금 같이 붙어요)', kc: 1.15, p: 1.8, rate: [0.25, 0.5], src: 'Iraki 2019' },
 };
 const GOAL_ORDER = ['cut', 'recomp', 'keep', 'leanbulk', 'bulk'];
 function goalKey() { return GOALS[DB.settings.mode] ? DB.settings.mode : 'keep'; }
@@ -1816,10 +1822,10 @@ function inbodyGoalFeedback(list) {
     else if (down(df)) { lv = 'warn'; t = '지방과 함께 근육도 빠지고 있어요'; a = `단백질을 체중 1kg당 ${g.p}g 이상으로, 근력운동 세트 수는 줄이지 말고, 감량 속도를 주 0.5% 쪽으로 늦추세요.`; }
     else { lv = 'warn'; t = '체지방이 줄지 않고 있어요'; a = '하루 150–250kcal 줄이거나 걷기 같은 활동량을 늘리세요. 식단 기록 누락도 확인해 보세요.'; }
   } else if (key === 'recomp') {
-    if (up(dm) && down(df)) { lv = 'good'; t = '리컴프가 되고 있어요'; a = '근육은 늘고 지방은 줄었어요. 지금 방식을 유지하세요.'; }
+    if (up(dm) && down(df)) { lv = 'good'; t = '체형이 바뀌고 있어요'; a = '근육은 늘고 지방은 줄었어요. 지금 방식을 유지하세요.'; }
     else if (dm < -0.3) { lv = 'warn'; t = '근육이 줄고 있어요'; a = `단백질 ${g.p}g/kg과 부위당 주 10세트 이상을 지키고, 칼로리를 너무 낮추지 마세요.`; }
-    else if (df > 0.5) { lv = 'warn'; t = '체지방이 늘고 있어요'; a = '리컴프는 유지 칼로리 근처가 기준이에요. 하루 100–200kcal 줄이세요.'; }
-    else { lv = 'info'; t = '아직 뚜렷한 변화는 없어요'; a = '리컴프는 몇 달 단위로 천천히 보여요. 같은 조건(아침 공복)에서 3–4주 간격으로 재세요. 3개월 넘게 그대로면 다이어트나 린매스업으로 방향을 정하는 게 빠를 수 있어요.'; }
+    else if (df > 0.5) { lv = 'warn'; t = '체지방이 늘고 있어요'; a = '체형 바꾸기는 평소 먹던 칼로리 근처가 기준이에요. 하루 100–200kcal 줄이세요.'; }
+    else { lv = 'info'; t = '아직 뚜렷한 변화는 없어요'; a = '체형 바꾸기는 몇 달 단위로 천천히 보여요. 같은 조건(아침 공복)에서 3–4주 간격으로 재세요. 3개월 넘게 그대로면 "살 빼기"나 "천천히 증량"으로 방향을 정하는 게 빠를 수 있어요.'; }
   } else if (key === 'keep') {
     if (dm < -0.3) { lv = 'warn'; t = '근육이 줄고 있어요'; a = '운동 빈도·볼륨과 단백질(1.6g/kg 이상)을 점검하세요.'; }
     else if (df > 0.5) { lv = 'warn'; t = '체지방이 늘고 있어요'; a = '하루 100–200kcal 줄이세요.'; }
@@ -1827,7 +1833,7 @@ function inbodyGoalFeedback(list) {
   } else { // leanbulk / bulk
     const ratio = key === 'leanbulk' ? 1 : 2; // fat gained per kg of muscle that still counts as on track
     if (up(dm) && df <= Math.max(dm * ratio, 0.3)) { lv = 'good'; t = key === 'leanbulk' ? '근육 위주로 늘고 있어요' : '근육이 잘 늘고 있어요'; a = '지금 방식을 유지하세요.'; }
-    else if (up(dm)) { lv = 'warn'; t = '근육보다 지방이 더 빨리 늘어요'; a = `${key === 'leanbulk' ? '린매스업 기준으론 지방 증가가 커요. ' : ''}하루 100–200kcal 줄여 증량 속도를 낮추세요.`; }
+    else if (up(dm)) { lv = 'warn'; t = '근육보다 지방이 더 빨리 늘어요'; a = `${key === 'leanbulk' ? '천천히 증량 기준으론 지방 증가가 커요. ' : ''}하루 100–200kcal 줄여 증량 속도를 낮추세요.`; }
     else if (up(df)) { lv = 'warn'; t = '근육 변화 없이 지방만 늘고 있어요'; a = '칼로리보다 운동 쪽을 먼저 보세요 — 부위당 주 10세트, 점진적 과부하, 단백질 1.6g/kg 이상. 그다음 하루 100kcal 줄이세요.'; }
     else { lv = 'info'; t = '아직 늘지 않았어요'; a = '하루 150–250kcal 더 드시고, 2–4주 뒤 다시 재보세요.'; }
   }
@@ -1843,8 +1849,118 @@ function weightCardHtml() {
       <div class="tile"><div class="k">7일 평균 변화</div><div class="v">${wt && wt.d != null ? `${wt.d > 0 ? '+' : ''}${r1(wt.d)}` : '–'}<small>kg/주</small></div><div class="d muted">${wt && wt.pct != null ? `${wt.pct > 0 ? '+' : ''}${r1(wt.pct)}%` : '2주 기록 필요'}</div></div>
     </div>
     ${v ? `<section class="card" style="margin-top:10px"><span class="status ${v.lv}">${ICON[v.lv]} ${esc(v.t)}</span>${v.a ? `<div style="margin-top:4px;font-size:14px">${esc(v.a)}</div>` : ''}
-      <div class="note">하루 체중은 수분·식사로 1kg 넘게 흔들려서 7일 평균끼리 비교해요. 속도 기준: ${esc(goal().src)}${goalKey() === 'leanbulk' ? ' 권장 범위의 아래쪽(지방 증가를 줄이려는 보수적 기준)' : ''}.</div></section>` : ''}
+      <div class="note">하루 체중은 수분·식사로 1kg 넘게 흔들려서 7일 평균끼리 비교해요. 속도 기준: ${esc(goal().src)}${goalKey() === 'leanbulk' ? ' 권장 범위의 아래쪽(살이 덜 붙게 잡은 보수적 기준)' : ''}.</div></section>` : ''}
     ${pts.length >= 2 ? `<section class="card" style="margin-top:10px"><h3>체중 추이 <span class="small muted" style="font-weight:600">아침 체중·인바디</span></h3>${lineChart(pts, { color: 'var(--m-chest)', aria: '체중 추이' })}</section>` : `<div class="note">운동 탭 컨디션 체크에 아침 체중을 적으면 추이가 쌓여요.</div>`}`;
+}
+
+/* ---------- InBody: every number on the sheet (optional beyond the first four) ---------- */
+const IB_EXTRA = [
+  ['water', '체수분', 'L', 10, 80], ['protein', '단백질', 'kg', 3, 25], ['mineral', '무기질', 'kg', 1, 8],
+  ['bmr', '기초대사량', 'kcal', 800, 3500], ['vfl', '내장지방레벨', '', 1, 25], ['whr', '복부지방률', '', 0.6, 1.2],
+  ['ecw', '세포외수분비', '', 0.3, 0.45], ['pa', '위상각', '°', 2, 12], ['score', '인바디점수', '점', 30, 100],
+];
+const IB_SEG = [['segRA', '오른팔'], ['segLA', '왼팔'], ['segTR', '몸통'], ['segRL', '오른다리'], ['segLL', '왼다리']];
+
+/* read the numbers off an InBody result-sheet photo (Korean or English), on the phone itself */
+function parseInbody(text) {
+  const T = text.replace(/[|]/g, ' ').replace(/(\d)\s*[.·,]\s*(\d)/g, '$1.$2');
+  const lines = T.split(/\n+/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const nums = l => (l.replace(/\([^)]*\)/g, ' ').match(/\d{1,4}(?:\.\d{1,3})?/g) || []).map(Number);
+  const find = (re, lo, hi, avoid) => {
+    const out = [];
+    for (const l of lines) {
+      if (!re.test(l) || (avoid && avoid.test(l))) continue;
+      const after = l.split(re).slice(1).join(' ');
+      for (const n of nums(after)) if (n >= lo && n <= hi) { out.push(n); break; }
+    }
+    if (!out.length) return null;
+    const c = {}; for (const x of out) c[x] = (c[x] || 0) + 1;
+    return +Object.entries(c).sort((p, q) => q[1] - p[1])[0][0];
+  };
+  let W = find(/체\s*중(?!\s*조\s*절)|weight(?! control)/i, 25, 250, /적\s*정|조\s*절|target|control|표\s*준/i);
+  let Mu = find(/골\s*격\s*근\s*량|skeletal muscle mass|\bSMM\b/i, 8, 80);
+  let Fk = find(/체\s*지\s*방\s*량|body fat mass/i, 1, 120);
+  let Fp = find(/체\s*지\s*방\s*률|percent body fat|\bPBF\b/i, 2, 70);
+  // when a label is misread, use the fixed row order under each section header
+  const decOf = l => { const m = l.replace(/\([^)]*\)/g, ' ').match(/\d{1,3}\.\d{1,2}/g); return m ? +m[0] : null; };
+  const section = (head, n) => {
+    const i = lines.findIndex(l => head.test(l)); if (i < 0) return [];
+    const out = [];
+    for (const l of lines.slice(i + 1, i + 12)) { const v = decOf(l); if (v != null) out.push(v); if (out.length >= n) break; }
+    return out;
+  };
+  const mf = section(/골\s*격\s*근|지\s*방\s*분\s*석|muscle.?fat/i, 3);           // weight, skeletal muscle, fat mass
+  const bc = section(/체\s*성\s*분\s*분\s*석|body composition analysis/i, 5);   // water, protein, minerals, fat mass, weight
+  const okW = v => v != null && v >= 25 && v <= 250;
+  if (!okW(W) && mf.length === 3 && okW(mf[0])) W = mf[0];
+  if (!okW(W) && bc.length === 5 && okW(bc[4])) W = bc[4];
+  if (!okW(W) && bc.length >= 4 && okW(bc[0] + bc[1] + bc[2] + bc[3])) W = Math.round((bc[0] + bc[1] + bc[2] + bc[3]) * 10) / 10;
+  if (!okW(W)) W = null;
+  if (Mu == null && mf.length === 3 && W && Math.abs(mf[0] - W) < 0.6) Mu = mf[1];
+  if (Fk == null && mf.length === 3 && W && Math.abs(mf[0] - W) < 0.6) Fk = mf[2];
+  if (Fk == null && bc.length >= 4) Fk = bc[3];
+  if (Mu != null && W && (Mu < W * 0.25 || Mu > W * 0.65)) Mu = null;
+  if (Fk != null && W && Fk >= W) Fk = null;
+  if (Fk && W) { const calc = Fk / W * 100; if (Fp == null || Math.abs(Fp - calc) > 2.5) Fp = Math.round(calc * 10) / 10; }
+  const r = { weight: W, muscle: Mu, fatKg: Fk, fatPct: Fp };
+  const X = {
+    water: [/체\s*수\s*분|total body water/i, /세\s*포|ECW|비\b/i], protein: [/단\s*백\s*질|protein/i], mineral: [/무\s*기\s*질|mineral/i],
+    bmr: [/기\s*초\s*대\s*사\s*량|basal metabolic/i], vfl: [/내\s*장\s*지\s*방\s*레\s*벨|visceral fat level/i], whr: [/복\s*부\s*지\s*방\s*률|허\s*리\s*엉\s*덩\s*이|waist.?hip/i],
+    ecw: [/세\s*포\s*외\s*수\s*분\s*비|ECW\s*\/?\s*TBW|ECW ratio/i], pa: [/위\s*상\s*각|phase angle/i], score: [/인\s*바\s*디\s*점\s*수|inbody score/i],
+  };
+  for (const [k, , , lo, hi] of IB_EXTRA) { const v = find(X[k][0], lo, hi, X[k][1]); if (v != null) r[k] = v; }
+  const dm = T.match(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/);
+  if (dm) r.date = `${dm[1]}-${String(dm[2]).padStart(2, '0')}-${String(dm[3]).padStart(2, '0')}`;
+  return r;
+}
+let tessLoading = null;
+function loadTess() {
+  if (window.Tesseract) return Promise.resolve();
+  if (tessLoading) return tessLoading;
+  return (tessLoading = new Promise((ok, bad) => { const s = document.createElement('script'); s.src = 'tess/tesseract.min.js'; s.onload = ok; s.onerror = () => { tessLoading = null; bad(new Error('load')); }; document.head.appendChild(s); }));
+}
+// enlarge + grayscale + stretch contrast: Korean OCR on phone photos is much better after this
+function ocrCanvas(img) {
+  const scale = Math.min(2.4, Math.max(1, 2000 / img.width)), w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h), p = d.data, hist = new Array(256).fill(0);
+  for (let i = 0; i < p.length; i += 4) { const y = Math.round(p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114); p[i] = y; hist[y]++; }
+  const n = w * h; let lo = 0, hi = 255, acc = 0;
+  for (; lo < 255 && (acc += hist[lo]) < n * 0.01; lo++);
+  acc = 0; for (; hi > 0 && (acc += hist[hi]) < n * 0.01; hi--);
+  const k = 255 / Math.max(1, hi - lo);
+  for (let i = 0; i < p.length; i += 4) { const v = Math.max(0, Math.min(255, (p[i] - lo) * k)); p[i] = p[i + 1] = p[i + 2] = v; }
+  g.putImageData(d, 0, 0);
+  return c;
+}
+async function ocrInbody(file) {
+  const st = $('#ib-ocr'); const say = (t, cls) => { if (st) { st.className = 'ocrstat ' + (cls || ''); st.innerHTML = t; } };
+  say('사진에서 숫자를 읽는 중… <span class="muted">처음 한 번은 글자 인식 데이터(약 8MB)를 받느라 30초쯤 걸려요</span>', 'busy');
+  try {
+    await loadTess();
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+    const canvas = ocrCanvas(img); URL.revokeObjectURL(url);
+    const worker = await Tesseract.createWorker(['kor', 'eng'], 1, {
+      workerPath: 'tess/worker.min.js', corePath: 'tess/', langPath: 'tess', gzip: true,
+      logger: m => { if (m.status === 'recognizing text') say(`사진에서 숫자를 읽는 중… ${Math.round(m.progress * 100)}%`, 'busy'); },
+    });
+    const { data } = await worker.recognize(canvas);
+    window.__ocrText = data.text; // kept for troubleshooting a misread sheet
+    await worker.terminate();
+    const r = parseInbody(data.text);
+    const fill = (id, v) => { const el = $(id); if (el && v != null) { el.value = v; el.classList.add('ocrfill'); } };
+    fill('#ib-w', r.weight); fill('#ib-m', r.muscle); fill('#ib-fk', r.fatKg); fill('#ib-fp', r.fatPct);
+    if (r.date) fill('#ib-date', r.date);
+    let extra = 0; for (const [k] of IB_EXTRA) if (r[k] != null) { fill('#ib-x-' + k, r[k]); extra++; }
+    if (extra) { const dt = $('#ib-more'); if (dt) dt.open = true; }
+    const got = ['weight', 'muscle', 'fatKg', 'fatPct'].filter(k => r[k] != null).length + extra;
+    if (!got) say('숫자를 찾지 못했어요. 결과지 전체가 밝고 반듯하게 나오게 다시 찍거나, 직접 입력해 주세요.', 'bad');
+    else say(`<b>${got}개 항목을 읽었어요.</b> 주황색 칸이 사진에서 읽은 값이에요 — 결과지와 맞는지 확인하고 틀린 칸은 고친 뒤 저장하세요.${r.muscle == null || r.weight == null ? ' 못 읽은 칸은 직접 넣어주세요.' : ''}`, 'ok');
+  } catch (e) {
+    say('글자 인식을 불러오지 못했어요(인터넷 연결 확인). 숫자는 직접 입력해 주세요.', 'bad');
+  }
 }
 
 /* ---------- InBody analysis (evidence-based) ---------- */
@@ -1894,6 +2010,40 @@ function inbodyAnalysisHtml(list) {
       }
     } else items.push(['info', `${shortDate(base.date)} 이후 체중 변화 ${dw > 0 ? '+' : ''}${r1(dw)}kg`, `골격근 ${last.muscle != null && base.muscle != null ? `${r1(last.muscle - base.muscle) > 0 ? '+' : ''}${r1(last.muscle - base.muscle)}kg` : '–'} · 체지방 ${df > 0 ? '+' : ''}${r1(df)}kg. 1kg 안팎은 측정 조건 차이일 수 있어요.`, 'Kyle 2004']);
   }
+  // 4) BMI — Asian cut-offs, read together with body fat (muscular people score "overweight")
+  if (h && last.weight != null) {
+    const bmi = last.weight / (h * h);
+    const cat = bmi < 18.5 ? '저체중' : bmi < 23 ? '정상' : bmi < 25 ? '과체중' : '비만';
+    const lean = fatPct != null && pf.sex && age && (bfBand(fatPct, pf.sex, age) || {}).lv === 'good';
+    items.push([bmi >= 23 && !lean ? 'warn' : 'info', `BMI ${r1(bmi)} · ${cat}${bmi >= 23 && lean ? ' (근육형)' : ''}`, bmi >= 23 && lean ? 'BMI만 보면 과체중이지만 체지방률은 건강 범위예요. BMI는 근육과 지방을 구분하지 못해서, 근육이 많은 사람은 높게 나와요.' : '아시아인 기준 23 이상 과체중, 25 이상 비만이에요. 체지방률과 함께 보세요.', 'WHO 2004']);
+  }
+  // 5) visceral fat level & waist-hip ratio
+  if (last.vfl != null) items.push([last.vfl >= 10 ? 'warn' : 'good', `내장지방레벨 ${trimNum(last.vfl)}`, last.vfl >= 10 ? '10 이상은 내장지방이 많은 편이에요(인바디 기준 1–9 정상). 내장지방은 대사질환 위험과 관련이 커서, 체중보다 이 숫자가 줄어드는지 보세요. 유산소+근력운동, 칼로리 적자가 가장 확실한 방법이에요.' : '정상 범위(1–9)예요.', '인바디 제조사 기준']);
+  if (last.whr != null) {
+    const cut = pf.sex === 'f' ? 0.85 : 0.90;
+    items.push([last.whr >= cut ? 'warn' : 'good', `복부지방률 ${trimNum(last.whr)}`, last.whr >= cut ? `허리-엉덩이 비율이 ${pf.sex === 'f' ? '여성' : '남성'} 복부비만 기준(${cut}) 이상이에요. 뱃살 쪽에 지방이 몰린 상태예요.` : `복부비만 기준(${pf.sex === 'f' ? '여성 0.85' : '남성 0.90'}) 아래예요.`, 'WHO 2008']);
+  }
+  // 6) extracellular water ratio
+  if (last.ecw != null) items.push([last.ecw > 0.39 ? 'warn' : 'good', `세포외수분비 ${trimNum(last.ecw)}`, last.ecw > 0.39 ? '0.39를 넘으면 몸에 붓기가 있는 상태일 수 있어요. 측정 직전 운동·짠 음식·수면 부족, 근육통이 심한 날에도 올라가요. 계속 높으면 무리한 훈련을 줄이고, 몸이 안 좋다면 진료를 받아보세요.' : '정상 범위(0.36–0.39)예요. 수분 균형이 괜찮아요.', '인바디 제조사 기준 · Kyle 2004']);
+  // 7) phase angle
+  if (last.pa != null) items.push([last.pa >= 6 ? 'good' : last.pa >= 5 ? 'info' : 'warn', `위상각 ${trimNum(last.pa)}°`, last.pa >= 6 ? '세포막이 건강하고 근육 상태가 좋을 때 높게 나와요. 젊은 운동인은 보통 6–8° 정도예요.' : '위상각은 근육량·근육 질과 함께 움직여서, 근력운동이 쌓이면 대체로 올라가요. 낮게 나오면 영양·수면·회복을 먼저 챙기세요.', 'Norman 2012']);
+  // 8) segmental lean: left-right balance and appendicular muscle index (sarcopenia cut-off)
+  const seg = k => last[k] != null ? +last[k] : null;
+  const arms = [seg('segRA'), seg('segLA')], legs = [seg('segRL'), seg('segLL')];
+  const gap = ([a, b]) => a && b ? Math.abs(a - b) / Math.max(a, b) * 100 : null;
+  const ga = gap(arms), gl = gap(legs);
+  if (ga != null || gl != null) {
+    const worst = Math.max(ga || 0, gl || 0);
+    items.push([worst >= 10 ? 'warn' : 'good', `좌우 근육 차이 · 팔 ${ga != null ? r1(ga) + '%' : '–'} · 다리 ${gl != null ? r1(gl) + '%' : '–'}`, worst >= 10 ? `${(ga || 0) >= (gl || 0) ? '팔' : '다리'} 좌우 차이가 10% 이상이에요. 덤벨·한쪽씩 하는 운동(원암 로우, 불가리안 스플릿 스쿼트)을 약한 쪽부터 시작해 같은 횟수로 맞춰보세요.` : '좌우 균형이 잘 맞아요. 5% 안쪽 차이는 측정 오차 수준이에요.', '']);
+  }
+  if (h && arms[0] && arms[1] && legs[0] && legs[1] && pf.sex) {
+    const smi = (arms[0] + arms[1] + legs[0] + legs[1]) / (h * h), cut = pf.sex === 'f' ? 5.7 : 7.0;
+    items.push([smi < cut ? 'warn' : 'good', `팔다리 근육 지수 ${r1(smi)}kg/m²`, smi < cut ? `팔다리 근육량이 근감소증 진단 기준(${pf.sex === 'f' ? '여성 5.7' : '남성 7.0'}) 아래예요. 근력운동과 단백질 섭취가 가장 확실한 대응이에요.` : `근감소증 기준(${pf.sex === 'f' ? '여성 5.7' : '남성 7.0'})보다 충분히 높아요.`, 'AWGS 2019']);
+  }
+  // 9) InBody's own BMR vs the app's estimate
+  if (last.bmr != null) items.push(['info', `기초대사량 ${fmtInt(last.bmr)}kcal (인바디)`, `인바디도 제지방량으로 계산한 값이라 앱의 추정과 비슷해야 정상이에요. 하루 섭취 목표와 칼로리 소모 분석은 이 몸 상태를 기준으로 계산해요.`, 'Kyle 2004']);
+  if (last.protein != null && last.mineral != null && last.water != null) items.push(['info', `체수분 ${trimNum(last.water)}L · 단백질 ${trimNum(last.protein)}kg · 무기질 ${trimNum(last.mineral)}kg`, '체수분+단백질+무기질 = 제지방량이에요. 근력운동으로 근육이 늘면 셋이 함께 늘고, 단백질만 기준보다 낮으면 근육이 부족하다는 뜻이에요.', '']);
+
   const need = [];
   if (!pf.sex || !age) need.push('성별·출생연도');
   if (!h) need.push('키');
@@ -2058,19 +2208,26 @@ function viewBody() {
   h += `<div class="sec-h"><h2>인바디 / 체중 기록</h2></div>` + profileHtml() + `<section class="card" style="margin-top:10px">
     <div class="photo-pick"><div class="pv" id="ib-pv">${state.ibPhoto ? `<img src="${state.ibPhoto}" alt="">` : '사진'}</div>
       <div><label class="btn sm" for="ib-file">결과지 사진</label><input type="file" id="ib-file" accept="image/*" capture="environment" class="hidden" data-on="ib-file">
-      <div class="note" style="margin-top:6px">사진은 기록 보관용이에요. 숫자 자동 인식은 앱 안에서는 안 돼서, 아래에 직접 입력해 주세요.</div></div></div>
+      <div class="note" style="margin-top:6px">결과지를 찍으면 숫자를 자동으로 읽어서 아래 칸에 채워요. 결과지 전체가 반듯하게, 그림자 없이 나오게 찍어주세요.</div></div></div>
+    <div id="ib-ocr" class="ocrstat"></div>
     <div class="grid2"><div class="field"><label>측정일</label><input type="date" id="ib-date" value="${state.date}"></div>
       <div class="field"><label>체중 (kg)</label><input type="number" inputmode="decimal" id="ib-w" placeholder="72.5"></div></div>
     <div class="grid3"><div class="field"><label>골격근량</label><input type="number" inputmode="decimal" id="ib-m" placeholder="kg"></div>
       <div class="field"><label>체지방량</label><input type="number" inputmode="decimal" id="ib-fk" placeholder="kg"></div>
       <div class="field"><label>체지방률</label><input type="number" inputmode="decimal" id="ib-fp" placeholder="%"></div></div>
     <div class="note">체중과 체지방량을 넣으면 체지방률은 비워도 자동 계산돼요.</div>
+    <details class="more" id="ib-more"><summary>결과지의 다른 항목도 넣기 · 선택</summary>
+      <div class="grid3">${IB_EXTRA.map(([k, l, u]) => `<div class="field"><label>${l}${u ? ` <span class="muted">${u}</span>` : ''}</label><input type="number" inputmode="decimal" step="any" id="ib-x-${k}"></div>`).join('')}</div>
+      <div class="flabel" style="margin-top:12px">부위별 근육량 (kg) · 결과지의 "부위별 근육분석"</div>
+      <div class="grid3">${IB_SEG.map(([k, l]) => `<div class="field" style="margin-top:4px"><label>${l}</label><input type="number" inputmode="decimal" step="any" id="ib-x-${k}"></div>`).join('')}</div>
+      <div class="note">넣은 만큼 분석이 늘어나요: 내장지방·복부지방률(뱃살), 세포외수분비(붓기·염증), 위상각(근육 상태), 팔·다리 근육량(좌우 균형·근감소 기준).</div>
+    </details>
     <button class="btn primary block" style="margin-top:12px;padding:13px" data-act="ib-save">기록 저장</button>
   </section>`;
   if (list.length) {
     h += `<section class="card" style="margin-top:10px"><h3>히스토리</h3>${list.slice().reverse().map(e => `<div class="ibrow">
       <button class="th" ${e.hasPhoto ? `data-act="ib-photo" data-id="${esc(e.id)}"` : ''}>${e.hasPhoto && PHOTOS[e.id] ? `<img src="${PHOTOS[e.id]}" alt="결과지">` : '—'}</button>
-      <div class="main"><div class="dt">${esc(e.date)}</div><div class="nums">${[e.weight != null ? `체중 ${trimNum(e.weight)}` : '', e.muscle != null ? `골격근 ${trimNum(e.muscle)}` : '', e.fatKg != null ? `체지방 ${trimNum(e.fatKg)}kg` : '', e.fatPct != null ? `${trimNum(e.fatPct)}%` : ''].filter(Boolean).join(' · ') || '사진만'}</div></div>
+      <div class="main"><div class="dt">${esc(e.date)}</div><div class="nums">${[e.weight != null ? `체중 ${trimNum(e.weight)}` : '', e.muscle != null ? `골격근 ${trimNum(e.muscle)}` : '', e.fatKg != null ? `체지방 ${trimNum(e.fatKg)}kg` : '', e.fatPct != null ? `${trimNum(e.fatPct)}%` : ''].filter(Boolean).join(' · ') || '사진만'}${IB_EXTRA.concat(IB_SEG).filter(([k]) => e[k] != null).length ? ` <span class="muted">+${IB_EXTRA.concat(IB_SEG).filter(([k]) => e[k] != null).length}항목</span>` : ''}</div></div>
       <button class="x" data-act="ib-del" data-id="${esc(e.id)}" aria-label="삭제">×</button></div>`).join('')}</section>`;
   }
   return h;
@@ -2118,7 +2275,7 @@ function openSettings(focus) {
       <div class="field"><label>지방 (g)</label><input type="number" id="st-f" value="${G.f}"></div>
     </div>
     <div class="field"><label>목표 — 누르면 식단 목표가 자동 계산돼요</label><div class="chips goalchips">${GOAL_ORDER.map(v => `<button class="chip ${goalKey() === v && GOALS[S.mode] ? 'on' : ''}" data-act="st-auto" data-v="${v}">${GOALS[v].l}</button>`).join('')}</div>
-      <div class="note">체중 기준 대략적인 시작값이에요. 칼로리는 체중×30(유지)에 목표별 배수(다이어트 80% · 리컴프 95% · 린매스업 107% · 벌크업 115%), 단백질은 다이어트·리컴프 2.0g/kg, 나머지 1.6–1.8g/kg, 지방 0.9g/kg, 나머지는 탄수화물. 2–3주 체중 변화를 보고 조정하세요.</div></div>
+      <div class="note">체중 기준 대략적인 시작값이에요. 칼로리는 체중×30(유지)에 목표별 배수(살 빼기 80% · 체형 바꾸기 95% · 천천히 증량 107% · 빠르게 증량 115%), 단백질은 살 빼기·체형 바꾸기 2.0g/kg, 나머지 1.6–1.8g/kg, 지방 0.9g/kg, 나머지는 탄수화물. 2–3주 체중 변화를 보고 조정하세요.</div></div>
     <button class="btn primary block" style="margin-top:12px" data-act="st-save-goals">목표 저장</button>` : ''}
 
     <div class="sec-h"><h2 style="font-size:15px">참고 논문</h2><span class="aside">${REFS.length}편</span></div>
@@ -2130,7 +2287,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 3.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 3.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2253,8 +2410,14 @@ const ACT = {
     if (!(r > 0)) { toast('횟수를 넣어주세요'); const inp = $(`#sheet-body input[data-on="row-r"][data-i="${i}"]`); if (inp) inp.focus(); return; }
     S.rows.splice(i, 1);
     // a weight you changed carries to the next rows you haven't touched
-    if (row.touched) for (const nx of S.rows) if (!nx.touched) nx.w = w > 0 ? w : 0;
+    for (const nx of S.rows) { if (row.touched && !nx.touched) nx.w = w > 0 ? w : 0; if (!nx.rTouched && !(parseInt(nx.r, 10) > 0)) nx.r = r; }
     addStrengthSet(e, w, S.u, r, null); state.openEq = e.id;
+    if (!S.rows.length) {
+      const n = dayRO(state.date).sets.filter(x => x.eq === e.id).length;
+      render();
+      setTimeout(() => { if (state.sheet && state.sheet.kind === 'set' && state.sheet.eq === e.id && !state.sheet.rows.length) { openPicker(); toast(`✓ ${e.name} ${n}세트 완료 · 다음 운동을 골라요`); } }, 450);
+      refreshSetSheet(); return;
+    }
     refreshSetSheet(); render();
   },
   'row-undo': el => {
@@ -2411,6 +2574,7 @@ const ACT = {
     if (w == null && m == null && fk == null && fp == null && !state.ibPhoto) { toast('숫자나 사진 중 하나는 넣어주세요'); return; }
     const id = 'ib' + uid();
     const e = { id, date: $('#ib-date').value || today(), weight: w, muscle: m, fatKg: fk, fatPct: fp, hasPhoto: !!state.ibPhoto };
+    for (const [k] of IB_EXTRA.concat(IB_SEG)) { const v = num('#ib-x-' + k); if (v != null) e[k] = v; }
     let msg = '저장했어요';
     if (state.ibPhoto) { PHOTOS[id] = state.ibPhoto; if (!savePhotos()) { delete PHOTOS[id]; e.hasPhoto = false; msg = '저장 공간이 부족해 사진 없이 저장했어요'; } }
     DB.inbody.push(e); state.ibPhoto = null; save(); render(); toast(msg);
@@ -2464,7 +2628,7 @@ const ACT = {
 const ON = {
   'eq-q': (el, ev) => { if (ev.type !== 'input') return; state.eqQ = el.value; renderEqList(); },
   'row-w': el => { const S = state.sheet; if (!S || !S.rows) return; const r = S.rows[+el.dataset.i]; if (!r) return; r.w = el.value; r.touched = true; if (+el.dataset.i === 0) { const p = $('#ss-prev'); if (p) p.innerHTML = nextPreview(); } },
-  'row-r': el => { const S = state.sheet; if (!S || !S.rows) return; const r = S.rows[+el.dataset.i]; if (!r) return; r.r = el.value; if (+el.dataset.i === 0) { const p = $('#ss-prev'); if (p) p.innerHTML = nextPreview(); } },
+  'row-r': el => { const S = state.sheet; if (!S || !S.rows) return; const r = S.rows[+el.dataset.i]; if (!r) return; r.r = el.value; r.rTouched = true; if (+el.dataset.i === 0) { const p = $('#ss-prev'); if (p) p.innerHTML = nextPreview(); } },
   'done-w': (el, ev) => { if (ev.type !== 'change') return; const x = findSet(el.dataset.id); if (!x) return; const w = Math.max(0, parseFloat(el.value) || 0); x.w = w; x.kg = r1(toKg(w, x.u) * 100) / 100; save(); render(); },
   'done-r': (el, ev) => { if (ev.type !== 'change') return; const x = findSet(el.dataset.id); if (!x) return; const r = parseInt(el.value, 10); if (r > 0) { x.r = r; save(); render(); } },
   'check-bw': (el, ev) => { if (ev.type !== 'change') return; const d = day(state.date); const v = parseFloat(el.value); d.check.bw = v > 0 ? v : null; save(); state.checkOpen = true; render(); },
@@ -2488,6 +2652,7 @@ const ON = {
     const data = await compressImage(f, 900, .72);
     if (!data) { toast('사진을 읽지 못했어요'); return; }
     state.ibPhoto = data; const pv = $('#ib-pv'); if (pv) pv.innerHTML = `<img src="${data}" alt="">`;
+    ocrInbody(f);
   },
 };
 
