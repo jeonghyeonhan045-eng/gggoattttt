@@ -22,7 +22,7 @@ const TYPE_REG = {
   '풀업': { lats: 1, midback: 0.5, biceps: 0.5, forearm: 0.25 },
   '로우': { midback: 1, lats: 0.5, deltR: 0.5, biceps: 0.5, traps: 0.25, forearm: 0.25 },
   '풀오버': { lats: 1, chestL: 0.5, triceps: 0.25 },
-  '숄더 프레스': { deltF: 1, deltS: 0.5, triceps: 0.5, traps: 0.25 },
+  '숄더 프레스': { deltF: 1, deltS: 0.75, deltR: 0.25, triceps: 0.5, traps: 0.25 }, // Campos 2020: press ≈ lateral raise for the side delt
   '레터럴 레이즈': { deltS: 1, traps: 0.25 },
   '리어 델트': { deltR: 1, midback: 0.5, traps: 0.25 },
   '슈러그': { traps: 1, forearm: 0.25 },

@@ -1546,7 +1546,7 @@ const SPLITS = [
   { k: 'push', l: '가슴 · 어깨 · 삼두', ms: ['가슴', '어깨'], acc: '팔', accRe: /트라이|삼두|푸시다운|스컬|오버헤드.*익스텐션|딥/ },
   { k: 'pull', l: '등 · 이두', ms: ['등'], acc: '팔', accRe: /컬/ },
   { k: 'legs', l: '하체 · 코어', ms: ['다리'], acc: '코어' },
-  // side/rear delts are small and get little from pressing, so they may come back the next day
+  // a shoulder day of its own (side/rear delts barely work in chest pressing — Campos 2020)
   { k: 'shoulder', l: '어깨 · 팔', ms: ['어깨'], acc: '팔' },
 ];
 function lastTrained(m, before) {
@@ -1562,17 +1562,17 @@ function recommendNext(T) {
   // consecutive training days right before T
   let streak = 0; for (let k = addDays(T, -1); trainedDay(k) && streak < 14; k = addDays(k, -1)) streak++;
   const c = dayRO(addDays(T, -1)).check || {}, tired = (c.cond && c.cond <= 2) || (c.sore && c.sore >= 4);
-  // shoulders: count only direct sets — pressing (indirect 0.5) works the front delt, not the side/rear
+  // shoulders: count only direct sets — chest pressing (indirect 0.5) works the front delt, barely the side/rear (Campos 2020)
   const have = m => m === '어깨' ? info[m].dir : info[m].vol;
   const opts = SPLITS.map(sp => {
-    const ready = sp.ms.every(m => info[m].days >= (sp.k === 'shoulder' ? 1 : 2));
+    const ready = sp.ms.every(m => info[m].days >= 2); // ~48 h: most lifts back to baseline (Korak 2015)
     const need = sp.ms.reduce((a, m) => a + Math.max(0, 10 - have(m)), 0) / sp.ms.length;
     const rested = Math.min(...sp.ms.map(m => info[m].days));
     return Object.assign({}, sp, { ready, need, rested, score: need + Math.min(rested, 7) * 0.8 - (sp.k === 'shoulder' ? 3 : 0) });
   }).filter(o => o.ready).sort((a, b) => b.score - a.score);
   const rest = streak >= 3 || tired, best = opts[0] || null;
   // few direct shoulder sets this week → add two shoulder moves to whatever day comes next
-  const addSh = !!best && !best.ms.includes('어깨') && info['어깨'].dir < 8 && info['어깨'].days >= 1;
+  const addSh = !!best && !best.ms.includes('어깨') && info['어깨'].dir < 8 && info['어깨'].days >= 2;
   return { T, best, info, streak, tired, rest, addSh };
 }
 /* a balanced session for each split: the user's own equipment first, then staples */
@@ -1631,8 +1631,8 @@ function recCardHtml(k) {
   const b = R.best;
   if (!b) return `<section class="card reccard"><div class="small muted">${when} 추천</div><b style="font-size:16px">쉬는 날</b><div class="small muted" style="margin-top:2px">주요 부위가 모두 최근 이틀 안에 운동했어요. 같은 부위는 48시간 정도 쉬는 게 일반적이에요.</div></section>`;
   const why = b.ms.map(m => { const x = R.info[m]; return `${mName(m)} ${x.last ? `${x.days}일 전` : '직접 한 적 없음'} · 최근 7일 ${r1(x.dir)}세트`; }).join(' / ');
-  const sh = R.info['어깨'], shWhy = R.addSh ? `어깨 직접 최근 7일 ${r1(sh.dir)}세트 — 프레스는 앞어깨 위주라 옆·뒤 어깨는 따로 해야 해요. 작은 근육이라 다른 날에 2종목씩 붙여 자주 해도 괜찮아요.`
-    : b.k === 'shoulder' ? '가슴·등·하체는 아직 회복 중이에요. 옆·뒤 어깨는 작은 근육이라 이어서 해도 괜찮아요.' : '';
+  const sh = R.info['어깨'], shWhy = R.addSh ? `어깨 직접 최근 7일 ${r1(sh.dir)}세트 — 벤치 같은 가슴 운동은 옆·뒤 어깨를 거의 안 써요. 어깨를 쉰 지 이틀이 지나서 다른 날에 2종목 붙여도 돼요(주 2–3회 나눠 하기).`
+    : b.k === 'shoulder' ? '가슴·등·하체는 아직 회복 중이에요. 어깨는 이틀 이상 쉬었으니 어깨·팔 날로 채워요.' : '';
   return `<section class="card reccard"><div class="small muted">${when} 추천</div>
     <div class="row between" style="gap:8px"><b style="font-size:16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(b.l)}${R.addSh ? ' + 옆·뒤 어깨' : ''}</b></div>
     <div class="small muted" style="margin-top:2px">${esc(why)}</div>${shWhy ? `<div class="small" style="margin-top:4px">${esc(shWhy)}</div>` : ''}
@@ -2638,7 +2638,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
