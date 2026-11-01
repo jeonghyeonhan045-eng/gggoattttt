@@ -574,7 +574,7 @@ input.ocrfill { border-color: var(--acc); background: var(--acc-soft); }
 .mgrp > summary::-webkit-details-marker { display: none; }
 .mgrp .mvol + .mvol { border-top: none; }
 .regs { padding: 0 0 8px 10px; }
-.rvol { display: grid; grid-template-columns: 78px 1fr 34px 42px; gap: 6px; align-items: center; font-size: 12px; padding: 3px 0; color: var(--ink2); }
+.rvol { display: grid; grid-template-columns: 92px 1fr 34px 42px; gap: 6px; align-items: center; font-size: 12px; padding: 3px 0; color: var(--ink2); }
 .rvol .bar { position: relative; height: 8px; background: var(--bg2); border-radius: 3px; }
 .rvol .band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--good) 16%, transparent); }
 .rvol .fill { position: absolute; left: 0; top: 1px; bottom: 1px; border-radius: 0 3px 3px 0; background: var(--mc, var(--ink3)); }

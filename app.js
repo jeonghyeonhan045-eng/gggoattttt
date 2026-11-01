@@ -658,6 +658,15 @@ function finishHtml(k) {
   const max = Math.max(0, ...Object.values(R.reg));
   const ranked = Object.entries(R.reg).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1]);
   const fb = [];
+  if (R.str.length) {
+    const dirG = R.groups.map(m => `${mName(m)} ${R.str.filter(s => s.m === m).length}`).join(' · ');
+    const main = ranked.filter(([r, v]) => !ASSIST_REG.has(r) && v >= Math.max(1.5, ranked[0][1] * 0.5)).slice(0, 4).map(([r]) => REGIONS[r]);
+    const also = ranked.filter(([r]) => !ASSIST_REG.has(r) && !main.includes(REGIONS[r])).slice(0, 4).map(([r]) => REGIONS[r]);
+    const kind = (() => { const has = m => R.groups.includes(m); const up = ['가슴', '어깨', '팔', '등'].filter(has).length;
+      if (has('다리') && up >= 2) return '전신'; if (has('다리')) return '하체'; if (has('가슴') && !has('등')) return '밀기(가슴·어깨·삼두)'; if (has('등') && !has('가슴')) return '당기기(등·이두)'; return '상체'; })();
+    const assist = ranked.filter(([r]) => ASSIST_REG.has(r)).map(([r]) => REGIONS[r]);
+    fb.push(['good', `오늘은 ${kind} 운동 · ${dirG}세트`, `가장 많이 쓴 곳은 ${main.join(', ') || REGIONS[ranked[0][0]]}${also.length ? `, 같이 쓴 곳은 ${also.join(', ')}` : ''}이에요.${assist.length ? ` ${assist.join('·')}도 협응근으로 같이 쓰였어요.` : ''} 위 그림에서 진할수록 많이 쓴 곳이에요.`]);
+  }
   if (R.prs.length) fb.push(['good', `PR ${R.prs.length}개`, `${[...new Set(R.prs.map(s => (eqById(s.eq) || s).name))].slice(0, 3).join(', ')}에서 최고 기록을 넘었어요.`]);
   const up = R.cmp.filter(x => x.st === 'up'), dn = R.cmp.filter(x => x.st === 'down'), same = R.cmp.filter(x => x.st === 'same'), nw = R.cmp.filter(x => x.st === 'new');
   if (up.length + dn.length + same.length) {
@@ -694,6 +703,8 @@ function finishHtml(k) {
     <div class="scale">${[1, 2, 3, 4, 5].map(n => `<button class="${c.cond === n ? 'on' : ''}" data-act="fin-cond" data-v="${n}">${n}</button>`).join('')}</div>
     <div class="note" style="margin-top:4px">1 = 매우 힘듦 · 5 = 아주 좋음</div>
     ${k === today() ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">다음 운동</h2></div>${recCardHtml(k)}` : ''}
+    ${(() => { const days = Object.keys(DB.days).filter(trainedDay).length, lb = DB.settings.lastBackup, since = lb ? daysBetween(lb, today()) : null;
+      return !isNative && days >= 12 && (since == null || since >= 30) ? `<div class="infobox" style="margin-top:12px"><div class="k">백업</div>기록이 ${days}일치 쌓였어요${lb ? ` (마지막 백업 ${since}일 전)` : ''}. 기록은 이 브라우저에만 있어서 폰을 바꾸거나 인터넷 기록을 지우면 사라질 수 있어요.<button class="btn sm block" style="margin-top:8px" data-act="export">백업 코드 저장하기</button></div>` : ''; })()}
     <div class="grid2" style="margin-top:14px"><button class="btn" data-act="day-resume">이어서 하기</button><button class="btn primary" data-act="sheet-close">완료</button></div>`;
 }
 function openFinish(k) { state.sheet = { kind: 'finish', k }; openSheet(k === today() ? '오늘 운동 마무리' : dateLabel(k), '수고했어요 💪', finishHtml(k), state.sheet); }
@@ -1196,7 +1207,7 @@ function tutSteps() {
     { t: '세트 기록 연습', practice: 1, b: `<p>기구를 고르면 이 표가 나와요. <b>세트를 했다고 치고 ✓를 차례로 눌러보세요.</b></p>
       <div class="tut-table">${[0, 1, 2].map(j => { const d = j < (state.tutCk || 0), nx = j === (state.tutCk || 0); return `<div class="r ${d ? 'done' : nx ? 'next' : ''}"><span>${j + 1}</span><span>40kg</span><span>${j === 2 ? 8 : 10}회</span><button class="ck ${d ? 'on' : ''}" ${nx ? 'data-act="tut-ck"' : 'disabled'} aria-label="${j + 1}세트 완료">✓</button></div>`; }).join('')}</div>
       ${(state.tutCk || 0) >= 3 ? `<div class="tut-ok">✓ 잘했어요! 실제로는 이 순간 다음 운동 고르기 화면이 열려요.</div>` : (state.tutCk || 0) ? `<div class="tut-ok soft">✓를 누르면 휴식 타이머가 돌아요(화면 위 시계). 다음 세트도 눌러보세요.</div>` : ''}
-      <ul class="tut-ol"><li>무게·횟수는 앞 세트나 지난번 기록에서 미리 채워져요. 실제로 한 횟수가 다르면 숫자만 고치고 ✓.</li><li>운동 중에 바로 눌러도 되고, 끝나고 몰아서 기록해도 돼요.</li><li>무게를 올릴 때가 되면 "오늘 추천"으로 알려줘요.</li></ul>` },
+      <ul class="tut-ol"><li>무게·횟수는 앞 세트나 지난번 기록에서 미리 채워져요. 실제로 한 횟수가 다르면 숫자만 고치고 ✓.</li><li>운동 중에 바로 눌러도 되고, 끝나고 몰아서 기록해도 돼요.</li><li>무게를 올릴 때가 되면 "오늘 추천"으로 알려줘요.</li><li>다 끝나면 운동 탭 위쪽 <b>"✓ 오늘 운동 마무리하기"</b> — 오늘 쓴 부위 그림과 피드백이 나와요. 더 하고 싶으면 "이어서 하기".</li></ul>` },
     { at: 'main button[data-act="routines-open"]', tap: 1, t: '루틴', b: `<p><b>"📋 루틴"을 눌러보세요.</b></p><ul class="tut-ol"><li>뭘 할지 모르겠으면 여기. 맨 위 <b>추천</b>은 성별·목표에 맞춘 프로그램이에요.</li><li>프로그램을 시작하면 오늘 할 종목·세트가 한 번에 깔리고, 다음엔 순서대로 다음 날 루틴이 나와요.</li><li>"부위로 고르기"로 오늘 하고 싶은 부위의 하루치만 골라 할 수도 있어요.</li></ul>` },
     { at: 'header .datenav', t: '날짜 옮기기', b: `<ul class="tut-ol"><li>‹ › 로 날짜를 옮기면 그날 기록을 보거나, 깜빡한 운동을 나중에 넣을 수 있어요.</li><li>날짜를 누르면 오늘로 돌아와요.</li></ul>` },
     { at: 'nav button[data-tab="records"]', tap: 'records', t: '기록 탭', b: `<p><b>아래 "기록" 탭을 눌러보세요.</b></p>` },
@@ -1817,7 +1828,9 @@ const ICON = { good: '✓', warn: '!', bad: '!!', info: 'i' };
 const LV_LABEL = { good: '양호', warn: '주의', bad: '필요', info: '정보' };
 
 /* training advice that follows the chosen goal; uses this week's logs, not generic rules */
-const MAIN_REG = ['chestU', 'chestL', 'lats', 'midback', 'deltS', 'deltR', 'biceps', 'triceps', 'quads', 'hams', 'glutes', 'calves', 'abs'];
+const MAIN_REG = ['chestU', 'chestL', 'lats', 'midback', 'deltS', 'deltR', 'biceps', 'triceps', 'quads', 'hams', 'glutes', 'abs'];
+// helpers that work with other muscles and rarely get their own exercise: shown on maps, never judged
+const ASSIST_REG = new Set(['calves', 'forearm']);
 function goalTrainHtml(R, RW, ES) {
   const key = goalKey(), base = goalBase(), G = GOALS[key], items = [];
   const prog = progression().filter(r => ['up', 'flat', 'down'].includes(r.status)), down = prog.filter(r => r.status === 'down'), up = prog.filter(r => r.status === 'up');
@@ -1893,7 +1906,7 @@ function viewAnalysis() {
     }
     const ranked = Object.entries(vals).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1]);
     const max = ranked.length ? ranked[0][1] : 0;
-    const none = Object.keys(REGIONS).filter(k => !(vals[k] >= 0.5));
+    const none = Object.keys(REGIONS).filter(k => !(vals[k] >= 0.5) && !ASSIST_REG.has(k));
     h += `<div class="sec-h"><h2>운동한 부위</h2><div class="seg" style="width:150px">${[['7', '이번 주'], ['28', '4주']].map(([v, l]) => `<button class="${(state.mapP || '7') === v ? 'on' : ''}" data-act="map-p" data-v="${v}">${l}</button>`).join('')}</div></div>
     <section class="card">
       ${ranked.length ? `<div class="bodymaps">${bodySvg('front', vals, max, '앞')}${bodySvg('back', vals, max, '뒤')}</div>
@@ -1932,13 +1945,13 @@ function viewAnalysis() {
       const lbl = onlyInd ? (ind > 0 ? '간접만' : '안 함') : v < lo ? '여유' : v > hi ? '고볼륨' : '적정';
       const maxV = hi + 6, bandHi = m === '다리' ? 30 : 20;
       const regs = (REG_GROUP[m] || []).map(k => { const rv = (RW[k] || 0); const [rlo, rhi] = REG_RANGE[k]; const rmax = rhi + 4;
-        const rl = rv < 0.5 ? '안 함' : rv < rlo ? '적은 편' : '', rc = 'none';
+        const rl = ASSIST_REG.has(k) ? (rv < 0.5 ? '' : '협응근') : rv < 0.5 ? '안 함' : rv < rlo ? '적은 편' : '', rc = 'none';
         return `<div class="rvol"><span>${REGIONS[k]}</span><div class="bar"><div class="band" style="left:${rlo / rmax * 100}%;width:${(rhi - rlo) / rmax * 100}%"></div><div class="fill ${mcls(m)}" style="width:${Math.min(100, rv / rmax * 100)}%"></div></div><span class="num">${r1(rv)}</span><span class="status ${rc}">${rl}</span></div>`; }).join('');
       return `<details class="mgrp" ${dir >= 0.5 ? 'open' : ''}><summary class="mvol"><span>${mtag(m)}</span>
         <div class="bar"><div class="band" style="left:${lo / maxV * 100}%;width:${(bandHi - lo) / maxV * 100}%"></div><div class="fill ind ${mcls(m)}" style="width:${Math.min(100, v / maxV * 100)}%"></div><div class="fill ${mcls(m)}" style="width:${Math.min(100, dir / maxV * 100)}%"></div></div>
         <div class="r"><span class="num"><b>${r1(dir)}</b>세트${ind >= 0.5 ? `<span class="muted indl">+간접 ${r1(ind)}</span>` : ''}</span><span class="s status ${lv}">${lv === 'none' ? '' : ICON[lv] + ' '}${lbl}</span></div></summary><div class="regs">${regs}</div></details>`;
     }).join('')}
-    <div class="note">큰 숫자는 그 부위를 직접 한 세트예요. 연한 막대·"+간접"은 다른 운동에 딸려서 쓰인 몫이에요(벤치프레스 1세트 → 어깨·삼두 각 0.5, 로우 → 이두 0.5). 적정 판단은 연구 방식대로 둘을 합쳐서 하고, 직접 안 한 부위는 판단하지 않아요. 초록 띠는 대부분의 연구가 효과적이라고 보는 10–20세트(다리는 앞·뒤·종아리를 합쳐 14–30), 그 위도 성장은 계속되지만 효율이 떨어져요. 팔·코어는 보조 부위로 주 6세트부터. 세부 부위(윗가슴·광배·햄스트링 등)는 해부도와 같은 방식(주동근 1, 보조근 0.5–0.25)으로 세고, 연구의 세트 권장은 근육 단위라서 적정 판단은 위 큰 막대로만 해요. 세부 막대는 어디에 몰렸는지 보는 참고용이고, 연한 띠는 근육 기준을 부위에 나눠본 앱 기준이에요.${R.dl.inDeload ? ' 지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.' : ''}</div>
+    <div class="note">큰 숫자는 그 부위를 직접 한 세트예요. 연한 막대·"+간접"은 다른 운동에 딸려서 쓰인 몫이에요(벤치프레스 1세트 → 어깨·삼두 각 0.5, 로우 → 이두 0.5). 적정 판단은 연구 방식대로 둘을 합쳐서 하고, 직접 안 한 부위는 판단하지 않아요. 초록 띠는 대부분의 연구가 효과적이라고 보는 10–20세트(다리는 앞·뒤·종아리를 합쳐 14–30), 그 위도 성장은 계속되지만 효율이 떨어져요. 팔·코어는 보조 부위로 주 6세트부터. 세부 부위(윗가슴·광배·햄스트링 등)는 해부도와 같은 방식(주동근 1, 보조근 0.5–0.25)으로 세고, 연구의 세트 권장은 근육 단위라서 적정 판단은 위 큰 막대로만 해요. 세부 막대는 어디에 몰렸는지 보는 참고용이고, 연한 띠는 근육 기준을 부위에 나눠본 앱 기준이에요. 종아리·전완근은 다른 운동에 협응근으로 같이 쓰이는 부위라 쓰인 만큼만 보여주고 많다·적다는 판단하지 않아요.${R.dl.inDeload ? ' 지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.' : ''}</div>
   </section>`;
 
   // exercise mix (optional notes)
@@ -2557,11 +2570,12 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 4.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
 async function exportData() {
+  DB.settings.lastBackup = today(); save();
   const data = JSON.stringify({ app: 'ironlog', exported: new Date().toISOString(), db: DB, photos: PHOTOS });
   const name = `ounwan-backup-${today()}.json`;
   if (isNative && P.Filesystem && P.Share) {
@@ -2794,7 +2808,8 @@ const ACT = {
   'day-resume': () => { const k = state.date; delete day(k).fin; save(); if (state.sheet && state.sheet.kind === 'finish') closeSheet(); render(); toast('이어서 기록해요'); },
   'fin-cond': el => { const d = day(state.sheet.k); d.check = Object.assign({}, d.check, { cond: +el.dataset.v }); save(); setSheetBody(finishHtml(state.sheet.k), true); render(); },
   'tut-tap': () => {
-    const st = tutSteps()[state.tutI]; if (!st || !st.tap) return;
+    const st = tutSteps()[state.tutI]; if (!st || !st.tap || state.tutBusy) return;
+    state.tutBusy = true; setTimeout(() => { state.tutBusy = false; }, 400); // a double tap must not skip the next step
     if (typeof st.tap === 'string') { state.tab = st.tap; render(); window.scrollTo(0, 0); }
     else { const el = document.querySelector(st.at); if (el) { el.classList.add('tut-pressed'); setTimeout(() => el.classList.remove('tut-pressed'), 300); } }
     setTimeout(() => tutShow(state.tutI + 1), typeof st.tap === 'string' ? 60 : 250);
@@ -2816,6 +2831,7 @@ const ACT = {
     let n = DB.prog && DB.prog.id === p.id && progDay(p, DB.prog.next) === i ? DB.prog.next : 0;
     if (progDay(p, n) !== i) for (let k = 0; k < progLen(p); k++) if (progDay(p, k) === i) { n = k; break; }
     DB.prog = { id: p.id, next: (n + 1) % progLen(p) };
+    if (p.rep && DB.prog.next === 0) setTimeout(() => toast(`🎉 ${p.name} 마지막 날이에요! 끝나면 다시 처음부터 하거나 다른 루틴을 골라보세요`), 400);
     startPlan(d.ex, `${p.name} · ${d.t}`, null);
     day(state.date).plan.prog = p.id; save(); render();
   },
