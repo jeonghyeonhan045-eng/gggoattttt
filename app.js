@@ -407,6 +407,23 @@ function applyTheme() {
   const th = DB.settings.theme, root = document.documentElement;
   if (th === 'auto') { if (root.dataset.appTheme) { root.removeAttribute('data-theme'); delete root.dataset.appTheme; } }
   else { root.setAttribute('data-theme', th); root.dataset.appTheme = '1'; }
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = getComputedStyle(root).getPropertyValue('--card').trim() || '#ffffff';
+}
+/* result-sheet section titles: Korean title with a small English subtitle, as on the InBody printout */
+const SEC_EN = {
+  '오늘의 운동': 'Today', '다음 운동': 'Next', '휴식 타이머': 'Rest Timer', '선택 기록': 'Daily Check', '주간 리포트': 'Weekly Report',
+  '운동한 부위': 'Muscle Map', '칼로리 소모': 'Energy', '목표에 맞춘 운동': 'Goal Training', '부위별 주간 세트': 'Weekly Sets by Muscle',
+  '종목 구성 참고': 'Exercise Mix', '디로딩 판단': 'Deload', '점진적 과부하': 'Progressive Overload', '통계': 'Stats', 'PR 보드': 'Personal Records',
+  '내 목표': 'Goal', '체중': 'Weight', '최근 인바디': 'Latest InBody', '인바디 피드백': 'Body Composition Feedback', '인바디 / 체중 기록': 'Log',
+  '오늘 쓴 부위': 'Muscles Worked', '피드백': 'Feedback', '오늘 컨디션': 'Condition', '추천': 'For You', '내 루틴': 'My Routines',
+  '수준별 루틴': 'Programs by Level', '부위로 고르기': 'By Muscle', '날짜별 구성': 'Days', '기능 설명': 'Guide', '참고 논문': 'References', '이 날 기록': 'Sets',
+};
+function decorateHeads(root) {
+  for (const h of root.querySelectorAll('.sec-h h2')) {
+    if (h.querySelector('.en')) continue;
+    const k = h.textContent.trim(), en = SEC_EN[k] || (k.startsWith('오늘의') ? 'Today' : k.endsWith(' 운동') ? 'Workout' : '');
+    if (en) h.insertAdjacentHTML('beforeend', `<span class="en">${en}</span>`);
+  }
 }
 
 function render() {
@@ -418,6 +435,7 @@ function render() {
   const main = $('#main');
   const views = { workout: viewWorkout, diet: viewDiet, records: viewRecords, analysis: viewAnalysis, body: viewBody };
   main.innerHTML = views[state.tab]();
+  decorateHeads(main);
   if (state.tab === 'workout') renderEqList();
   renderTimer();
   syncHistory();
@@ -454,7 +472,7 @@ function openSheet(kicker, title, bodyHtml, sheetState) {
   state.sheet = sheetState || { kind: 'generic' };
   $('#sheet-k').textContent = kicker || '';
   $('#sheet-title').textContent = title || '';
-  $('#sheet-body').innerHTML = bodyHtml;
+  $('#sheet-body').innerHTML = bodyHtml; decorateHeads($('#sheet-body'));
   $('#sheet-body').scrollTop = 0;
   const sc = $('#scrim'), sh = $('#sheet');
   sh.classList.toggle('tall', state.sheet.kind === 'picker');
@@ -465,7 +483,7 @@ function openSheet(kicker, title, bodyHtml, sheetState) {
 }
 function setSheetBody(html, keepScroll) {
   const b = $('#sheet-body'); const st = b.scrollTop;
-  b.innerHTML = html; b.scrollTop = keepScroll ? st : 0;
+  b.innerHTML = html; decorateHeads(b); b.scrollTop = keepScroll ? st : 0;
 }
 function closeSheet() {
   if (!state.sheet) return;
@@ -567,7 +585,7 @@ function installHint() {
   else if (ios) msg = 'Safari 아래 <b>공유 버튼(□↑) → 홈 화면에 추가</b>하면 앱처럼 쓸 수 있어요. 기록은 홈 화면 앱과 Safari에 따로 저장되니 처음부터 홈 화면 앱으로 쓰세요.';
   else if (deferredInstall) msg = '홈 화면에 앱으로 설치하면 주소창 없이 바로 열려요.';
   else return '';
-  return `<section class="card hintcard"><div class="row" style="align-items:flex-start"><div style="flex:1;font-size:13px;line-height:1.55">${msg}</div>
+  return `<section class="card hintcard"><div class="row" style="align-items:flex-start"><div style="flex:1;font-size: 13px;line-height:1.55">${msg}</div>
     <button class="iconbtn" style="width:30px;height:30px" data-act="hint-off" aria-label="안내 닫기">✕</button></div>
     ${!inApp && !ios && deferredInstall ? '<button class="btn primary block" style="margin-top:10px" data-act="pwa-install">앱 설치</button>' : ''}</section>`;
 }
@@ -695,20 +713,20 @@ function finishHtml(k) {
   const tiles = R.str.length ? [[R.mins ? `${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [fmtInt(R.ex.total), 'kcal 소모']]
     : [[`${trimNum(carMin)}분`, '유산소'], [`${R.car.length}`, '종목'], [fmtInt(R.ex.carK), 'kcal 소모'], [fmtInt(R.ex.total), '총 소모']];
   return `<div class="tiles fin-tiles">${tiles.map(([v, l]) => `<div class="tile"><div class="k">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
-    ${ranked.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">오늘 쓴 부위</h2><span class="aside">진할수록 많이</span></div>
+    ${ranked.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size: 15px">오늘 쓴 부위</h2><span class="aside">진할수록 많이</span></div>
       <div class="bodymaps fin-maps">${bodySvg('front', R.reg, max, '앞')}${bodySvg('back', R.reg, max, '뒤')}</div>
       <div class="fin-rank">${ranked.slice(0, 6).map(([r, v], i) => `<span><b>${i + 1}</b> ${REGIONS[r]} <i>${r1(v)}</i></span>`).join('')}</div>` : ''}
-    ${fb.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">피드백</h2></div>
+    ${fb.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size: 15px">피드백</h2></div>
       ${fb.map(([lv, t, dd, src]) => `<div class="mixtip"><b><span class="status ${lv}">${ICON[lv]}</span> ${esc(t)}</b><div class="d">${esc(dd)}</div>${src ? `<div class="src">근거: ${esc(src)}</div>` : ''}</div>`).join('')}` : ''}
-    <div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">오늘 컨디션</h2><span class="aside">디로딩 판단에 쓰여요 · 선택</span></div>
+    <div class="sec-h" style="margin-top:12px"><h2 style="font-size: 15px">오늘 컨디션</h2><span class="aside">디로딩 판단에 쓰여요 · 선택</span></div>
     <div class="scale">${[1, 2, 3, 4, 5].map(n => `<button class="${c.cond === n ? 'on' : ''}" data-act="fin-cond" data-v="${n}">${n}</button>`).join('')}</div>
     <div class="note" style="margin-top:4px">1 = 매우 힘듦 · 5 = 아주 좋음</div>
-    ${k === today() ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size:15px">다음 운동</h2></div>${recCardHtml(k)}` : ''}
+    ${k === today() ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size: 15px">다음 운동</h2></div>${recCardHtml(k)}` : ''}
     ${(() => { const days = Object.keys(DB.days).filter(trainedDay).length, lb = DB.settings.lastBackup, since = lb ? daysBetween(lb, today()) : null;
       return !isNative && days >= 12 && (since == null || since >= 30) ? `<div class="infobox" style="margin-top:12px"><div class="k">백업</div>기록이 ${days}일치 쌓였어요${lb ? ` (마지막 백업 ${since}일 전)` : ''}. 기록은 이 브라우저에만 있어서 폰을 바꾸거나 인터넷 기록을 지우면 사라질 수 있어요.<button class="btn sm block" style="margin-top:8px" data-act="export">백업 코드 저장하기</button></div>` : ''; })()}
     <div class="grid2" style="margin-top:14px"><button class="btn" data-act="day-resume">이어서 하기</button><button class="btn primary" data-act="sheet-close">완료</button></div>`;
 }
-function openFinish(k) { state.sheet = { kind: 'finish', k }; openSheet(k === today() ? '오늘 운동 마무리' : dateLabel(k), '수고했어요 💪', finishHtml(k), state.sheet); }
+function openFinish(k) { state.sheet = { kind: 'finish', k }; openSheet(k === today() ? '오늘 운동 마무리' : dateLabel(k), '수고했어요', finishHtml(k), state.sheet); }
 function viewWorkout() {
   const k = state.date, d = dayRO(k), S = DB.settings;
   const c = d.check || {};
@@ -733,13 +751,13 @@ function viewWorkout() {
       <button class="linkbtn" style="margin-top:6px" data-act="day-resume">↺ 이어서 하기 (마무리 취소)</button></section>`
     : sets.length ? `<button class="btn block finbtn" data-act="day-finish">✓ ${k === today() ? '오늘' : '이날'} 운동 마무리하기</button>` : ''}
   ${P0 && !hasPlan && !sets.length ? `<section class="card nextcard"><div class="row between" style="gap:10px">
-      <div style="min-width:0"><div class="small muted">진행 중 · ${esc(P0.name)}</div><div style="font-weight:800;font-size:16px">오늘은 ${esc(nextDay.t)}</div>
+      <div style="min-width:0"><div class="small muted">진행 중 · ${esc(P0.name)}</div><div style="font-weight:800;font-size: 16px">오늘은 ${esc(nextDay.t)}</div>
       <div class="small muted" style="margin-top:2px">${new Set(nextDay.ex.map(x => x[0])).size}종목 · ${esc([...new Set(nextDay.ex.map(([id]) => (eqById(id) || {}).name).filter(Boolean))].slice(0, 3).join(', '))}…</div></div>
       <button class="btn primary" data-act="prog-start" data-p="${P0.id}" data-d="${progDay(P0, DB.prog.next)}">시작</button></div></section>` : ''}
   ${!sets.length && !hasPlan && k === today() ? recCardHtml(k) : ''}
   <div class="cta-row two ${sets.length && d.fin ? 'hidden' : ''}">
-    <button class="btn primary big" data-act="picker-open"><span style="font-size:20px;line-height:1">+</span> 운동 추가</button>
-    <button class="btn big" data-act="routines-open">📋 루틴</button>
+    <button class="btn primary big" data-act="picker-open"><span style="font-size: 20px;line-height:1">+</span> 운동 추가</button>
+    <button class="btn big" data-act="routines-open"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg> 루틴</button>
   </div>`;
   h += planHtml(k);
   if (sets.length) {
@@ -750,7 +768,7 @@ function viewWorkout() {
     // the exercise in progress = the one you opened, else the one you logged last
     const lastSet = sets.reduce((a, x) => (!a || (x.t || 0) >= (a.t || 0) ? x : a), null);
     const activeEq = state.openEq === '-' ? null : state.openEq && groupsHas(sets, state.openEq) ? state.openEq : lastSet && lastSet.eq;
-    h += '<div style="margin-top:10px">';
+    h += '<div class="eqsheet">';
     for (const id of order) {
       const g = groups[id], f = g[0], e = eqById(id) || { name: f.name, brand: f.brand, m: f.m };
       const cardio = isCardioSet(f);
@@ -849,10 +867,10 @@ function routinesHtml() {
   if (P0) {
     const nx = progDay(P0, DB.prog.next), nd = P0.days[nx];
     h += `<section class="card nextcard" style="margin-bottom:6px"><div class="small muted">진행 중인 프로그램</div>
-      <div class="row between" style="gap:8px;margin-top:2px"><b style="font-size:16px">${esc(P0.name)}</b><button class="btn sm ghost" data-act="prog-open" data-p="${P0.id}">보기</button></div>
+      <div class="row between" style="gap:8px;margin-top:2px"><b style="font-size: 16px">${esc(P0.name)}</b><button class="btn sm ghost" data-act="prog-open" data-p="${P0.id}">보기</button></div>
       <div class="grid2" style="margin-top:10px"><button class="btn primary" data-act="prog-start" data-p="${P0.id}" data-d="${nx}">다음: ${esc(nd.t)}${P0.rep ? ` · ${progWeek(P0, DB.prog.next)}주차` : ''}</button><button class="btn" data-act="prog-stop">그만하기</button></div></section>`;
   }
-  h += `<div class="sec-h" style="margin-top:8px"><h2 style="font-size:16px">내 루틴</h2><span class="aside">${DB.routines.length}개</span></div>`;
+  h += `<div class="sec-h" style="margin-top:8px"><h2 style="font-size: 16px">내 루틴</h2><span class="aside">${DB.routines.length}개</span></div>`;
   h += DB.routines.length ? DB.routines.map(r => `<div class="myrt"><button class="main" data-act="my-start" data-id="${r.id}"><b>${esc(r.name)}</b>
       <div class="small muted">${r.list.length}종목 · ${esc(r.list.slice(0, 3).map(([id]) => (eqById(id) || {}).name).filter(Boolean).join(', '))}${r.list.length > 3 ? '…' : ''}</div></button>
       <button class="x" data-act="my-del" data-id="${r.id}" aria-label="루틴 삭제">×</button></div>`).join('')
@@ -868,7 +886,7 @@ function routinesHtml() {
   if ((state.rtM || '전체') === '전체') {
     const pf = DB.settings.profile || {}, sex = pf.sex, gk = goalKey(), R = recPrograms();
     const seg = (act, cur, opts, w) => `<div class="seg" style="${w ? `width:${w}` : ''}">${opts.map(([v, l]) => `<button class="${cur == v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
-    h += `<div class="sec-h"><h2 style="font-size:16px">추천</h2><span class="aside">${esc([pf.exp != null ? EXP_OPTS[pf.exp][1] : '', pf.freq ? `주 ${FREQ_L[pf.freq]}` : '', sex ? (sex === 'f' ? '여성' : '남성') : '', goal().l].filter(Boolean).join(' · '))}</span></div>
+    h += `<div class="sec-h"><h2 style="font-size: 16px">추천</h2><span class="aside">${esc([pf.exp != null ? EXP_OPTS[pf.exp][1] : '', pf.freq ? `주 ${FREQ_L[pf.freq]}` : '', sex ? (sex === 'f' ? '여성' : '남성') : '', goal().l].filter(Boolean).join(' · '))}</span></div>
       <div class="rtpf">
         <div><span class="small muted">경력</span>${seg('rt-exp', pf.exp, EXP_OPTS.map(([, l], i) => [i, l]))}</div>
         <div><span class="small muted">주 횟수</span>${seg('rt-freq', pf.freq, Object.entries(FREQ_L))}</div>
@@ -880,7 +898,7 @@ function routinesHtml() {
   }
   // pick by body part: every program day that mainly trains it
   const M = state.rtM || '전체';
-  h += `<div class="sec-h"><h2 style="font-size:16px">부위로 고르기</h2><span class="aside">${M === '전체' ? '루틴 전체' : '루틴의 그 날만'}</span></div>
+  h += `<div class="sec-h"><h2 style="font-size: 16px">부위로 고르기</h2><span class="aside">${M === '전체' ? '루틴 전체' : '루틴의 그 날만'}</span></div>
     <div class="chips rtchips">${['전체', '가슴', '등', '어깨', '하체', '엉덩이', '팔', '전신'].map(m => `<button class="chip ${m === M ? 'on' : ''}" data-act="rt-m" data-m="${m}">${m}</button>`).join('')}</div>`;
   if (M !== '전체') {
     const days = [];
@@ -899,7 +917,7 @@ function routinesHtml() {
   const LV = state.rtLv || 0, SX = state.rtSx || (DB.settings.profile || {}).sex || 'a';
   // women: women-focused + unisex plans; men: everything except the women-focused ones
   const inSx = p => SX === 'a' ? true : SX === 'f' ? !!(p.fem || p.uni) : !p.fem || !!p.uni;
-  h += `<div class="sec-h"><h2 style="font-size:16px">수준별 루틴</h2><span class="aside">운동 경력 기준</span></div>
+  h += `<div class="sec-h"><h2 style="font-size: 16px">수준별 루틴</h2><span class="aside">운동 경력 기준</span></div>
     <div class="seg" style="margin-bottom:8px">${[['f', '여성 루틴'], ['m', '남성 루틴'], ['a', '전체']].map(([v, l]) => `<button class="${SX === v ? 'on' : ''}" data-act="rt-sx" data-v="${v}">${l}</button>`).join('')}</div>
     <div class="chips rtchips">${[[0, '전체'], ...TIERS].map(([t, l]) => `<button class="chip ${LV === t ? 'on' : ''}" data-act="rt-lv" data-v="${t}">${l}</button>`).join('')}</div>`;
   for (const [t, l, d] of TIERS) {
@@ -953,7 +971,7 @@ function progInfoHtml(p) {
     <div class="pi-row"><span class="k">추천 대상</span><span>${esc(I.for)}</span></div>
     <div class="k" style="margin-top:10px">이것만 지키세요</div>
     <ul>${I.keys.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-    <div class="links">${I.refs.map(r => `<a href="${esc(r.u)}" target="_blank" rel="noopener">📄 ${esc(r.t)}</a>`).join('')}
+    <div class="links">${I.refs.map(r => `<a href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.t)} ↗</a>`).join('')}
       <a href="${ytLink(I.yt)}" target="_blank" rel="noopener">▶ 유튜브에서 영상 찾기</a></div>
     <div class="note">근비대 = 근육 크기 키우기 · 근력 = 들 수 있는 최대 무게 늘리기. 둘은 겹치지만 반복 수·휴식이 달라요(근력은 무겁게 적게 오래 쉬고, 근비대는 6–15회 정도로 세트 수를 쌓아요).</div>
   </div>`;
@@ -977,9 +995,9 @@ function openProgram(id) {
   const nx = DB.prog && DB.prog.id === id ? progDay(p, DB.prog.next) : 0;
   const h = `<button class="linkbtn" data-act="routines-open">← 루틴 목록</button>
     <div class="row" style="gap:6px;flex-wrap:wrap"><span class="mtag" style="--mc:var(--acc)">${esc(p.per)}</span><span class="mtag" style="--mc:var(--ink3)">${esc(p.lv)}</span><span class="small muted">${esc(p.who)}</span></div>
-    <div style="margin-top:8px;font-size:14px">${esc(p.desc)}</div>
+    <div style="margin-top:8px;font-size: 14px">${esc(p.desc)}</div>
     ${progInfoHtml(p)}
-    <div class="sec-h" style="margin-top:16px"><h2 style="font-size:15px">날짜별 구성</h2></div>
+    <div class="sec-h" style="margin-top:16px"><h2 style="font-size: 15px">날짜별 구성</h2></div>
     ${p.days.map((d, i) => `<div class="progday ${i === nx ? 'next' : ''}">
       <div class="row between"><b>${esc(d.t)}</b><span class="row" style="gap:8px">${i === nx && DB.prog && DB.prog.id === id ? '<span class="small" style="color:var(--acc);font-weight:800">다음 차례</span>' : ''}<a class="vlink" href="${ytLink(dayQuery(p, d))}" target="_blank" rel="noopener">▶ 영상</a></span></div>
       ${d.ex.map(([eid, t]) => { const e = eqById(eid) || { name: eid, m: '' }; return `<div class="pex"><a href="${ytLink(`${e.name} 자세`)}" target="_blank" rel="noopener">${esc(e.name)} <span class="yt">▶</span></a><span class="num">${esc(t)}</span></div>`; }).join('')}
@@ -1225,7 +1243,7 @@ function cardioSheetHtml(e) {
     </div>
     <div class="field"><label class="flabel">기계 표시 칼로리 · 선택</label><input id="cd-kcal" type="number" inputmode="numeric" placeholder="300"></div>
     <button class="btn primary block" style="margin-top:14px;padding:14px" data-act="cardio-add">기록 추가</button>
-    ${todays.length ? `<div class="sec-h"><h2 style="font-size:15px">이 날 기록</h2></div>${todays.map((s, i) => `<div class="setrow"><span class="n">${i + 1}</span><span class="w">${esc(fmtSetFull(s))}</span><span class="e"></span><button class="x" data-act="set-del" data-id="${esc(s.id)}">×</button></div>`).join('')}` : ''}`;
+    ${todays.length ? `<div class="sec-h"><h2 style="font-size: 15px">이 날 기록</h2></div>${todays.map((s, i) => `<div class="setrow"><span class="n">${i + 1}</span><span class="w">${esc(fmtSetFull(s))}</span><span class="e"></span><button class="x" data-act="set-del" data-id="${esc(s.id)}">×</button></div>`).join('')}` : ''}`;
 }
 function refreshSetSheet() {
   const S = state.sheet; if (!S) return;
@@ -1238,7 +1256,7 @@ const navIcon = t => { const b = document.querySelector(`nav button[data-tab="${
 /* detailed help, shown in settings (the tutorial is the short version) */
 const GUIDE = [
   ['운동 기록', ['운동 탭 + 운동 추가 → 부위·이름으로 기구 찾기. 자주·최근에 쓴 기구와 직접 추가한 기구가 맨 위에 와요.', '세트 표: 세트 수(3–6)를 고르고, 한 세트 끝날 때마다 ✓. 무게·횟수는 앞 세트 값이 자동으로 채워지고, 다르게 했으면 숫자만 고쳐서 ✓.', '✓를 누르면 휴식 타이머가 돌아요(화면 오른쪽 위 시계). 마지막 세트를 체크하면 다음 운동 고르기 화면으로 넘어가요.', '지난번 기록과 "오늘 추천"(무게를 올릴 때인지)이 같이 보여요. kg/lb는 기구에 적힌 대로 고르면 분석은 kg로 환산돼요.', '등 운동·벤치·컬은 세트 표 위에서 그립(와이드·클로즈·V바·언더핸드 등)을 고를 수 있어요. 기구마다 마지막 그립을 기억하고, 그립에 따라 해부도·부위별 세트에 쓰는 부위가 다르게 들어가요.', '목록에 없는 기구는 "직접 추가" — 이름·브랜드를 보고 어느 부위를 쓰는지 앱이 판단해서 그림으로 보여주고 분석에 넣어요.', '운동이 끝나면 위쪽 "운동 마무리하기" — 오늘 쓴 부위를 해부도로 보여주고, 지난번 대비 기록·이번 주 볼륨·목표에 맞춘 피드백을 줘요. 더 하려면 "이어서 하기"로 취소하면 돼요.', '뒤로가기는 지금 열린 화면만 닫아요. 앱을 끄려면 첫 화면에서 두 번 누르세요.']],
-  ['루틴', ['📋 루틴: 맨 위 "추천"은 성별·목표에 맞춘 프로그램이에요. 아래에서 다른 프로그램도 전부 볼 수 있어요.', '프로그램을 시작하면 오늘 할 종목·세트가 계획으로 깔리고, 다음 날은 순서대로 다음 날짜 루틴이 나와요.', '"부위로 고르기"는 여러 프로그램에서 그 부위를 주로 하는 날만 모아서 보여줘요(예: 엉덩이).', '각 프로그램에 목표, 지킬 점, 참고 영상(유튜브 검색) 링크가 있어요. 오늘 한 운동은 이름을 붙여 내 루틴으로 저장할 수 있어요.']],
+  ['루틴', ['루틴: 맨 위 "추천"은 성별·목표에 맞춘 프로그램이에요. 아래에서 다른 프로그램도 전부 볼 수 있어요.', '프로그램을 시작하면 오늘 할 종목·세트가 계획으로 깔리고, 다음 날은 순서대로 다음 날짜 루틴이 나와요.', '"부위로 고르기"는 여러 프로그램에서 그 부위를 주로 하는 날만 모아서 보여줘요(예: 엉덩이).', '각 프로그램에 목표, 지킬 점, 참고 영상(유튜브 검색) 링크가 있어요. 오늘 한 운동은 이름을 붙여 내 루틴으로 저장할 수 있어요.']],
   ['기록을 넣으면 생기는 것 (분석 탭)', ['운동한 부위: 해부도에 이번 주(또는 4주) 많이 한 부위일수록 빨갛게. 주로 쓴 근육은 1세트, 같이 쓴 근육은 0.25–0.5세트로 계산해요.', '부위별 주간 세트: 최근 2주 평균. 연구가 효과적이라고 보는 근육당 주 10–20세트와 비교해요. 막대를 누르면 윗가슴·광배·햄스트링 같은 세부 부위가 나와요(세부는 참고용).', '목표에 맞춘 운동: 고른 목표(살 빼기·증량 등)에 따라 볼륨·무게 유지·유산소에 대한 조언이 달라져요.', '종목 구성 참고: 4주 기록에서 빠진 각도(인클라인, 레그 컬 등)를 짚어줘요. 강요가 아니라 참고예요.', '디로딩 판단: 8주 볼륨·컨디션 흐름을 보고 쉬어갈 때인지 알려줘요. 점진적 과부하: 기구별 추정 1RM이 오르는지 봐요.', '칼로리 소모: 운동 시간과 종류로 계산해요. 인바디가 있으면 제지방 기준, 없으면 키·나이·체중, 그것도 없으면 평균값을 써요.']],
   ['인바디', ['바디 탭에서 결과지 사진을 올리면 숫자를 읽어서 칸에 채워줘요. 잘못 읽힌 칸은 고치면 돼요(사진은 기기 안에서만 처리).', '체중·골격근량·체지방만 넣어도 되고, 내장지방·부위별 근육·위상각 등 추가 항목을 넣으면 그만큼 분석이 늘어요.', '체지방률·제지방지수·내장지방·복부지방률·근감소 지표 등을 논문 기준과 비교해서 풀어서 알려줘요. 성별·나이·키가 있어야 정확해요.', '목표를 고르면 하루 칼로리와 탄·단·지 목표가 계산돼요(살 빼기는 단백질을 더 높게). 2–3주 체중 추세를 보고 맞는 속도인지도 알려줘요.']],
   ['기록 탭 · 기타', ['기록 탭: 날짜별로 한 운동을 달력으로 보고, 지난 날짜를 눌러 수정할 수 있어요. 위쪽 ‹ › 로 날짜를 옮겨 지난 운동을 나중에 입력해도 돼요.', 'PR 보드(분석 탭 아래쪽): 같은 동작이면 브랜드가 달라도 같이 비교해요.', '기록은 이 기기(브라우저)에 저장돼요. 브라우저 데이터를 지우면 사라지니 주의하세요.']],
@@ -1257,7 +1275,7 @@ function tutSteps() {
       <div class="tut-table">${[0, 1, 2].map(j => { const d = j < (state.tutCk || 0), nx = j === (state.tutCk || 0); return `<div class="r ${d ? 'done' : nx ? 'next' : ''}"><span>${j + 1}</span><span>40kg</span><span>${j === 2 ? 8 : 10}회</span><button class="ck ${d ? 'on' : ''}" ${nx ? 'data-act="tut-ck"' : 'disabled'} aria-label="${j + 1}세트 완료">✓</button></div>`; }).join('')}</div>
       ${(state.tutCk || 0) >= 3 ? `<div class="tut-ok">✓ 잘했어요! 실제로는 이 순간 다음 운동 고르기 화면이 열려요.</div>` : (state.tutCk || 0) ? `<div class="tut-ok soft">✓를 누르면 휴식 타이머가 돌아요(화면 위 시계). 다음 세트도 눌러보세요.</div>` : ''}
       <ul class="tut-ol"><li>무게·횟수는 앞 세트나 지난번 기록에서 미리 채워져요. 실제로 한 횟수가 다르면 숫자만 고치고 ✓.</li><li>운동 중에 바로 눌러도 되고, 끝나고 몰아서 기록해도 돼요.</li><li>무게를 올릴 때가 되면 "오늘 추천"으로 알려줘요.</li><li>다 끝나면 운동 탭 위쪽 <b>"✓ 오늘 운동 마무리하기"</b> — 오늘 쓴 부위 그림과 피드백이 나와요. 더 하고 싶으면 "이어서 하기".</li></ul>` },
-    { at: 'main button[data-act="routines-open"]', tap: 1, t: '루틴', b: `<p><b>"📋 루틴"을 눌러보세요.</b></p><ul class="tut-ol"><li>뭘 할지 모르겠으면 여기. 맨 위 <b>추천</b>은 성별·목표에 맞춘 프로그램이에요.</li><li>프로그램을 시작하면 오늘 할 종목·세트가 한 번에 깔리고, 다음엔 순서대로 다음 날 루틴이 나와요.</li><li>"부위로 고르기"로 오늘 하고 싶은 부위의 하루치만 골라 할 수도 있어요.</li></ul>` },
+    { at: 'main button[data-act="routines-open"]', tap: 1, t: '루틴', b: `<p><b>"루틴"을 눌러보세요.</b></p><ul class="tut-ol"><li>뭘 할지 모르겠으면 여기. 맨 위 <b>추천</b>은 성별·목표에 맞춘 프로그램이에요.</li><li>프로그램을 시작하면 오늘 할 종목·세트가 한 번에 깔리고, 다음엔 순서대로 다음 날 루틴이 나와요.</li><li>"부위로 고르기"로 오늘 하고 싶은 부위의 하루치만 골라 할 수도 있어요.</li></ul>` },
     { at: 'header .datenav', t: '날짜 옮기기', b: `<ul class="tut-ol"><li>‹ › 로 날짜를 옮기면 그날 기록을 보거나, 깜빡한 운동을 나중에 넣을 수 있어요.</li><li>날짜를 누르면 오늘로 돌아와요.</li></ul>` },
     { at: 'nav button[data-tab="records"]', tap: 'records', t: '기록 탭', b: `<p><b>아래 "기록" 탭을 눌러보세요.</b></p>` },
     { at: 'main section.card', t: '기록 탭', b: `<ul class="tut-ol"><li>운동한 날이 달력에 표시돼요. 날짜를 누르면 그날 한 운동을 보고 고칠 수 있어요.</li><li>운동 안 한 날도 한눈에 보여서 꾸준함을 확인하기 좋아요. 지난 날짜를 눌러 그날 운동을 나중에 넣어도 돼요.</li></ul>` },
@@ -1503,14 +1521,14 @@ function openDaySheet(k) {
   let h = `<div class="row" style="flex-wrap:wrap;gap:6px">${mus.length ? mus.map(mtag).join('') : '<span class="small muted">운동 기록 없음</span>'}</div>`;
   if (c.cond || c.sleep || c.sore) h += `<div class="infobox" style="margin-top:10px"><div class="k">컨디션</div>${[c.cond ? `컨디션 ${c.cond}/5` : '', c.sore ? `근육통 ${c.sore}/5` : '', c.sleep ? `수면 ${trimNum(c.sleep)}시간` : ''].filter(Boolean).join(' · ')}</div>`;
   if (order.length) {
-    h += `<div class="sec-h"><h2 style="font-size:15px">운동</h2><span class="aside">${sets.filter(s => !isCardioSet(s)).length}세트</span></div>`;
+    h += `<div class="sec-h"><h2 style="font-size: 15px">운동</h2><span class="aside">${sets.filter(s => !isCardioSet(s)).length}세트</span></div>`;
     for (const id of order) {
       const g = groups[id], e = eqById(id) || g[0];
       h += `<div class="infobox"><div class="k">${esc(e.brand || '')} · ${esc(g[0].type || '')}</div><b>${esc(e.name)}</b><div class="small" style="margin-top:2px">${g.map(s => esc(fmtSetFull(s))).join(' / ')}</div></div>`;
     }
   }
   if ((d.meals || []).length) {
-    h += `<div class="sec-h"><h2 style="font-size:15px">식단</h2><span class="aside num">${fmtInt(t.k)}kcal · 단 ${r1(t.p)}g · 탄 ${r1(t.c)}g · 지 ${r1(t.f)}g</span></div>`;
+    h += `<div class="sec-h"><h2 style="font-size: 15px">식단</h2><span class="aside num">${fmtInt(t.k)}kcal · 단 ${r1(t.p)}g · 탄 ${r1(t.c)}g · 지 ${r1(t.f)}g</span></div>`;
     for (const slot of SLOTS) {
       const it = d.meals.filter(m => (m.slot || '간식') === slot);
       if (it.length) h += `<div class="infobox"><div class="k">${slot}</div>${it.map(m => `${esc(m.name)} <span class="muted">${fmtInt(m.k)}</span>`).join(' · ')}</div>`;
@@ -1619,22 +1637,22 @@ function recCardHtml(k) {
   if (DB.prog && !hasSets) return ''; // the program card already says what's next
   const R = recommendNext(T); if (!R) return '';
   const when = T === k ? '오늘' : '내일';
-  if (R.first) return `<section class="card reccard"><div class="small muted">${when} 추천 · 첫 운동</div><b style="font-size:16px">전신 5종목</b>
+  if (R.first) return `<section class="card reccard"><div class="small muted">${when} 추천 · 첫 운동</div><b style="font-size: 16px">전신 5종목</b>
     <div class="small muted" style="margin-top:2px">스쿼트 · 벤치프레스 · 로우 · 레터럴 레이즈 · 복근. 처음엔 부위를 나누기보다 전신으로 시작하는 게 무난해요.</div>
     <button class="btn sm block" style="margin-top:8px" data-act="rec-plan" data-t="${T}" data-k="full">${T === k ? '이걸로 시작' : '내일 계획에 넣기'}</button></section>`;
   const P0 = DB.prog && PROGRAMS.find(p => p.id === DB.prog.id);
   if (P0 && T !== k) {
     const nd = P0.days[progDay(P0, DB.prog.next)];
-    return `<section class="card reccard"><div class="small muted">${when} 추천</div><div class="row between" style="gap:8px"><b style="font-size:16px">${esc(nd.t)}</b><span class="small muted">${esc(P0.name)} 다음 차례</span></div>
+    return `<section class="card reccard"><div class="small muted">${when} 추천</div><div class="row between" style="gap:8px"><b style="font-size: 16px">${esc(nd.t)}</b><span class="small muted">${esc(P0.name)} 다음 차례</span></div>
       ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '컨디션이 떨어져 있어요.'} 하루 쉬고 해도 프로그램 순서는 그대로예요.</div>` : ''}</section>`;
   }
   const b = R.best;
-  if (!b) return `<section class="card reccard"><div class="small muted">${when} 추천</div><b style="font-size:16px">쉬는 날</b><div class="small muted" style="margin-top:2px">주요 부위가 모두 최근 이틀 안에 운동했어요. 같은 부위는 48시간 정도 쉬는 게 일반적이에요.</div></section>`;
+  if (!b) return `<section class="card reccard"><div class="small muted">${when} 추천</div><b style="font-size: 16px">쉬는 날</b><div class="small muted" style="margin-top:2px">주요 부위가 모두 최근 이틀 안에 운동했어요. 같은 부위는 48시간 정도 쉬는 게 일반적이에요.</div></section>`;
   const why = b.ms.map(m => { const x = R.info[m]; return `${mName(m)} ${x.last ? `${x.days}일 전` : '직접 한 적 없음'} · 최근 7일 ${r1(x.dir)}세트`; }).join(' / ');
   const sh = R.info['어깨'], shWhy = R.addSh ? `어깨 직접 최근 7일 ${r1(sh.dir)}세트 — 벤치 같은 가슴 운동은 옆·뒤 어깨를 거의 안 써요. 어깨를 쉰 지 이틀이 지나서 다른 날에 2종목 붙여도 돼요(주 2–3회 나눠 하기).`
     : b.k === 'shoulder' ? '가슴·등·하체는 아직 회복 중이에요. 어깨는 이틀 이상 쉬었으니 어깨·팔 날로 채워요.' : '';
   return `<section class="card reccard"><div class="small muted">${when} 추천</div>
-    <div class="row between" style="gap:8px"><b style="font-size:16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(b.l)}${R.addSh ? ' + 옆·뒤 어깨' : ''}</b></div>
+    <div class="row between" style="gap:8px"><b style="font-size: 16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(b.l)}${R.addSh ? ' + 옆·뒤 어깨' : ''}</b></div>
     <div class="small muted" style="margin-top:2px">${esc(why)}</div>${shWhy ? `<div class="small" style="margin-top:4px">${esc(shWhy)}</div>` : ''}
     ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '어제 컨디션이 낮거나 근육통이 심했어요.'} 하루 쉬어도 손해 없어요.</div>` : ''}
     <button class="btn sm block" style="margin-top:8px" data-act="rec-plan" data-t="${T}" data-k="${b.k}${R.addSh ? '+sh' : ''}">${T === k ? '추천 종목으로 시작' : '내일 계획에 넣기'}</button></section>`;
@@ -1851,7 +1869,7 @@ function buildReport() {
   const flags = prFlags(), prs7 = sets7.filter(x => flags.has(x.id));
   if (prs7.length) {
     const names = [...new Set(prs7.map(x => x.name))];
-    add('good', 6, `이번 주 PR ${prs7.length}개 🏆`, `${names.slice(0, 4).join(', ')}${names.length > 4 ? ` 외 ${names.length - 4}개` : ''}에서 기록을 넘었어요.`, '', '');
+    add('good', 6, `이번 주 PR ${prs7.length}개`, `${names.slice(0, 4).join(', ')}${names.length > 4 ? ` 외 ${names.length - 4}개` : ''}에서 기록을 넘었어요.`, '', '');
   }
   if (!dl.inDeload && !dl.recovering) for (const p of dl.prog.filter(x => x.status === 'flat').slice(0, 2)) add('info', 3, `${p.name} 정체`, `${p.brand ? p.brand + ' · ' : ''}최근 운동한 2주 최고 추정 1RM ${r1(p.rec)}kg, 그 전 최고 ${r1(p.prior)}kg.`, '반복 범위를 바꾸거나(예: 8–10 → 12–15회), 마지막 세트를 RIR 0–1까지 밀거나, 1.25–2.5kg 단위로 증량해보세요.', '');
   for (const p of dl.prog.filter(x => x.status === 'up').slice(0, 2)) add('good', 1, `${p.name} 상승 중 +${Math.round(p.pct * 100)}%`, `추정 1RM ${r1(p.prior)} → ${r1(p.rec)}kg.`, '지금 방식을 유지하세요.', '');
@@ -1992,7 +2010,7 @@ function viewAnalysis() {
     const strK = ES.per.reduce((a, x) => a + x.strK, 0), carK = ES.per.reduce((a, x) => a + x.carK, 0);
     h += `<div class="sec-h"><h2>칼로리 소모</h2><span class="aside">최근 7일 · ${srcLbl}</span></div><section class="card">
       <div class="grid3">
-        <div><div class="small muted">하루 평균 총 소모</div><div class="num" style="font-weight:900;font-size:18px">${fmtInt(ES.tdee)}</div><div class="small muted">kcal</div></div>
+        <div><div class="small muted">하루 평균 총 소모</div><div class="num" style="font-weight:900;font-size: 18px">${fmtInt(ES.tdee)}</div><div class="small muted">kcal</div></div>
         <div><div class="small muted">기초대사량</div><div class="num" style="font-weight:800">${fmtInt(E.rmr)}</div><div class="small muted">kcal/일</div></div>
         <div><div class="small muted">운동 (하루 평균)</div><div class="num" style="font-weight:800">${fmtInt(ES.exAvg)}</div><div class="small muted">kcal/일</div></div>
       </div>
@@ -2005,21 +2023,18 @@ function viewAnalysis() {
   const RW = (() => { const t = regionTotals(addDays(today(), -13), today()), first = (allSets()[0] || {}).date || today(); const span = Math.min(14, Math.max(7, daysBetween(first, today()) + 1)); for (const k in t) t[k] = t[k] * 7 / span; return t; })();
   h += goalTrainHtml(R, RW, ES);
   h += `<div class="sec-h"><h2>부위별 주간 세트</h2><span class="aside">최근 2주 주평균 · 누르면 세부 부위</span></div><section class="card">
+    ${bandHead(['적음', '효과 범위', '고볼륨'])}
     ${STRENGTH_MUSCLES.map(m => {
-      const v = R.mv14.vol[m], dir = R.mv14.dW[m], ind = Math.max(0, v - dir), dys = R.mv.days[m].size;
-      const [lo, hi] = volRange(m);
-      const onlyInd = dir < 0.5;
-      const lv = onlyInd ? 'none' : v < lo || v > hi ? 'info' : 'good';
-      const lbl = onlyInd ? (ind > 0 ? '간접만' : '안 함') : v < lo ? '여유' : v > hi ? '고볼륨' : '적정';
-      const maxV = hi + 6, bandHi = m === '다리' ? 30 : 20;
-      const regs = (REG_GROUP[m] || []).map(k => { const rv = (RW[k] || 0); const [rlo, rhi] = REG_RANGE[k]; const rmax = rhi + 4;
-        const rl = ASSIST_REG.has(k) ? (rv < 0.5 ? '' : '협응근') : rv < 0.5 ? '안 함' : rv < rlo ? '적은 편' : '', rc = 'none';
-        return `<div class="rvol"><span>${REGIONS[k]}</span><div class="bar"><div class="band" style="left:${rlo / rmax * 100}%;width:${(rhi - rlo) / rmax * 100}%"></div><div class="fill ${mcls(m)}" style="width:${Math.min(100, rv / rmax * 100)}%"></div></div><span class="num">${r1(rv)}</span><span class="status ${rc}">${rl}</span></div>`; }).join('');
-      return `<details class="mgrp" ${dir >= 0.5 ? 'open' : ''}><summary class="mvol"><span>${mtag(m)}</span>
-        <div class="bar"><div class="band" style="left:${lo / maxV * 100}%;width:${(bandHi - lo) / maxV * 100}%"></div><div class="fill ind ${mcls(m)}" style="width:${Math.min(100, v / maxV * 100)}%"></div><div class="fill ${mcls(m)}" style="width:${Math.min(100, dir / maxV * 100)}%"></div></div>
-        <div class="r"><span class="num"><b>${r1(dir)}</b>세트${ind >= 0.5 ? `<span class="muted indl">+간접 ${r1(ind)}</span>` : ''}</span><span class="s status ${lv}">${lv === 'none' ? '' : ICON[lv] + ' '}${lbl}</span></div></summary><div class="regs">${regs}</div></details>`;
+      const v = R.mv14.vol[m], dir = R.mv14.dW[m], ind = Math.max(0, v - dir);
+      const [lo, hi] = volRange(m), onlyInd = dir < 0.5;
+      const lbl = onlyInd ? (ind > 0 ? '간접만' : '안 함') : v < lo ? `${r1(lo - v)}세트 여유` : v > hi ? '고볼륨' : '적정';
+      const regs = (REG_GROUP[m] || []).map(k => { const rv = RW[k] || 0, [rlo, rhi] = REG_RANGE[k];
+        const tag = ASSIST_REG.has(k) ? (rv < 0.5 ? '' : '협응근') : rv < 0.5 ? '안 함' : rv < rlo ? '적은 편' : '';
+        return bandRow({ label: REGIONS[k], sub: tag, v: rv, lo: rlo, hi: rhi, max: rhi * 1.8, text: r1(rv), small: true }); }).join('');
+      const row = bandRow({ label: mName(m), sub: lbl, v: dir, ghost: v, lo, hi, max: hi * 1.8, text: `${r1(dir)}${ind >= 0.5 ? `<em>+${r1(ind)}</em>` : ''}` });
+      return `<details class="mgrp" ${dir >= 0.5 ? 'open' : ''}><summary>${row}</summary><div class="regs">${regs}</div></details>`;
     }).join('')}
-    <div class="note">큰 숫자는 그 부위를 직접 한 세트예요. 연한 막대·"+간접"은 다른 운동에 딸려서 쓰인 몫이에요(벤치프레스 1세트 → 어깨·삼두 각 0.5, 로우 → 이두 0.5). 적정 판단은 연구 방식대로 둘을 합쳐서 하고, 직접 안 한 부위는 판단하지 않아요. 초록 띠는 대부분의 연구가 효과적이라고 보는 10–20세트(다리는 앞·뒤·종아리를 합쳐 14–30), 그 위도 성장은 계속되지만 효율이 떨어져요. 팔·코어는 보조 부위로 주 6세트부터. 세부 부위(윗가슴·광배·햄스트링 등)는 해부도와 같은 방식(주동근 1, 보조근 0.5–0.25)으로 세고, 연구의 세트 권장은 근육 단위라서 적정 판단은 위 큰 막대로만 해요. 세부 막대는 어디에 몰렸는지 보는 참고용이고, 연한 띠는 근육 기준을 부위에 나눠본 앱 기준이에요. 종아리·전완근은 다른 운동에 협응근으로 같이 쓰이는 부위라 쓰인 만큼만 보여주고 많다·적다는 판단하지 않아요.${R.dl.inDeload ? ' 지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.' : ''}</div>
+    <details class="more"><summary>읽는 법</summary><div class="note">진한 막대 = 그 부위를 직접 한 세트, 연한 연장 = 다른 운동에 딸려 쓰인 몫(+숫자). 가운데 칸이 연구에서 효과적인 범위(근육당 주 10–20세트, 하체는 14–30, 팔·코어는 6세트부터)예요. 누르면 세부 부위가 열려요 — 세부는 어디에 몰렸는지 보는 참고용이고, 종아리·전완근은 협응근이라 판단하지 않아요.</div></details>${R.dl.inDeload ? '<div class="note">지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.</div>' : ''}
   </section>`;
 
   // exercise mix (optional notes)
@@ -2195,7 +2210,7 @@ function weightCardHtml() {
       <div class="tile"><div class="k">최근 체중</div><div class="v">${trimNum(ws[ws.length - 1].w)}<small>kg</small></div><div class="d muted">${shortDate(ws[ws.length - 1].date)}</div></div>
       <div class="tile"><div class="k">7일 평균 변화</div><div class="v">${wt && wt.d != null ? `${wt.d > 0 ? '+' : ''}${r1(wt.d)}` : '–'}<small>kg/주</small></div><div class="d muted">${wt && wt.pct != null ? `${wt.pct > 0 ? '+' : ''}${r1(wt.pct)}%` : '2주 기록 필요'}</div></div>
     </div>
-    ${v ? `<section class="card" style="margin-top:10px"><span class="status ${v.lv}">${ICON[v.lv]} ${esc(v.t)}</span>${v.a ? `<div style="margin-top:4px;font-size:14px">${esc(v.a)}</div>` : ''}
+    ${v ? `<section class="card" style="margin-top:10px"><span class="status ${v.lv}">${ICON[v.lv]} ${esc(v.t)}</span>${v.a ? `<div style="margin-top:4px;font-size: 14px">${esc(v.a)}</div>` : ''}
       <div class="note">하루 체중은 수분·식사로 1kg 넘게 흔들려서 7일 평균끼리 비교해요. 속도 기준: ${esc(goal().src)}${goalKey() === 'leanbulk' ? ' 권장 범위의 아래쪽(살이 덜 붙게 잡은 보수적 기준)' : ''}.</div></section>` : ''}
     ${pts.length >= 2 ? `<section class="card" style="margin-top:10px"><h3>체중 추이 <span class="small muted" style="font-weight:600">아침 체중·인바디</span></h3>${lineChart(pts, { color: 'var(--m-chest)', aria: '체중 추이' })}</section>` : `<div class="note">운동 탭 컨디션 체크에 아침 체중을 적으면 추이가 쌓여요.</div>`}`;
 }
@@ -2727,15 +2742,69 @@ function goalCardHtml(list) {
     ${SHOW_DIET && mac && !matches ? `<button class="btn sm block" style="margin-top:10px" data-act="goal-macros">식단 목표를 이 숫자로 바꾸기</button>` : ''}
     ${SHOW_DIET && !bw ? '<div class="note">체중을 기록하면 칼로리·단백질을 g 단위로 계산해 드려요.</div>' : ''}
     <div class="divider"></div>
-    <div class="k" style="font-size:11px;color:var(--ink3);font-weight:700;margin-bottom:4px">인바디 피드백 · ${esc(g.l)} 기준</div>
+    <div class="k" style="font-size: 12px;color:var(--ink3);font-weight:700;margin-bottom:4px">인바디 피드백 · ${esc(g.l)} 기준</div>
     ${fb ? `<span class="status ${fb.lv}">${ICON[fb.lv]} ${esc(fb.t)}</span>
-      <div style="margin-top:4px;font-size:14px">${esc(fb.a)}</div>
+      <div style="margin-top:4px;font-size: 14px">${esc(fb.a)}</div>
       <div class="small muted" style="margin-top:6px">${shortDate(fb.base.date)} → ${shortDate(fb.last.date)} (${fb.span}일) · 골격근 ${fb.dm > 0 ? '+' : ''}${fb.dm}kg · 체지방 ${fb.df > 0 ? '+' : ''}${fb.df}kg</div>
       <div class="note">인바디는 수분·식사에 따라 ±1kg 정도 흔들려요. 같은 시간대·같은 조건(아침 공복 등)에서 잰 값끼리 비교하세요.</div>`
     : `<div class="small muted">골격근량과 체지방량을 넣은 인바디를 2번 이상(3–4주 간격) 기록하면 목표 기준으로 평가해요.</div>`}
   </section>`;
 }
 
+/* ---------- the range band (InBody result-sheet row) ----------
+   Under / standard / over zones sit at the same positions in every row of a block, so rows line up and read
+   the way the InBody sheet does. lo–hi is the standard zone; max caps the over zone. */
+function bandPos(v, lo, hi, max) {
+  if (v == null || isNaN(v)) return 0;
+  if (v <= lo) return lo > 0 ? Math.max(0, v / lo * 34) : 0;
+  if (v <= hi) return 34 + (v - lo) / Math.max(1e-9, hi - lo) * 33;
+  const top = Math.max(max || hi * 1.8, hi + 1e-9);
+  return Math.min(100, 67 + (v - hi) / (top - hi) * 33);
+}
+function bandHead(labels) {
+  const [a, b, c] = labels || ['표준이하', '표준', '표준이상'];
+  return `<div class="bandhead" aria-hidden="true"><span></span><div class="bh"><i>${a}</i><i>${b}</i><i>${c}</i></div></div>`;
+}
+/* o: { label, sub, v, lo, hi, max, text, ghost (lighter extension up to this value), mark (true = red fill), small } */
+function bandRow(o) {
+  const p = bandPos(o.v, o.lo, o.hi, o.max), g = o.ghost != null ? bandPos(o.ghost, o.lo, o.hi, o.max) : null;
+  const end = Math.max(p, g || 0), inside = end > 76;
+  return `<div class="bandrow ${o.small ? 'sm' : ''}" role="img" aria-label="${esc(o.label)} ${esc(String(o.text != null ? o.text : o.v))}">
+    <div class="bl"><b>${o.label}</b>${o.sub ? `<small>${o.sub}</small>` : ''}</div>
+    <div class="bt"><div class="bz"></div>${g != null && g > p ? `<div class="bf ghost" style="width:${g}%"></div>` : ''}<div class="bf ${o.mark ? 'mark' : ''}" style="width:${p}%"></div>
+      <span class="bv ${inside ? 'in' : ''}" style="${inside ? `right:${100 - end}%` : `left:${end}%`}">${o.text != null ? o.text : trimNum(o.v)}</span></div>
+  </div>`;
+}
+/* latest InBody as the sheet's 골격근·지방분석 block: value + where it sits on the standard band */
+function latestInbodyHtml(last, prev, delta) {
+  const pf = DB.settings.profile || {}, age = pf.birth ? new Date().getFullYear() - pf.birth : null, h = pf.height ? pf.height / 100 : null;
+  const rows = [];
+  const fp = last.fatPct != null ? last.fatPct : last.fatKg != null && last.weight ? last.fatKg / last.weight * 100 : null;
+  if (last.weight != null) {
+    const lo = h ? 18.5 * h * h : last.weight * 0.85, hi = h ? 23 * h * h : last.weight * 1.15; // Asian BMI 18.5–23 (WHO 2004)
+    rows.push(bandRow({ label: '체중', sub: `kg ${delta(last, prev, 'weight')}`, v: last.weight, lo, hi, max: hi * 1.35, text: trimNum(last.weight) }));
+  }
+  if (last.muscle != null) {
+    // standard zone from fat-free-mass index (FFMI) 18–22 men / 14–18 women (Kouri 1995 ranges), as muscle ≈ 56% of FFM
+    const [a, b] = pf.sex === 'f' ? [14, 18] : [18, 22], hh = h || 1.72, lo = a * hh * hh * 0.56, hi = b * hh * hh * 0.56;
+    rows.push(bandRow({ label: '골격근량', sub: `kg ${delta(last, prev, 'muscle')}`, v: last.muscle, lo, hi, max: hi * 1.3, text: trimNum(last.muscle) }));
+  }
+  const band = fp != null && pf.sex && age ? bfBand(fp, pf.sex, age) : null;
+  const fpr = band ? (band.healthy.match(/[\d.]+/g) || []).map(Number) : (pf.sex === 'f' ? [21, 32] : [8, 19]);
+  if (last.fatKg != null) {
+    const w = last.weight || 70; // standard fat mass = healthy body-fat % band × weight (Gallagher 2000)
+    rows.push(bandRow({ label: '체지방량', sub: `kg ${delta(last, prev, 'fatKg', true)}`, v: last.fatKg, lo: w * fpr[0] / 100, hi: w * fpr[1] / 100, max: w * fpr[1] / 100 * 1.8, text: trimNum(last.fatKg) }));
+  }
+  const obes = [];
+  if (fp != null) obes.push(bandRow({ label: '체지방률', sub: `% ${delta(last, prev, 'fatPct', true)}`, v: fp, lo: fpr[0], hi: fpr[1], max: fpr[1] * 1.8, text: r1(fp), mark: band && band.lv !== 'good' }));
+  if (last.weight != null && h) { const bmi = last.weight / (h * h); obes.push(bandRow({ label: 'BMI', sub: 'kg/m²', v: bmi, lo: 18.5, hi: 23, max: 32, text: r1(bmi) })); }
+  if (last.vfl != null) obes.push(bandRow({ label: '내장지방', sub: '레벨', v: last.vfl, lo: 1, hi: 9, max: 20, text: trimNum(last.vfl), mark: last.vfl >= 10 }));
+  return `<div class="sec-h" style="margin-top:4px"><h2>최근 인바디</h2><span class="aside">${esc(last.date)}${prev ? ' · ▲▼ 직전 대비' : ''}</span></div>
+    <section class="card sheetblock">
+      ${rows.length ? `<div class="blk-t">골격근·지방</div>${bandHead()}${rows.join('')}` : ''}
+      ${obes.length ? `<div class="blk-t">비만 지표</div>${bandHead()}${obes.join('')}` : ''}
+    </section>`;
+}
 function viewBody() {
   const list = DB.inbody.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const last = list[list.length - 1], prev = list[list.length - 2], first = list[0];
@@ -2744,16 +2813,12 @@ function viewBody() {
     const d = r1(cur[key] - base[key]); const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
     return `<span class="delta ${cls} ${inv ? 'inv' : ''}">${d > 0 ? '▲' : d < 0 ? '▼' : '–'} ${Math.abs(d)}</span>`;
   };
-  let h = goalCardHtml(list) + macroCardHtml() + weightCardHtml();
+  let h = '';
+  if (last) h += latestInbodyHtml(last, prev, delta);
+  h += goalCardHtml(list);
+  if (last) h += inbodyAnalysisHtml(list);
+  h += macroCardHtml() + weightCardHtml();
   if (last) {
-    h += `<div class="sec-h"><h2>최근 인바디</h2><span class="aside">${esc(last.date)}${prev ? ` · 직전 대비` : ''}</span></div>
-    <div class="tiles">
-      <div class="tile"><div class="k">체중</div><div class="v">${last.weight != null ? trimNum(last.weight) : '–'}<small>kg</small></div><div class="d">${delta(last, prev, 'weight')}</div></div>
-      <div class="tile"><div class="k">골격근량</div><div class="v">${last.muscle != null ? trimNum(last.muscle) : '–'}<small>kg</small></div><div class="d">${delta(last, prev, 'muscle')}</div></div>
-      <div class="tile"><div class="k">체지방량</div><div class="v">${last.fatKg != null ? trimNum(last.fatKg) : '–'}<small>kg</small></div><div class="d">${delta(last, prev, 'fatKg', true)}</div></div>
-      <div class="tile"><div class="k">체지방률</div><div class="v">${last.fatPct != null ? trimNum(last.fatPct) : '–'}<small>%</small></div><div class="d">${delta(last, prev, 'fatPct', true)}</div></div>
-    </div>`;
-    h += inbodyAnalysisHtml(list);
     const series = [['weight', '체중 (kg)', 'var(--m-chest)'], ['muscle', '골격근량 (kg)', 'var(--m-shoulder)'], ['fatPct', '체지방률 (%)', 'var(--m-back)']];
     for (const [key, label, color] of series) {
       const pts = list.filter(e => e[key] != null).map(e => ({ date: e.date, y: +e[key], tip: `${shortDate(e.date)} · ${trimNum(e[key])}` }));
@@ -2762,7 +2827,7 @@ function viewBody() {
   }
   h += `<div class="sec-h"><h2>인바디 / 체중 기록</h2></div>` + profileHtml() + `<section class="card" style="margin-top:10px">
     <div class="photo-pick"><div class="pv" id="ib-pv">${state.ibPhoto ? `<img src="${state.ibPhoto}" alt="">` : '사진'}</div>
-      <div><div class="row" style="gap:6px;flex-wrap:wrap"><label class="btn sm" for="ib-file">📷 찍기</label><label class="btn sm" for="ib-file-album">🖼 앨범에서 고르기</label></div>
+      <div><div class="row" style="gap:6px;flex-wrap:wrap"><label class="btn sm" for="ib-file"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> 찍기</label><label class="btn sm" for="ib-file-album"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg> 앨범에서 고르기</label></div>
         <input type="file" id="ib-file" accept="image/*" capture="environment" class="hidden" data-on="ib-file">
         <input type="file" id="ib-file-album" accept="image/*" class="hidden" data-on="ib-file">
       <div class="note" style="margin-top:6px">결과지를 찍으면 숫자를 자동으로 읽어서 아래 칸에 채워요. 결과지 전체가 반듯하게, 그림자 없이 나오게 찍어주세요.</div></div></div>
@@ -2824,7 +2889,7 @@ function openSettings(focus) {
       <div class="item"><div class="main"><div class="t">테마</div></div>
         <div class="seg" style="width:180px">${[['auto', '자동'], ['dark', '다크'], ['light', '라이트']].map(([v, l]) => `<button class="${S.theme === v ? 'on' : ''}" data-act="st-theme" data-v="${v}">${l}</button>`).join('')}</div></div>
     </div>
-    ${SHOW_DIET ? `<div class="sec-h" id="goals-h"><h2 style="font-size:15px">식단 목표</h2></div>
+    ${SHOW_DIET ? `<div class="sec-h" id="goals-h"><h2 style="font-size: 15px">식단 목표</h2></div>
     <div class="field"><label>체중 (kg) — 단백질 g/kg 계산용 · 비우면 인바디 최근값 사용</label><input type="number" inputmode="decimal" id="st-bw" value="${S.bw || ''}" placeholder="${latestBodyweight() || '예: 72'}"></div>
     <div class="grid2">
       <div class="field"><label>칼로리 (kcal)</label><input type="number" id="st-k" value="${G.kcal}"></div>
@@ -2836,18 +2901,18 @@ function openSettings(focus) {
       <div class="note">체중 기준 대략적인 시작값이에요. 칼로리는 체중×30(유지)에 목표별 배수(살 빼기 80% · 체형 바꾸기 95% · 천천히 증량 107% · 빠르게 증량 115%), 단백질은 살 빼기·체형 바꾸기 2.0g/kg, 나머지 1.6–1.8g/kg, 지방 0.9g/kg, 나머지는 탄수화물. 2–3주 체중 변화를 보고 조정하세요.</div></div>
     <button class="btn primary block" style="margin-top:12px" data-act="st-save-goals">목표 저장</button>` : ''}
 
-    <div class="sec-h"><h2 style="font-size:15px">기능 설명</h2><span class="aside">누르면 펼쳐져요</span></div>
+    <div class="sec-h"><h2 style="font-size: 15px">기능 설명</h2><span class="aside">누르면 펼쳐져요</span></div>
     ${guideHtml()}
-    <div class="sec-h"><h2 style="font-size:15px">참고 논문</h2><span class="aside">${REFS.length}편</span></div>
+    <div class="sec-h"><h2 style="font-size: 15px">참고 논문</h2><span class="aside">${REFS.length}편</span></div>
     <details class="more" style="margin-top:0"><summary>분석·추천에 쓴 논문 보기</summary>
       <ol class="reflist" style="padding-left:18px;margin:6px 0 0">${REFS.map(r => `<li>${esc(r.text)} <a href="${esc(r.url)}" target="_blank" rel="noopener">링크</a><span class="use">→ ${esc(r.use)}</span></li>`).join('')}</ol>
       <div class="note">연구의 평균적인 결과를 규칙으로 옮긴 참고용이에요. 개인차가 크고, 통증·부상은 전문가와 상담하세요.</div></details>
 
-    <div class="sec-h"><h2 style="font-size:15px">데이터</h2></div>
+    <div class="sec-h"><h2 style="font-size: 15px">데이터</h2></div>
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 4.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -2863,7 +2928,7 @@ async function exportData() {
     } catch (e) { if (String(e && e.message || e).includes('cancel')) return; }
   }
   openSheet('백업 내보내기', '백업 코드', `<div class="small muted">아래 코드를 전부 복사해 메모장이나 카톡 '나에게 보내기'에 저장하세요. 나중에 '백업 가져오기'에 붙여넣으면 복원돼요. APK 앱에서는 파일로 저장돼요.</div>
-    <textarea id="bk-code" readonly rows="8" style="margin-top:10px;font-family:var(--mono);font-size:11px">${esc(data)}</textarea>
+    <textarea id="bk-code" readonly rows="8" style="margin-top:10px;font-family:var(--mono);font-size: 12px">${esc(data)}</textarea>
     <button class="btn primary block" style="margin-top:10px" data-act="bk-copy">전체 복사</button>`, { kind: 'backup' });
 }
 function importData(file) {
@@ -2908,7 +2973,7 @@ function addStrengthSet(e, w, u, r, rir) {
   const batch = Date.now() - (state.lastSetAt || 0) < 30000; state.lastSetAt = Date.now();
   const rest = DB.settings.autoRest && state.date === today() && !batch;
   if (rest) timerStart(DB.settings.rest); else if (batch && DB.timer.endAt) timerStop();
-  toast(isPR ? `🏆 새 PR! ${fmtSetFull(set)}` : `${n}세트 기록${rest ? ` · 휴식 ${fmtSec(DB.settings.rest)}` : ''}`);
+  toast(isPR ? `새 PR · ${fmtSetFull(set)}` : `${n}세트 기록${rest ? ` · 휴식 ${fmtSec(DB.settings.rest)}` : ''}`);
   if (isPR) haptic(120);
   return set;
 }
@@ -3117,7 +3182,7 @@ const ACT = {
     let n = DB.prog && DB.prog.id === p.id && progDay(p, DB.prog.next) === i ? DB.prog.next : 0;
     if (progDay(p, n) !== i) for (let k = 0; k < progLen(p); k++) if (progDay(p, k) === i) { n = k; break; }
     DB.prog = { id: p.id, next: (n + 1) % progLen(p) };
-    if (p.rep && DB.prog.next === 0) setTimeout(() => toast(`🎉 ${p.name} 마지막 날이에요! 끝나면 다시 처음부터 하거나 다른 루틴을 골라보세요`), 400);
+    if (p.rep && DB.prog.next === 0) setTimeout(() => toast(`${p.name} 마지막 날이에요! 끝나면 다시 처음부터 하거나 다른 루틴을 골라보세요`), 400);
     startPlan(d.ex, `${p.name} · ${d.t}`, null);
     day(state.date).plan.prog = p.id; save(); render();
   },
@@ -3215,7 +3280,7 @@ const ACT = {
   'export': () => exportData(),
   'import': () => openSheet('백업 가져오기', '복원', `<button class="btn block" data-act="import-file">백업 파일 선택</button>
     <div class="small muted" style="margin:12px 0 6px">또는 복사해 둔 백업 코드를 붙여넣기</div>
-    <textarea id="bk-in" rows="6" style="font-family:var(--mono);font-size:11px" placeholder='{"app":"ironlog", ...}'></textarea>
+    <textarea id="bk-in" rows="6" style="font-family:var(--mono);font-size: 12px" placeholder='{"app":"ironlog", ...}'></textarea>
     <button class="btn primary block" style="margin-top:10px" data-act="import-text">붙여넣은 코드로 복원</button>`, { kind: 'import' }),
   'import-file': () => $('#import-file').click(),
   'import-text': () => importText($('#bk-in').value.trim()),

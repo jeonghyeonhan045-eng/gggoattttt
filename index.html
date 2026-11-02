@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f1012">
+<meta name="theme-color" content="#ffffff">
 <title>오운완</title>
 <meta name="description" content="오운완 — 헬스 기구 세트·식단 기록과 근거 기반 운동 분석">
 <link rel="manifest" href="manifest.webmanifest">
@@ -13,6 +13,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="오운완">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@500;700&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -62,7 +67,7 @@
 <div class="sheet hidden" id="sheet" role="dialog" aria-modal="true">
   <div class="grab"></div>
   <div class="sh">
-    <div class="tt"><div class="k" id="sheet-k"></div><h3 id="sheet-title"></h3></div>
+    <div class="tt"><h3 id="sheet-title"></h3><div class="k" id="sheet-k"></div></div>
     <button class="sheet-timer hidden" id="sheet-timer" data-act="timer-add" data-d="15" aria-label="휴식 15초 추가"><span class="l">휴식</span><b id="st-time">0:00</b><span class="p">+15</span></button>
     <button class="iconbtn" data-act="sheet-close" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
