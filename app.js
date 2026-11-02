@@ -2243,14 +2243,14 @@ function viewAnalysis() {
 /* body goals. rate = target weekly weight change, % of body weight (7-day averages).
    p = protein g/kg, kc = calories as a multiple of maintenance (body weight × 30). */
 const GOALS = {
-  cut:      { l: '살 빼기', d: '체지방은 줄이고 근육은 지키기', kc: 0.80, p: 2.0, rate: [-1.0, -0.5], src: 'Helms 2014' },
-  recomp:   { l: '체형 바꾸기', d: '체중은 그대로 두고 지방은 줄이고 근육은 늘리기', kc: 0.95, p: 2.0, rate: [-0.25, 0.1], src: 'Barakat 2020' },
+  cut:      { l: '살 빼기', d: '체지방은 줄이고 근육은 지키기', kc: 0.80, p: 1.8, rate: [-1.0, -0.5], src: 'Helms 2014' },
+  recomp:   { l: '체형 바꾸기', d: '체중은 그대로 두고 지방은 줄이고 근육은 늘리기', kc: 0.95, p: 1.8, rate: [-0.25, 0.1], src: 'Barakat 2020' },
   keep:     { l: '지금 유지', d: '지금 몸 상태 그대로 유지하기', kc: 1.00, p: 1.6, rate: [-0.3, 0.3], src: 'Morton 2018' },
-  leanbulk: { l: '천천히 증량', d: '살은 거의 안 찌게, 근육만 천천히 늘리기', kc: 1.07, p: 1.8, rate: [0.1, 0.25], src: 'Iraki 2019' },
-  bulk:     { l: '빠르게 증량', d: '근육과 힘을 빠르게 늘리기 (살도 조금 같이 붙어요)', kc: 1.15, p: 1.8, rate: [0.25, 0.5], src: 'Iraki 2019' },
+  leanbulk: { l: '천천히 증량', d: '살은 거의 안 찌게, 근육만 천천히 늘리기', kc: 1.07, p: 1.6, rate: [0.1, 0.25], src: 'Iraki 2019' },
+  bulk:     { l: '빠르게 증량', d: '근육과 힘을 빠르게 늘리기 (살도 조금 같이 붙어요)', kc: 1.15, p: 1.6, rate: [0.25, 0.5], src: 'Iraki 2019' },
   // base = which of the five above it behaves like for weight/InBody/macro checks
-  contest:  { l: '바프 컷팅', d: '이미 근육이 있는 몸에서 체지방을 바짝 낮추기 — 천천히, 근육 손실 최소로', kc: 0.80, p: 2.3, rate: [-0.7, -0.4], src: 'Helms 2014 · Garthe 2011', base: 'cut' },
-  strength: { l: '힘 키우기', d: '드는 무게(1RM)를 늘리는 데 집중', kc: 1.05, p: 1.8, rate: [0, 0.25], src: 'Morton 2018', base: 'leanbulk' },
+  contest:  { l: '바프 컷팅', d: '이미 근육이 있는 몸에서 체지방을 바짝 낮추기 — 천천히, 근육 손실 최소로', kc: 0.80, p: 2.0, rate: [-0.7, -0.4], src: 'Helms 2014 · Garthe 2011', base: 'cut' },
+  strength: { l: '힘 키우기', d: '드는 무게(1RM)를 늘리는 데 집중', kc: 1.05, p: 1.6, rate: [0, 0.25], src: 'Morton 2018', base: 'leanbulk' },
   health:   { l: '건강·체력', d: '근력운동과 유산소로 체력·건강 지표 챙기기', kc: 1.00, p: 1.6, rate: [-0.3, 0.3], src: 'WHO 2020', base: 'keep' },
 };
 const GOAL_ORDER = ['cut', 'contest', 'recomp', 'keep', 'health', 'strength', 'leanbulk', 'bulk'];
@@ -2800,11 +2800,17 @@ function macroPlan() {
   // cut −0.7%/wk; contest −0.5%/wk (leaner people lose less muscle going slower, Garthe 2011); 7700 kcal ≈ 1 kg
   const kcalBy = { cut: tdee - bw * 0.007 * 7700 / 7, contest: tdee - bw * 0.005 * 7700 / 7, recomp: tdee * 0.95, keep: tdee, health: tdee, strength: tdee * 1.05, leanbulk: tdee * 1.07, bulk: tdee * 1.15 };
   const kcal = Math.round(kcalBy[gk] / 10) * 10;
-  // protein: deficit → 2.3–3.1 g/kg FFM (Helms 2014); otherwise 1.6–2.2 g/kg BW (Morton 2018)
+  /* protein
+     Morton 2018 (49 trials): extra muscle from protein levels off around 1.6 g/kg body weight (95% CI up to 2.2).
+     Helms 2014's 2.3–3.1 g/kg of fat-free mass is for already-lean natural bodybuilders late in contest prep,
+     so it is used only for the contest goal, at its low end. Ordinary cuts get 1.8 g/kg, and with a body fat
+     reading the target is capped by fat-free mass so extra fat doesn't inflate it. */
+  const pMin = Math.round(bw * 1.6);
   let p, pHow;
-  if ((key === 'cut' || key === 'recomp') && ffm) { p = Math.round(ffm * 2.6); pHow = `제지방 1kg당 2.6g (권장 2.3–3.1)`; }
-  else if (key === 'cut' || key === 'recomp') { p = Math.round(bw * 2.2); pHow = '체중 1kg당 2.2g'; }
-  else { p = Math.round(bw * 1.8); pHow = '체중 1kg당 1.8g (권장 1.6–2.2)'; }
+  if (gk === 'contest') { p = ffm ? Math.min(Math.round(ffm * 2.3), Math.round(bw * 2.2)) : Math.round(bw * 2.0); pHow = ffm ? `바프 컷팅이라 높게: 제지방 ${r1(ffm)}kg × 2.3g (체중 1kg당 ${r1(p / bw)}g)` : '바프 컷팅이라 높게: 체중 1kg당 2.0g'; }
+  else if (key === 'cut' || key === 'recomp') { p = ffm ? Math.min(Math.round(bw * 1.8), Math.round(ffm * 2.2)) : Math.round(bw * 1.8); pHow = p < pMin ? `체지방이 많아 제지방 기준으로: 제지방 ${r1(ffm)}kg × 2.2g` : `감량 중이라 조금 높게: 체중 1kg당 ${r1(p / bw)}g`; }
+  else { p = pMin; pHow = '체중 1kg당 1.6g — 이 이상은 근육 증가 효과가 거의 늘지 않아요'; }
+  if (p > pMin) pHow += ` · 하루 ${pMin}g(1.6g/kg)만 넘어도 근육 효과의 대부분은 얻어요`;
   // fat: cut 20% of energy, otherwise 25%, never under 0.6 g/kg (Helms 2014, Iraki 2019)
   const f = Math.max(Math.round(kcal * (key === 'cut' ? 0.2 : 0.25) / 9), Math.round(bw * 0.6));
   const c = Math.max(0, Math.round((kcal - p * 4 - f * 9) / 4));
@@ -2826,7 +2832,7 @@ function macroCardHtml() {
     <details class="more"><summary>계산 방법</summary><ul class="mlist">
       <li>기초대사량 ${fmtInt(M.rmr)}kcal — ${esc(M.rmrHow)}</li>
       <li>일상 생활 ×1.2 + 운동 하루 평균 ${fmtInt(M.exAvg)}kcal (최근 4주 주 ${M.days}회 기록) = 유지 ${fmtInt(M.tdee)}kcal → ${esc(adj)}</li>
-      <li>단백질 ${esc(M.pHow)}. 한 끼 약 ${M.perMeal}g씩 하루 4끼로 나누면 효율적이에요</li>
+      <li>단백질 ${esc(M.pHow)}. 한 끼 약 ${M.perMeal}g씩 나누면 효율적이에요 (Morton 2018 · Helms 2014)</li>
       <li>지방은 칼로리의 ${M.key === 'cut' ? '20' : '25'}%(최소 체중 1kg당 0.6g), 나머지가 탄수화물이에요${M.c / M.bw < 3 && M.key !== 'cut' ? ' — 고강도 운동량이 많으면 탄수화물을 조금 더 늘려도 돼요' : ''}</li>
     </ul>
     </details>
@@ -3006,7 +3012,7 @@ function openSettings(focus) {
       <div class="field"><label>지방 (g)</label><input type="number" id="st-f" value="${G.f}"></div>
     </div>
     <div class="field"><label>목표 — 누르면 식단 목표가 자동 계산돼요</label><div class="chips goalchips">${GOAL_ORDER.map(v => `<button class="chip ${goalKey() === v && GOALS[S.mode] ? 'on' : ''}" data-act="st-auto" data-v="${v}">${GOALS[v].l}</button>`).join('')}</div>
-      <div class="note">체중 기준 대략적인 시작값이에요. 칼로리는 체중×30(유지)에 목표별 배수(살 빼기 80% · 체형 바꾸기 95% · 천천히 증량 107% · 빠르게 증량 115%), 단백질은 살 빼기·체형 바꾸기 2.0g/kg, 나머지 1.6–1.8g/kg, 지방 0.9g/kg, 나머지는 탄수화물. 2–3주 체중 변화를 보고 조정하세요.</div></div>
+      <div class="note">체중 기준 대략적인 시작값이에요. 칼로리는 체중×30(유지)에 목표별 배수(살 빼기 80% · 체형 바꾸기 95% · 천천히 증량 107% · 빠르게 증량 115%), 단백질은 살 빼기·체형 바꾸기 1.8g/kg, 바프 컷팅 2.0g/kg, 나머지 1.6g/kg, 지방 0.9g/kg, 나머지는 탄수화물. 2–3주 체중 변화를 보고 조정하세요.</div></div>
     <button class="btn primary block" style="margin-top:12px" data-act="st-save-goals">목표 저장</button>` : ''}
 
     <div class="sec-h"><h2 style="font-size: 15px">기능 설명</h2><span class="aside">누르면 펼쳐져요</span></div>
@@ -3020,7 +3026,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
