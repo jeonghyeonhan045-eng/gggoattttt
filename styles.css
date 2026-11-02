@@ -108,7 +108,6 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 main { padding-top: 14px; }
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 10px; gap: 8px; padding-bottom: 6px; border-bottom: 2px solid var(--rule); }
 .sec-h h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.4px; }
-.sec-h h2 .en { font-size: 12px; font-weight: 600; color: var(--ink3); letter-spacing: 0; margin-left: 6px; }
 .sec-h .aside { font-size: 12px; color: var(--ink3); text-align: right; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
 .card + .card { margin-top: 10px; }
@@ -413,7 +412,7 @@ details.check .body { padding: 0 14px 14px; }
 .btn.danger-fill { background: var(--bad); border-color: var(--bad); color: #fff; }
 
 /* install hint */
-.hintcard { margin-bottom: 10px; border-color: var(--acc); background: color-mix(in srgb, var(--acc) 8%, var(--card)); }
+.hintcard { margin-bottom: 10px; border-color: var(--acc); background: color-mix(in srgb, var(--acc) 6%, var(--card)); }
 
 /* plan (routine checklist) */
 .plan .plan-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-top: 1px solid var(--line); cursor: pointer; }
@@ -829,7 +828,6 @@ body { font-size: 15px; letter-spacing: -0.01em; }
 
 /* page title (first section of each tab) */
 .sec-h h1, .calhead h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.5px; white-space: nowrap; }
-.sec-h h1 .en { font-size: 11px; font-weight: 600; color: var(--ink3); letter-spacing: 0; margin-left: 6px; }
 .icon.ck { width: 1em; height: 1em; vertical-align: -0.12em; }
 /* numbers inside headings stay in the heading's face */
 h1 .num, h2 .num, h3 .num, .t .num, b .num { font-family: inherit; }
@@ -852,3 +850,44 @@ h1, h2, h3 { text-wrap: balance; }
 .as-h3 { margin: 0 0 8px; font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
 .as-h4 { margin: 0 0 6px; font-size: 15px; font-weight: 800; }
 #wk-elapsed b { color: var(--ink); font-family: var(--mono); font-weight: 700; }
+
+/* v5.4 — set sheet: grip and muscle map sit under the table */
+.ss-below { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+/* analysis: answers first */
+.glance { display: grid; gap: 8px; margin-bottom: 10px; }
+.glance .gl { display: grid; grid-template-columns: 34px 22px 1fr; align-items: center; gap: 6px; font-size: 15px; }
+.glance .gl .k { font-size: 12px; font-weight: 700; color: var(--ink3); }
+.glance .gl b { font-weight: 700; line-height: 1.35; }
+details.fold > summary { list-style: none; cursor: pointer; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary .aside::after { content: '▾'; margin-left: 6px; display: inline-block; transition: transform .15s; }
+details.fold[open] > summary .aside::after { transform: rotate(180deg); }
+details.fold > summary:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+/* finish: per exercise */
+.fin-ex { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.fin-ex:last-of-type { border-bottom: 0; }
+.fin-ex .nm { font-weight: 800; font-size: 14px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.fin-ex .d { font-size: 13px; margin-top: 3px; line-height: 1.5; }
+.fin-ex .nx { font-size: 13px; margin-top: 4px; color: var(--ink2); }
+/* calendar */
+.calday.lv1 { background: color-mix(in srgb, var(--acc) 6%, var(--card)); }
+.calday.lv2 { background: color-mix(in srgb, var(--acc) 12%, var(--card)); }
+.calday.lv3 { background: color-mix(in srgb, var(--acc) 19%, var(--card)); }
+.calday.lv4 { background: color-mix(in srgb, var(--acc) 27%, var(--card)); }
+.calday .cn { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink2); font-weight: 700; margin-top: auto; padding-left: 2px; }
+.calday .prd, .legend .prd { position: absolute; top: 3px; right: 3px; font-size: 9px; font-weight: 800; color: var(--mark); letter-spacing: -.2px; }
+.legend .prd { position: static; font-size: 11px; margin-right: 3px; }
+.legend .lvkey { display: inline-flex; align-items: center; gap: 3px; }
+.legend .lvkey i { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+.legend .lvkey i.lv1 { background: color-mix(in srgb, var(--acc) 6%, var(--card)); }
+.legend .lvkey i.lv2 { background: color-mix(in srgb, var(--acc) 12%, var(--card)); }
+.legend .lvkey i.lv3 { background: color-mix(in srgb, var(--acc) 19%, var(--card)); }
+.legend .lvkey i.lv4 { background: color-mix(in srgb, var(--acc) 27%, var(--card)); }
+.monthmus { display: grid; gap: 8px; }
+.monthmus .mm { display: grid; grid-template-columns: 56px 1fr 30px 34px; align-items: center; gap: 8px; }
+.monthmus .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.monthmus .bar i { display: block; height: 100%; border-radius: 4px; }
+.monthmus .v { text-align: right; font-weight: 800; font-size: 14px; }
+.monthmus .dlt { font-size: 12px; color: var(--ink3); text-align: right; }
+.monthmus .dlt.up { color: var(--good); } .monthmus .dlt.dn { color: var(--warn, var(--ink2)); }
+.eqsheet + .finbtn { margin-top: 12px; }
