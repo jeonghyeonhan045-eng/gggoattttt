@@ -2912,7 +2912,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3311,11 +3311,15 @@ const ON = {
   'ce-infer': (el, ev) => {
     if (ev.type === 'change' && el.tagName === 'INPUT') return;
     const S = state.sheet; if (!S || S.kind !== 'ceq') return;
-    const t = inferType($('#ce-name').value, $('#ce-m').value);
+    if (el.id === 'ce-m') S.mTouched = true;
+    const nm = `${$('#ce-brand').value} ${$('#ce-name').value}`;
+    let t = inferType(nm, $('#ce-m').value);
+    // the name decides the body part too ("바이킹 프레스" → 어깨), unless the user picked one
+    if (t && !S.mTouched && TYPE_INFO[t] && TYPE_INFO[t].m && $('#ce-m').value !== TYPE_INFO[t].m) { $('#ce-m').value = TYPE_INFO[t].m; t = inferType(nm, TYPE_INFO[t].m); }
     if (!S.typeTouched && t) $('#ce-type').value = t;
     const ct = $('#ce-type').value, mp = musclePeekHtml(`${$('#ce-brand').value} ${$('#ce-name').value}`, ct === '__self' ? t : ct, $('#ce-m').value);
     $('#ce-musc').innerHTML = mp || '<div class="small muted">이름을 넣으면 어느 부위를 쓰는지 그림으로 보여드려요.</div>';
-    $('#ce-hint').innerHTML = (t ? `이름과 부위로 <b>${esc(t)}</b>(으)로 자동 분류했어요. ` : '자동 분류가 안 되면 직접 골라주세요. ') + '같은 패턴의 기구끼리 PR·진행 상황을 함께 비교해요.';
+    $('#ce-hint').innerHTML = (t ? `이름으로 <b>${esc(mName(TYPE_INFO[t] && TYPE_INFO[t].m || $('#ce-m').value))} · ${esc(t)}</b>(으)로 자동 분류했어요. ` : '자동 분류가 안 되면 직접 골라주세요. ') + '같은 패턴의 기구끼리 PR·진행 상황을 함께 비교해요.';
   },
   'ce-type': (el, ev) => { if (state.sheet) state.sheet.typeTouched = true; ON['ce-infer']($('#ce-name'), { type: 'input' }); },
   'pf-birth': (el, ev) => { if (ev.type !== 'change') return; const v = parseInt(el.value, 10); DB.settings.profile = Object.assign({}, DB.settings.profile, { birth: v >= 1930 && v <= 2015 ? v : null }); save(); render(); },
@@ -3371,7 +3375,23 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { if
 /* =====================================================================
    15. init
    ===================================================================== */
+/* one-time: re-classify custom machines with the expanded name rules (e.g. "바이킹 프레스" used to land on 레그 프레스) */
+function reclassifyCustom() {
+  if (DB.settings.reclass >= 1) return;
+  let n = 0;
+  for (const e of DB.customEq) {
+    const t = inferType(`${e.brand || ''} ${e.name}`, e.m), m2 = t && TYPE_INFO[t] && TYPE_INFO[t].m;
+    if (!t || (t === e.type && (!m2 || m2 === e.m))) continue;
+    const t2 = m2 ? inferType(`${e.brand || ''} ${e.name}`, m2) || t : t;
+    e.type = t2; if (m2) e.m = m2; n++;
+    for (const k in DB.days) for (const st of DB.days[k].sets || []) if (st.eq === e.id) { st.type = t2; if (m2) st.m = m2; }
+  }
+  DB.settings.reclass = 1; save();
+  if (n) setTimeout(() => toast(`직접 추가한 기구 ${n}개의 부위를 이름에 맞게 다시 분류했어요`), 1200);
+}
+
 load();
+reclassifyCustom();
 if (DB.timer.endAt && Date.now() - DB.timer.endAt > 10 * 60 * 1000) { DB.timer.endAt = null; save(); }
 applyTheme();
 state._lastToday = today();

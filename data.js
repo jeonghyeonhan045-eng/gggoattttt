@@ -71,6 +71,22 @@ const TYPE_NAMES = Object.keys(TYPE_INFO);
 
 /* keyword → pattern, most specific first. Muscle-aware fallbacks live in inferType() */
 const TYPE_KEYWORDS = [
+  // machine nicknames and brand model names that don't contain the movement word
+  ['바이킹', '숄더 프레스'], ['viking', '숄더 프레스'], ['재머', '숄더 프레스'], ['잼머', '숄더 프레스'], ['jammer', '숄더 프레스'], ['랜드마인 프레스', '숄더 프레스'],
+  ['글루트 드라이브', '힙 쓰러스트'], ['글루트드라이브', '힙 쓰러스트'], ['glute drive', '힙 쓰러스트'], ['힙 트러스트', '힙 쓰러스트'], ['힙트러스트', '힙 쓰러스트'], ['hip thrust', '힙 쓰러스트'], ['힙 프레스', '힙 쓰러스트'],
+  ['리버스 하이퍼', '힙 익스텐션'], ['reverse hyper', '힙 익스텐션'], ['노르딕', '레그 컬'], ['nordic', '레그 컬'],
+  ['벨트 스쿼트', '스쿼트'], ['belt squat', '스쿼트'], ['브이 스쿼트', '스쿼트'], ['v-스쿼트', '스쿼트'], ['v 스쿼트', '스쿼트'], ['v스쿼트', '스쿼트'], ['핵 프레스', '스쿼트'], ['pendulum', '스쿼트'], ['hack', '스쿼트'], ['squat', '스쿼트'],
+  ['d.y.', '로우'], ['dy 로우', '로우'], ['티바', '로우'], ['t-바', '로우'], ['t바', '로우'], ['t-bar', '로우'], ['체스트 서포티드', '로우'], ['씰 로우', '로우'], ['row', '로우'],
+  ['친&딥', '풀업'], ['친 딥', '풀업'], ['어시스트 풀업', '풀업'], ['어시스트 친업', '풀업'], ['chin', '풀업'], ['pull-up', '풀업'], ['pull up', '풀업'], ['pulldown', '랫 풀다운'], ['pull down', '랫 풀다운'],
+  ['토르소', '코어 로테이션'], ['토소', '코어 로테이션'], ['torso', '코어 로테이션'], ['오블리크', '복근 크런치'], ['앱도미널', '복근 크런치'], ['앱 크런치', '복근 크런치'], ['abdominal', '복근 크런치'], ['crunch', '복근 크런치'],
+  ['아브덕션', '힙 어브덕션'], ['애브덕션', '힙 어브덕션'], ['어브덕터', '힙 어브덕션'], ['abduct', '힙 어브덕션'], ['아덕션', '힙 어덕션'], ['어덕터', '힙 어덕션'], ['adduct', '힙 어덕션'],
+  ['리어 델트', '리어 델트'], ['리어델트', '리어 델트'], ['rear delt', '리어 델트'], ['리버스 플라이', '리어 델트'], ['리버스 펙', '리어 델트'],
+  ['래터럴', '레터럴 레이즈'], ['lateral raise', '레터럴 레이즈'], ['쇼울더', '숄더 프레스'], ['어깨 프레스', '숄더 프레스'], ['오버헤드', '숄더 프레스'], ['shoulder press', '숄더 프레스'], ['overhead press', '숄더 프레스'], ['military', '숄더 프레스'],
+  ['암 컬', '바이셉 컬'], ['암컬', '바이셉 컬'], ['arm curl', '바이셉 컬'], ['biceps', '바이셉 컬'], ['bicep', '바이셉 컬'], ['시티드 바이셉', '바이셉 컬'],
+  ['암 익스텐션', '트라이셉 익스텐션'], ['arm extension', '트라이셉 익스텐션'], ['트라이셉스', '트라이셉 익스텐션'], ['triceps', '트라이셉 익스텐션'], ['tricep', '트라이셉 익스텐션'], ['시티드 딥', '트라이셉 딥'], ['seated dip', '트라이셉 딥'],
+  ['leg extension', '레그 익스텐션'], ['leg curl', '레그 컬'], ['닐링 컬', '레그 컬'], ['프론 컬', '레그 컬'], ['시티드 레그컬', '레그 컬'], ['leg press', '레그 프레스'], ['calf', '카프 레이즈'],
+  ['슈퍼 플라이', '펙 플라이'], ['pec deck', '펙 플라이'], ['pec fly', '펙 플라이'], ['chest fly', '펙 플라이'], ['incline', '인클라인 프레스'], ['decline', '체스트 프레스'], ['디클라인', '체스트 프레스'],
+  ['chest press', '체스트 프레스'], ['bench press', '벤치프레스'], ['shrug', '슈러그'], ['pullover', '풀오버'], ['back extension', '백 익스텐션'], ['lunge', '런지'], ['deadlift', '데드리프트'], ['rdl', '루마니안 데드리프트'],
   ['클린 앤 저크', '클린 앤 저크'], ['용상', '클린 앤 저크'], ['스내치', '스내치'], ['인상', '스내치'],
   ['클린', '클린'], ['쓰러스터', '쓰러스터'], ['스러스터', '쓰러스터'], ['월볼', '월볼'], ['월 볼', '월볼'],
   ['박스 점프', '박스 점프'], ['박스점프', '박스 점프'], ['버피', '버피'], ['더블 언더', '줄넘기'], ['더블언더', '줄넘기'], ['줄넘기', '줄넘기'],
@@ -92,6 +108,7 @@ const TYPE_KEYWORDS = [
   ['벤치', '벤치프레스'],
   ['체스트 프레스', '체스트 프레스'], ['체스트프레스', '체스트 프레스'],
   ['플라이', '펙 플라이'], ['펙덱', '펙 플라이'], ['펙 덱', '펙 플라이'], ['크로스오버', '펙 플라이'],
+  ['와이드 체스트', '체스트 프레스'], ['체스트', '체스트 프레스'], ['가슴 프레스', '체스트 프레스'],
   ['푸시업', '푸시업'], ['푸쉬업', '푸시업'],
   ['트라이셉 딥', '트라이셉 딥'], ['딥', '딥스'],
   ['풀다운', '랫 풀다운'], ['랫풀', '랫 풀다운'],
@@ -111,7 +128,8 @@ const TYPE_KEYWORDS = [
 ];
 
 function inferType(name, m) {
-  const n = String(name || '');
+  // "Iso-Lateral" is Hammer Strength's series name, not a lateral raise
+  const n = String(name || '').toLowerCase().replace(/아이소\s*-?\s*[래레]터럴|iso\s*-?\s*lateral/g, ' ');
   for (const [kw, t] of TYPE_KEYWORDS) {
     if (n.indexOf(kw) > -1) {
       if (t) return t;
@@ -137,6 +155,17 @@ const FREE_SECTORS = [
 
 const EQ_RAW = [
   // ── 가슴 (machine)
+  ['hs-superinc', 'Hammer Strength', '아이소-래터럴 슈퍼 인클라인 프레스', '가슴', '인클라인 프레스'],
+  ['hs-widechest', 'Hammer Strength', '아이소-래터럴 와이드 체스트', '가슴', '체스트 프레스'],
+  ['hs-horizbench', 'Hammer Strength', '아이소-래터럴 호리존탈 벤치프레스', '가슴', '체스트 프레스'],
+  ['hs-chestback', 'Hammer Strength', '아이소-래터럴 체스트/백', '가슴', '체스트 프레스'],
+  ['hs-superfly', 'Hammer Strength', '슈퍼 플라이', '가슴', '펙 플라이'],
+  ['cy-chest', 'Cybex', '체스트 프레스', '가슴', '체스트 프레스'],
+  ['cy-incline', 'Cybex', '인클라인 프레스', '가슴', '인클라인 프레스'],
+  ['nw-seatchest', '뉴텍 (Newtech)', '시티드 체스트 프레스', '가슴', '체스트 프레스'],
+  ['nw-incline', '뉴텍 (Newtech)', '인클라인 체스트 프레스', '가슴', '인클라인 프레스'],
+  ['nw-chestdecline', '뉴텍 (Newtech)', '체스트 & 디클라인 콤보', '가슴', '체스트 프레스'],
+  ['nw-standfly', '뉴텍 (Newtech)', '스탠딩 플라이 체스트&백', '가슴', '펙 플라이'],
   ['lf-chest-press', 'Life Fitness', '체스트 프레스', '가슴', '체스트 프레스'],
   ['hs-iso-bench', 'Hammer Strength', '아이소-래터럴 벤치프레스', '가슴', '체스트 프레스'],
   ['hs-incline', 'Hammer Strength', '아이소-래터럴 인클라인 프레스', '가슴', '인클라인 프레스'],
@@ -152,6 +181,21 @@ const EQ_RAW = [
   ['nw-pecfly', '뉴텍 (Newtech)', '펙 플라이 / 리어 델트', '가슴', '펙 플라이'],
   ['cb-cross', '케이블', '케이블 크로스오버', '가슴', '펙 플라이'],
   // ── 등
+  ['hs-dyrow', 'Hammer Strength', '아이소-래터럴 DY 로우', '등', '로우'],
+  ['hs-widepull', 'Hammer Strength', '아이소-래터럴 와이드 풀다운', '등', '랫 풀다운'],
+  ['hs-lowrow', 'Hammer Strength', '아이소-래터럴 로우 로우', '등', '로우'],
+  ['hs-tbar', 'Hammer Strength', '아이소-래터럴 T-바 로우', '등', '로우'],
+  ['hs-pullover', 'Hammer Strength', '풀오버', '등', '풀오버'],
+  ['hs-shrug', 'Hammer Strength', '시티드/스탠딩 슈러그', '등', '슈러그'],
+  ['cy-pulldown', 'Cybex', '풀다운', '등', '랫 풀다운'],
+  ['cy-backext', 'Cybex', '백 익스텐션', '코어', '백 익스텐션'],
+  ['nw-lowrow', '뉴텍 (Newtech)', '토크라인 로우 로우', '등', '로우'],
+  ['nw-frontrow', '뉴텍 (Newtech)', '토크라인 프론트 로우', '등', '로우'],
+  ['nw-highrow', '뉴텍 (Newtech)', '토쳐 하이 로우', '등', '로우'],
+  ['nw-tbar', '뉴텍 (Newtech)', '토쳐 리니어 T-바 로우', '등', '로우'],
+  ['nw-widepullf', '뉴텍 (Newtech)', '와이드 풀다운 (프론트)', '등', '랫 풀다운'],
+  ['nw-widepullr', '뉴텍 (Newtech)', '와이드 풀다운 (리어)', '등', '랫 풀다운'],
+  ['nw-chindip', '뉴텍 (Newtech)', '친&딥 어시스트', '등', '풀업'],
   ['lf-pulldown', 'Life Fitness', '랫 풀다운', '등', '랫 풀다운'],
   ['lf-assist', 'Life Fitness', '어시스트 풀업/딥', '등', '풀업'],
   ['cy-row', 'Cybex', '시티드 로우', '등', '로우'],
@@ -169,6 +213,16 @@ const EQ_RAW = [
   ['cb-row', '케이블', '시티드 케이블 로우', '등', '로우'],
   ['cb-straight', '케이블', '스트레이트 암 풀다운', '등', '풀오버'],
   // ── 어깨
+  ['hs-lateral', 'Hammer Strength', '레터럴 레이즈', '어깨', '레터럴 레이즈'],
+  ['hs-jammer', 'Hammer Strength', '그라운드 베이스 재머', '어깨', '숄더 프레스'],
+  ['cy-ohp', 'Cybex', '오버헤드 프레스', '어깨', '숄더 프레스'],
+  ['cy-lateral', 'Cybex', '레터럴 레이즈', '어깨', '레터럴 레이즈'],
+  ['cy-flyrear', 'Cybex', '플라이 / 리어 델트', '어깨', '리어 델트'],
+  ['nw-lateral', '뉴텍 (Newtech)', '레터럴 레이즈', '어깨', '레터럴 레이즈'],
+  ['nw-standlat', '뉴텍 (Newtech)', '스탠딩 레터럴 레이즈', '어깨', '레터럴 레이즈'],
+  ['nw-singlelat', '뉴텍 (Newtech)', '싱글 레터럴 레이즈', '어깨', '레터럴 레이즈'],
+  ['nw-pecrev', '뉴텍 (Newtech)', '펙덱 플라이 (리버스 겸용) · 리어', '어깨', '리어 델트'],
+  ['pl-viking', '플레이트 머신', '바이킹 프레스', '어깨', '숄더 프레스'],
   ['lf-shoulder', 'Life Fitness', '숄더 프레스', '어깨', '숄더 프레스'],
   ['hs-shoulder', 'Hammer Strength', '아이소-래터럴 숄더 프레스', '어깨', '숄더 프레스'],
   ['tg-lateral', 'Technogym', '레터럴 레이즈', '어깨', '레터럴 레이즈'],
@@ -180,6 +234,10 @@ const EQ_RAW = [
   ['cb-facepull', '케이블', '페이스풀', '어깨', '리어 델트'],
   ['cb-lateral', '케이블', '케이블 레터럴 레이즈', '어깨', '레터럴 레이즈'],
   // ── 팔
+  ['hs-biceps', 'Hammer Strength', '시티드 바이셉', '팔', '바이셉 컬'],
+  ['hs-dip', 'Hammer Strength', '시티드 딥', '팔', '트라이셉 딥'],
+  ['cy-armext', 'Cybex', '암 익스텐션', '팔', '트라이셉 익스텐션'],
+  ['nw-armcurl', '뉴텍 (Newtech)', '암컬', '팔', '바이셉 컬'],
   ['cy-curl', 'Cybex', '바이셉 컬', '팔', '바이셉 컬'],
   ['lf-tri', 'Life Fitness', '트라이셉 익스텐션', '팔', '트라이셉 익스텐션'],
   ['mx-curl', 'Matrix', '암 컬', '팔', '바이셉 컬'],
@@ -189,6 +247,34 @@ const EQ_RAW = [
   ['cb-pushdown', '케이블', '트라이셉 푸시다운', '팔', '트라이셉 익스텐션'],
   ['cb-curl', '케이블', '케이블 컬', '팔', '바이셉 컬'],
   // ── 다리
+  ['hs-linearlp', 'Hammer Strength', '리니어 레그 프레스', '다리', '레그 프레스'],
+  ['hs-beltsq', 'Hammer Strength', '벨트 스쿼트', '다리', '스쿼트'],
+  ['hs-pendulum', 'Hammer Strength', '펜듈럼-X 스쿼트', '다리', '스쿼트'],
+  ['hs-revv', 'Hammer Strength', '리버스 V-스쿼트', '다리', '스쿼트'],
+  ['hs-supersq', 'Hammer Strength', '슈퍼 스쿼트 프레스', '다리', '스쿼트'],
+  ['hs-multisq', 'Hammer Strength', '그라운드 베이스 멀티 스쿼트', '다리', '스쿼트'],
+  ['hs-glutedrive', 'Hammer Strength', '글루트 드라이브', '다리', '힙 쓰러스트'],
+  ['hs-kneelcurl', 'Hammer Strength', '아이소-래터럴 닐링 레그 컬', '다리', '레그 컬'],
+  ['hs-legcurl', 'Hammer Strength', '아이소-래터럴 레그 컬', '다리', '레그 컬'],
+  ['hs-seatcalf', 'Hammer Strength', '시티드 카프 레이즈', '다리', '카프 레이즈'],
+  ['hs-revhyper', 'Hammer Strength', '글루트 햄 / 리버스 하이퍼', '다리', '힙 익스텐션'],
+  ['hs-nordic', 'Hammer Strength', '어시스트 노르딕 햄', '다리', '레그 컬'],
+  ['cy-legpress', 'Cybex', '레그 프레스', '다리', '레그 프레스'],
+  ['cy-seatcurl', 'Cybex', '시티드 레그 컬', '다리', '레그 컬'],
+  ['cy-pronecurl', 'Cybex', '프론 레그 컬', '다리', '레그 컬'],
+  ['cy-calf', 'Cybex', '카프', '다리', '카프 레이즈'],
+  ['cy-abduction', 'Cybex', '힙 어브덕션', '다리', '힙 어브덕션'],
+  ['cy-adduction', 'Cybex', '힙 어덕션', '다리', '힙 어덕션'],
+  ['cy-glute', 'Cybex', '글루트', '다리', '힙 익스텐션'],
+  ['nw-seatlp', '뉴텍 (Newtech)', '시티드 레그 프레스', '다리', '레그 프레스'],
+  ['nw-kneelcurl', '뉴텍 (Newtech)', '토크라인 닐링 레그 컬', '다리', '레그 컬'],
+  ['nw-hackpress', '뉴텍 (Newtech)', '토쳐 핵 프레스', '다리', '스쿼트'],
+  ['nw-hacksq', '뉴텍 (Newtech)', '토쳐 핵스쿼트 (무빙)', '다리', '스쿼트'],
+  ['nw-beltsq', '뉴텍 (Newtech)', '토쳐 벨트 스쿼트', '다리', '스쿼트'],
+  ['nw-sqcalf', '뉴텍 (Newtech)', '토쳐 스쿼트 & 카프 레이즈', '다리', '스쿼트'],
+  ['nw-hipthrust', '뉴텍 (Newtech)', '토쳐 힙 트러스트', '다리', '힙 쓰러스트'],
+  ['nw-adduction', '뉴텍 (Newtech)', '힙 어덕션', '다리', '힙 어덕션'],
+  ['nw-standcalf', '뉴텍 (Newtech)', '스탠딩 카프 레이즈', '다리', '카프 레이즈'],
   ['lf-legpress', 'Life Fitness', '레그 프레스', '다리', '레그 프레스'],
   ['hs-legpress', 'Hammer Strength', '레그 프레스 (플레이트)', '다리', '레그 프레스'],
   ['hs-legext', 'Hammer Strength', '레그 익스텐션', '다리', '레그 익스텐션'],
@@ -210,6 +296,8 @@ const EQ_RAW = [
   ['nw-legpress', '뉴텍 (Newtech)', '레그 프레스', '다리', '레그 프레스'],
   ['nw-abduction', '뉴텍 (Newtech)', '힙 어브덕션', '다리', '힙 어브덕션'],
   // ── 코어
+  ['hs-abcrunch', 'Hammer Strength', '앱도미널 / 오블리크 크런치', '코어', '복근 크런치'],
+  ['cy-torso', 'Cybex', '토르소 로테이션', '코어', '코어 로테이션'],
   ['mx-abcrunch', 'Matrix', '앱 크런치', '코어', '복근 크런치'],
   ['cy-abcrunch', 'Cybex', '앱도미널 크런치', '코어', '복근 크런치'],
   ['nt-rotation', 'Nautilus', '토르소 로테이션', '코어', '코어 로테이션'],
