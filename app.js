@@ -398,9 +398,10 @@ function askConfirm(msg, yesLabel, onYes) {
 }
 
 let toastT = null;
-function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
-  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200);
+function toast(msg, undoAct) {
+  const t = $('#toast'); t.textContent = ''; const m = document.createElement('span'); m.className = 'tmsg'; m.textContent = msg; t.appendChild(m); t.classList.add('on');
+  if (undoAct) { const b = document.createElement('button'); b.className = 'toast-undo'; b.dataset.act = undoAct; b.textContent = '되돌리기'; t.appendChild(b); }
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), undoAct ? 5000 : 2200);
 }
 
 function applyTheme() {
@@ -418,8 +419,31 @@ const SEC_EN = {
   '오늘 쓴 부위': 'Muscles Worked', '피드백': 'Feedback', '오늘 컨디션': 'Condition', '추천': 'For You', '내 루틴': 'My Routines',
   '수준별 루틴': 'Programs by Level', '부위로 고르기': 'By Muscle', '날짜별 구성': 'Days', '기능 설명': 'Guide', '참고 논문': 'References', '이 날 기록': 'Sets',
 };
+const CHECK_SVG = '<svg class="icon ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 function decorateHeads(root) {
-  for (const h of root.querySelectorAll('.sec-h h2')) {
+  // the tab's first title is the screen's h1
+  if (root.id === 'main') {
+    const first = root.querySelector('.sec-h h2, .calhead h2');
+    if (first) { const h1 = document.createElement('h1'); h1.innerHTML = first.innerHTML; h1.className = first.className; first.replaceWith(h1); }
+  }
+  // keep heading levels sequential (h1 → h2 → h3) without changing how they look
+  if (root.id === 'main') {
+    let last = 0;
+    for (const h of [...root.querySelectorAll('h1, h2, h3, h4')]) {
+      const lv = +h.tagName[1];
+      if (last && lv > last + 1) { const n = document.createElement('h' + (last + 1)); n.innerHTML = h.innerHTML; n.className = (h.className + ' as-h' + lv).trim(); for (const a of h.attributes) if (a.name !== 'class') n.setAttribute(a.name, a.value); h.replaceWith(n); last = last + 1; }
+      else last = lv;
+    }
+  }
+  // "✓" set in text reads as an emoji on some phones: draw it instead
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => n.nodeValue.includes('✓') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+  const hits = []; while (walker.nextNode()) hits.push(walker.currentNode);
+  for (const n of hits) {
+    const span = document.createElement('span');
+    span.innerHTML = n.nodeValue.split('✓').map(t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])).join(CHECK_SVG);
+    n.replaceWith(...span.childNodes);
+  }
+  for (const h of root.querySelectorAll('.sec-h h2, .sec-h h1')) {
     if (h.querySelector('.en')) continue;
     const k = h.textContent.trim(), en = SEC_EN[k] || (k.startsWith('오늘의') ? 'Today' : k.endsWith(' 운동') ? 'Workout' : '');
     if (en) h.insertAdjacentHTML('beforeend', `<span class="en">${en}</span>`);
@@ -1269,7 +1293,7 @@ function tutSteps() {
   const pf = DB.settings.profile || {}, gk = DB.settings.mode;
   return [
     { t: '오운완에 오신 걸 환영해요', b: `<p>헬스장에서 한 운동을 기록하면, 어느 부위를 얼마나 했는지, 무게가 오르고 있는지, 쉬어야 할 때인지까지 알아서 분석해주는 앱이에요.</p>
-      <p>화면 아래 탭 4개가 전부예요. 지금부터 실제 화면에서 하나씩 짚어드릴게요. <b>밝게 보이는 곳</b>이 설명하는 위치예요.</p><p class="small muted">2분 정도 걸려요. 건너뛰어도 설정(⚙)에서 다시 볼 수 있어요.</p>` },
+      <p>화면 아래 탭 4개가 전부예요. 지금부터 실제 화면에서 하나씩 짚어드릴게요. <b>밝게 보이는 곳</b>이 설명하는 위치예요.</p><p class="small muted">2분 정도 걸려요. 건너뛰어도 설정에서 다시 볼 수 있어요.</p>` },
     { at: 'main button[data-act="picker-open"]', tap: 1, t: '운동 추가', b: `<p><b>밝게 빛나는 "+ 운동 추가"를 직접 눌러보세요.</b></p><ul class="tut-ol"><li>실제로는 기구 목록이 열려요. 위에서 <b>부위</b>(가슴·등·하체…)를 고르거나 이름으로 검색하세요. 헬스장 기구의 브랜드(Hammer Strength, 뉴텍 등)로 찾아도 돼요.</li><li>한 번 쓴 기구는 다음부터 맨 위 "내가 쓴 기구"에 올라와요.</li><li>목록에 없으면 맨 아래 <b>직접 추가</b> — 이름만 넣으면 어느 부위를 쓰는지 앱이 판단해요.</li></ul>` },
     { t: '세트 기록 연습', practice: 1, b: `<p>기구를 고르면 이 표가 나와요. <b>세트를 했다고 치고 ✓를 차례로 눌러보세요.</b></p>
       <div class="tut-table">${[0, 1, 2].map(j => { const d = j < (state.tutCk || 0), nx = j === (state.tutCk || 0); return `<div class="r ${d ? 'done' : nx ? 'next' : ''}"><span>${j + 1}</span><span>40kg</span><span>${j === 2 ? 8 : 10}회</span><button class="ck ${d ? 'on' : ''}" ${nx ? 'data-act="tut-ck"' : 'disabled'} aria-label="${j + 1}세트 완료">✓</button></div>`; }).join('')}</div>
@@ -2125,7 +2149,7 @@ function viewAnalysis() {
     }).join('') : '<div class="small muted">세트를 기록하면 패턴별 최고 기록이 모여요.</div>'}
   </section>`;
 
-  h += `<div class="note" style="text-align:center;margin:18px 0 6px">분석에 쓴 논문 목록은 설정(⚙) → 참고 논문에 있어요. 연구 평균을 옮긴 참고용이고 개인차가 커요.</div>`;
+  h += `<div class="note" style="text-align:center;margin:18px 0 6px">분석에 쓴 논문 목록은 설정 → 참고 논문에 있어요. 연구 평균을 옮긴 참고용이고 개인차가 커요.</div>`;
   return h;
 }
 
@@ -2912,7 +2936,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3085,11 +3109,19 @@ const ACT = {
     if (km > 0) s.km = km; if (kcal > 0) s.kcal = kcal;
     day(state.date).sets.push(s); save(); toast('유산소 기록 완료'); refreshSetSheet(); render();
   },
+  'undo-del': () => {
+    const u = state.undoDel; if (!u) return;
+    const d = day(u.k); d.sets.splice(Math.min(u.i, d.sets.length), 0, u.set); state.undoDel = null; save();
+    $('#toast').classList.remove('on');
+    if (state.sheet && (state.sheet.kind === 'set' || state.sheet.kind === 'cardio')) refreshSetSheet();
+    render(); toast('되돌렸어요');
+  },
   'set-del': el => {
     const d = day(state.date), i = d.sets.findIndex(s => s.id === el.dataset.id);
     if (i < 0) return;
     const removed = d.sets.splice(i, 1)[0]; save();
-    toast(`삭제: ${removed.name}`);
+    state.undoDel = { k: state.date, i, set: removed };
+    toast(`삭제했어요 · ${removed.name}`, 'undo-del');
     if (state.sheet && (state.sheet.kind === 'set' || state.sheet.kind === 'cardio')) refreshSetSheet();
     render();
   },
