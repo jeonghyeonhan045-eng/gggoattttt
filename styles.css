@@ -851,3 +851,4 @@ h1, h2, h3 { text-wrap: balance; }
 .toast-undo { flex: 0 0 auto; white-space: nowrap; }
 .as-h3 { margin: 0 0 8px; font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
 .as-h4 { margin: 0 0 6px; font-size: 15px; font-weight: 800; }
+#wk-elapsed b { color: var(--ink); font-family: var(--mono); font-weight: 700; }

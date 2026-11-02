@@ -327,6 +327,19 @@ function timerAdd(d) {
   else if (t.endAt) { t.endAt = Math.max(Date.now() + 1000, t.endAt + d * 1000); t.dur = Math.max(t.dur, d > 0 ? t.dur + d : t.dur); scheduleRestNotif(timerRemain()); }
   save(); renderTimer();
 }
+/* minutes since the first set of today's session, shown while you are training.
+   Hidden when the sets look like they were logged afterwards, or the session was finished. */
+function elapsedTxt(k) {
+  if (k !== today()) return '';
+  const d = dayRO(k), ts = (d.sets || []).map(s => s.t).filter(Boolean).sort((a, b) => a - b);
+  if (!ts.length || d.fin) return '';
+  const now = Date.now(), first = ts[0], last = ts[ts.length - 1];
+  const loggedLive = ts.length < 2 || last - first >= (ts.length - 1) * 20000; // batch entry = seconds apart
+  if (!loggedLive || now - last > 45 * 60000 || now - first > 4 * 3600000) return '';
+  const m = Math.max(1, Math.round((now - first) / 60000));
+  return ` · <b>${m}분째</b>`;
+}
+setInterval(() => { const el = document.getElementById('wk-elapsed'); if (el && state.tab === 'workout') el.innerHTML = elapsedTxt(state.date); }, 30000);
 function timerLoop() {
   clearInterval(timerIv);
   if (DB.timer.endAt) {
@@ -769,7 +782,7 @@ function viewWorkout() {
     <ol><li><b>운동 추가</b>로 기구를 고르거나, <b>루틴</b>에서 유명 프로그램을 골라요</li><li>무게·횟수를 넣고 <b>세트 기록</b></li><li>휴식 타이머는 자동으로 돌아가요</li></ol></section>`;
 
   // 1) today's workout + the main action
-  h += `<div class="sec-h" style="${firstTime || installHint() ? '' : 'margin-top:6px'}"><h2>${k === today() ? '오늘의 운동' : esc(dateLabel(k)) + ' 운동'}</h2><span class="aside">${sets.length ? `${sets.filter(s => !isCardioSet(s)).length}세트` : ''}</span></div>
+  h += `<div class="sec-h" style="${firstTime || installHint() ? '' : 'margin-top:6px'}"><h2>${k === today() ? '오늘의 운동' : esc(dateLabel(k)) + ' 운동'}</h2><span class="aside">${sets.length ? `${sets.filter(s => !isCardioSet(s)).length}세트` : ''}<span id="wk-elapsed">${elapsedTxt(k)}</span></span></div>
   ${sets.length && d.fin ? `<section class="card fincard"><div class="row between" style="gap:10px"><div><b>✓ ${k === today() ? '오늘' : ''} 운동 완료</b><div class="small muted">${(() => { const R = sessionReport(k); return [R.mins ? `${R.mins}분` : '', `${R.str.length}세트`, R.car.length ? `유산소 ${trimNum(R.car.reduce((a, s) => a + (+s.mins || 0), 0))}분` : ''].filter(Boolean).join(' · '); })()}</div></div>
       <button class="btn sm primary" data-act="fin-open">요약·피드백</button></div>
       <button class="linkbtn" style="margin-top:6px" data-act="day-resume">↺ 이어서 하기 (마무리 취소)</button></section>`
@@ -2936,7 +2949,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
