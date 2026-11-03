@@ -1082,8 +1082,22 @@ const TYPE_ORDER = {
   '코어': ['복근 크런치', '레그 레이즈', '코어 로테이션', '백 익스텐션'],
 };
 /* plain names and sub-parts, so the list reads like "옆 어깨 · 뒤 어깨", "이두 · 삼두" */
-const TYPE_LABEL = { '바이셉 컬': '이두 컬', '트라이셉 익스텐션': '삼두 익스텐션·푸시다운', '트라이셉 딥': '삼두 딥스', '리어 델트': '리어 델트 (뒤로 펴기)', '레터럴 레이즈': '레터럴 레이즈 (옆으로 들기)', '핸드스탠드 푸시업': '물구나무 푸시업', '힙 어브덕션': '다리 벌리기 (어브덕션)', '힙 어덕션': '다리 모으기 (어덕션)', '펙 플라이': '체스트 플라이' };
+const TYPE_LABEL = { '바이셉 컬': '이두 컬', '트라이셉 익스텐션': '삼두 익스텐션·푸시다운', '트라이셉 딥': '삼두 딥스', '리어 델트': '리어 델트 (리버스 플라이·페이스풀)', '레터럴 레이즈': '레터럴 레이즈 (옆으로 들기)', '핸드스탠드 푸시업': '물구나무 푸시업', '힙 어브덕션': '다리 벌리기 (어브덕션)', '힙 어덕션': '다리 모으기 (어덕션)', '펙 플라이': '체스트 플라이' };
 const tLabel = t => TYPE_LABEL[t] || t;
+/* what you actually hold or sit at, read from the name — so a row says "덤벨 · 케이블 · 머신", not a generic "바벨·덤벨" */
+const TOOL_ORDER = ['덤벨', '바벨', '케이블', '머신', '맨몸', '밴드', '케틀벨'];
+function toolOf(e) {
+  const n = `${e.brand || ''} ${e.name || ''}`;
+  if (e.bw) return '맨몸';
+  if (/케이블/.test(n) || /^cb-/.test(e.id)) return '케이블';
+  if (/밴드/.test(n)) return '밴드';
+  if (/케틀벨/.test(n)) return '케틀벨';
+  if (e.kind === 'machine') return '머신';
+  if (/덤벨/.test(n)) return '덤벨';
+  if (/바벨|EZ바|스미스|랜드마인|티바|트랩바|데드리프트|스쿼트|굿모닝|클린|스내치|저크|쓰러스터/.test(n)) return '바벨';
+  return e.kind === 'crossfit' ? '맨몸' : '바벨';
+}
+const toolsTxt = items => { const c = {}; for (const e of items) { const t = toolOf(e); c[t] = (c[t] || 0) + 1; } return TOOL_ORDER.filter(t => c[t]).map(t => t === '머신' ? `머신 ${c[t]}` : t).join(' · '); };
 const TYPE_SUB = {
   '어깨': [['앞 어깨', ['숄더 프레스', '핸드스탠드 푸시업']], ['옆 어깨 (측면)', ['레터럴 레이즈']], ['뒤 어깨 (후면)', ['리어 델트']]],
   '팔': [['이두 (팔 앞쪽)', ['바이셉 컬']], ['삼두 (팔 뒤쪽)', ['트라이셉 익스텐션', '트라이셉 딥']]],
@@ -1184,10 +1198,10 @@ function moveListHtml(all, M) {
   // step 2: the equipment for one movement — free weights and bodyweight first, machines by brand after
   if (state.pkType) {
     const T = state.pkType, items = all.filter(e => e.kind !== 'cardio' && typeOfEq(e) === T).sort((x, y) => byUse(x, y) || KIND_RANK(x) - KIND_RANK(y));
-    const mine = items.filter(e => U[e.id] || e.custom), free = items.filter(e => !mine.includes(e) && e.kind !== 'machine'), mach = items.filter(e => !mine.includes(e) && e.kind === 'machine');
+    const mine = items.filter(e => U[e.id] || e.custom), free = items.filter(e => !mine.includes(e) && toolOf(e) !== '머신').sort((a, b) => TOOL_ORDER.indexOf(toolOf(a)) - TOOL_ORDER.indexOf(toolOf(b))), mach = items.filter(e => !mine.includes(e) && toolOf(e) === '머신');
     let h = `<button class="linkbtn" data-act="pk-type" data-t="">← ${esc(M === '전체' ? '운동 목록' : mName(M) + ' 운동')}</button><div class="pk-title">${esc(tLabel(T))}</div>`;
     if (mine.length) h += `<div class="eqgroup-h">내가 쓴 기구<span>${mine.length}</span></div>` + mine.map(eqRow).join('');
-    if (free.length) h += `<div class="eqgroup-h">${free.some(e => e.kind === 'free' && !e.bw) ? '바벨 · 덤벨' : ''}${free.some(e => e.bw) ? (free.some(e => e.kind === 'free' && !e.bw) ? ' · ' : '') + '맨몸' : ''}${free.some(e => e.kind === 'crossfit') ? ' · 크로스핏' : ''}<span>${free.length}</span></div>` + free.map(e => eqRow(e, true)).join('');
+    if (free.length) h += `<div class="eqgroup-h">${esc(toolsTxt(free))}<span>${free.length}</span></div>` + free.map(e => eqRow(e, true)).join('');
     if (mach.length) {
       const brands = [...new Set(mach.map(e => e.brand))];
       const open = state.eqOpen['m' + T] || (!free.length && !mine.length);
@@ -1221,7 +1235,7 @@ function moveListHtml(all, M) {
     h += `<div class="eqgroup-h">${mtag(m)}<span>${ts.length}가지</span></div>`;
     const row = ({ t, items }) => {
       const used = items.some(e => U[e.id]);
-      const kinds = [items.some(e => e.kind === 'free' && !e.bw) ? '바벨·덤벨' : '', items.some(e => e.bw) ? '맨몸' : '', items.some(e => e.kind === 'machine') ? `머신 ${items.filter(e => e.kind === 'machine').length}` : ''].filter(Boolean).join(' · ');
+      const kinds = toolsTxt(items);
       return items.length === 1 ? `<div class="typerow" data-act="open-set" data-eq="${esc(items[0].id)}"><b>${esc(tLabel(t))}</b><span>${esc(items[0].name)}</span></div>`
         : `<div class="typerow" data-act="pk-type" data-t="${esc(t)}"><b>${esc(tLabel(t))}${used ? ' <i class="usedot" aria-label="해본 운동"></i>' : ''}</b><span>${esc(kinds)} ›</span></div>`;
     };
@@ -3176,7 +3190,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
