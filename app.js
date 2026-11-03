@@ -2949,12 +2949,13 @@ function mealPlanHtml(M) {
     else food = `${p >= 20 ? '프로틴 1스쿱 또는 그릭요거트 200g' : '그릭요거트 1개 또는 우유 1컵'}${c >= 40 ? ' + 바나나나 고구마 1개' : c >= 20 ? ' + 바나나 1개' : ''}`;
     return `<div class="meal-row"><div class="mt"><b>${name}</b><span class="num">${fmtInt(Math.round(kc / 10) * 10)}kcal · 단백질 ${p}g</span></div><div class="mf">${esc(food)}</div></div>`;
   }).join('');
-  return `<div class="mealplan"><div class="row between" style="gap:8px"><b>이렇게 먹으면 돼요</b><div class="seg" style="width:130px">${[3, 4].map(v => `<button class="${n === v ? 'on' : ''}" data-act="meal-n" data-v="${v}">${v}끼</button>`).join('')}</div></div>
+  return `<details class="mealplan" ${state.mealOpen ? 'open' : ''}><summary><b>이렇게 먹으면 돼요</b><span class="small muted">${n}끼 기준</span></summary>
+    <div class="row between" style="gap:8px;margin-top:8px"><span class="small muted">하루 끼니</span><div class="seg" style="width:130px">${[3, 4].map(v => `<button class="${n === v ? 'on' : ''}" data-act="meal-n" data-v="${v}">${v}끼</button>`).join('')}</div></div>
     ${rows}
     <ul class="mtips"><li>외식·일반식이면 <b>밥 양</b>과 <b>고기 반찬 양</b>만 맞추면 돼요. 국물·튀김은 줄이고요.</li>
       <li>단백질은 한 끼에 몰지 말고 끼니마다 비슷하게 나눠요.</li>
       <li>요리 기름·견과류는 한 끼 1스푼 정도면 지방 ${M.f}g에 맞아요.</li></ul>
-    <div class="note">양은 대략이에요. 2–3주 체중 추세를 보고 밥 양으로 조절하세요 (Schoenfeld & Aragon 2018 · Morton 2018).</div></div>`;
+    <div class="note">양은 대략이에요. 2–3주 체중 추세를 보고 밥 양으로 조절하세요 (Schoenfeld & Aragon 2018 · Morton 2018).</div></details>`;
 }
 
 function goalCardHtml(list) {
@@ -3144,7 +3145,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3599,6 +3600,7 @@ document.addEventListener('toggle', ev => {
   const t = ev.target; if (!t.matches) return;
   if (t.matches('details.check')) { if (t.dataset.k === 'mus') state.musOpen = t.open; else state.checkOpen = t.open; }
   if (t.matches('details.more') && state.sheet) state.sheet.moreOpen = t.open;
+  if (t.matches('details.mealplan')) state.mealOpen = t.open;
   if (t.matches('details.fold')) { state.fold = state.fold || {}; state.fold[t.dataset.fold] = t.open; }
 }, true);
 document.addEventListener('keydown', ev => {
