@@ -920,3 +920,11 @@ details.fold > summary:focus-visible { outline: 2px solid var(--acc); outline-of
 .mcard .mchips { display: flex; flex-wrap: wrap; gap: 6px; }
 .mcard .chip { min-height: 38px; font-weight: 700; }
 .mcard .chip.more { color: var(--ink3); border-style: dashed; }
+
+/* meal plan under the day's targets */
+.mealplan { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.meal-row { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.meal-row .mt { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.meal-row .mt span { font-size: 12px; color: var(--ink3); }
+.meal-row .mf { font-size: 14px; margin-top: 3px; line-height: 1.5; }
+.mtips { margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6; color: var(--ink2); }

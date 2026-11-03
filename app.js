@@ -2922,14 +2922,39 @@ function macroCardHtml() {
       <div><div class="k">지방</div><div class="v">${M.f}g</div><div class="k">${pct(M.f * 9)}% · ${r1(M.f / M.bw)}g/kg</div></div>
     </div>
     <div class="small" style="margin-top:8px">유지 칼로리 ${fmtInt(M.tdee)}kcal → <b>${esc(adj || g.l)}</b></div>
-    <details class="more"><summary>계산 방법</summary><ul class="mlist">
-      <li>기초대사량 ${fmtInt(M.rmr)}kcal — ${esc(M.rmrHow)}</li>
-      <li>일상 생활 ×1.2 + 운동 하루 평균 ${fmtInt(M.exAvg)}kcal (최근 4주 주 ${M.days}회 기록) = 유지 ${fmtInt(M.tdee)}kcal → ${esc(adj)}</li>
-      <li>단백질 ${esc(M.pHow)}. 한 끼 약 ${M.perMeal}g씩 나누면 효율적이에요 (Morton 2018 · Helms 2014)</li>
-      <li>지방은 칼로리의 ${M.key === 'cut' ? '20' : '25'}%(최소 체중 1kg당 0.6g), 나머지가 탄수화물이에요${M.c / M.bw < 3 && M.key !== 'cut' ? ' — 고강도 운동량이 많으면 탄수화물을 조금 더 늘려도 돼요' : ''}</li>
-    </ul>
-    </details>
-    <div class="note">2–3주 체중 추세가 목표 속도와 다르면 하루 100–200kcal씩 조정. 근거: Helms 2014 · Iraki 2019 · Morton 2018 · Garthe 2011 · Schoenfeld 2018</div></section>`;
+    ${mealPlanHtml(M)}</section>`;
+}
+/* the day's targets as meals of ordinary Korean food: how much rice, how much meat/eggs per meal */
+const RICE_C = 65, RICE_P = 6; // 1 bowl (210 g) of cooked rice
+function riceTxt(c) {
+  const x = Math.max(0, (c - 12) / RICE_C); // ~12 g carbs come from side dishes
+  if (x < 0.25) return '';
+  const opts = [[0.33, '1/3공기'], [0.5, '반 공기'], [0.67, '2/3공기'], [1, '1공기'], [1.33, '1공기 조금 넘게'], [1.5, '1공기 반'], [2, '2공기']];
+  const [v, l] = opts.reduce((a, b) => Math.abs(b[0] - x) < Math.abs(a[0] - x) ? b : a);
+  return `밥 ${l}(약 ${Math.round(210 * v / 10) * 10}g)`;
+}
+function mealPlanHtml(M) {
+  const n = DB.settings.mealN === 4 ? 4 : 3;
+  const meals = n === 3 ? [['아침', 0.3, 1 / 3], ['점심', 0.35, 1 / 3], ['저녁', 0.35, 1 / 3]]
+    : [['아침', 0.25, 0.25], ['점심', 0.3, 0.27], ['간식 · 운동 전후', 0.15, 0.18], ['저녁', 0.3, 0.3]];
+  const g10 = x => Math.max(50, Math.round(x / 10) * 10);
+  const rows = meals.map(([name, ks, ps]) => {
+    const kc = M.kcal * ks, p = Math.round(M.p * ps), c = M.c * ks, rice = riceTxt(c), rp = rice ? RICE_P : 0;
+    let food;
+    if (name === '아침') {
+      const eggs = Math.min(3, Math.max(2, Math.round((p - rp) / 6))), left = p - rp - eggs * 6;
+      food = `계란 ${eggs}개${left >= 14 ? ' + 그릭요거트 1개 + 우유 1컵' : left >= 7 ? ' + 그릭요거트 1개' : left >= 4 ? ' + 우유 1컵' : ''}${rice ? ` + ${rice}` : ''}`;
+    } else if (name === '점심') food = `일반식 — 고기·생선 반찬 약 ${g10((p - rp - 5) / 0.2)}g${rice ? ` + ${rice}` : ''} + 채소`;
+    else if (name === '저녁') food = `닭가슴살·살코기·생선 약 ${g10((p - rp - 3) / 0.25)}g${rice ? ` + ${rice}` : ''} + 채소`;
+    else food = `${p >= 20 ? '프로틴 1스쿱 또는 그릭요거트 200g' : '그릭요거트 1개 또는 우유 1컵'}${c >= 40 ? ' + 바나나나 고구마 1개' : c >= 20 ? ' + 바나나 1개' : ''}`;
+    return `<div class="meal-row"><div class="mt"><b>${name}</b><span class="num">${fmtInt(Math.round(kc / 10) * 10)}kcal · 단백질 ${p}g</span></div><div class="mf">${esc(food)}</div></div>`;
+  }).join('');
+  return `<div class="mealplan"><div class="row between" style="gap:8px"><b>이렇게 먹으면 돼요</b><div class="seg" style="width:130px">${[3, 4].map(v => `<button class="${n === v ? 'on' : ''}" data-act="meal-n" data-v="${v}">${v}끼</button>`).join('')}</div></div>
+    ${rows}
+    <ul class="mtips"><li>외식·일반식이면 <b>밥 양</b>과 <b>고기 반찬 양</b>만 맞추면 돼요. 국물·튀김은 줄이고요.</li>
+      <li>단백질은 한 끼에 몰지 말고 끼니마다 비슷하게 나눠요.</li>
+      <li>요리 기름·견과류는 한 끼 1스푼 정도면 지방 ${M.f}g에 맞아요.</li></ul>
+    <div class="note">양은 대략이에요. 2–3주 체중 추세를 보고 밥 양으로 조절하세요 (Schoenfeld & Aragon 2018 · Morton 2018).</div></div>`;
 }
 
 function goalCardHtml(list) {
@@ -3119,7 +3144,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.8 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3367,6 +3392,7 @@ const ACT = {
   'tut-go': el => tutShow(+el.dataset.i),
   'day-finish': () => { const k = state.date; day(k).fin = Date.now(); state.openEq = '-'; save(); render(); openFinish(k); },
   'fin-open': () => openFinish(state.date),
+  'meal-n': el => { DB.settings.mealN = +el.dataset.v; save(); render(); },
   'fin-open-k': el => openFinish(el.dataset.k),
   'day-resume': () => { const k = state.date; delete day(k).fin; save(); if (state.sheet && state.sheet.kind === 'finish') closeSheet(); render(); toast('이어서 기록해요'); },
   'fin-cond': el => { const d = day(state.sheet.k); d.check = Object.assign({}, d.check, { cond: +el.dataset.v }); save(); setSheetBody(finishHtml(state.sheet.k), true); render(); },
