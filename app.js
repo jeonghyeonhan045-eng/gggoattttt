@@ -424,7 +424,20 @@ function applyTheme() {
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = getComputedStyle(root).getPropertyValue('--card').trim() || '#ffffff';
 }
 const CHECK_SVG = '<svg class="icon ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+/* no paper citations or long how-it-works notes on the screens (the list stays in 설정 → 참고 논문) */
+const CITE_RE = /\s*[(（][^()（）]*?[A-Z][A-Za-z&.' -]+(?:외|et al\.?)?\s*\d{4}[^()（）]*[)）]/g;
+function stripCitations(root) {
+  if (state.sheet && state.sheet.kind === 'settings' && root.id === 'sheet-body') return;
+  root.querySelectorAll('.src').forEach(n => n.remove());
+  root.querySelectorAll('details.more').forEach(d => { const sm = d.querySelector('summary'); if (sm && /읽는 법|계산 방법|근거/.test(sm.textContent)) d.remove(); });
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => /\d{4}|근거/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+  const hits = []; while (walker.nextNode()) hits.push(walker.currentNode);
+  const STUDY_SENT = /[^.。]*\b[A-Z][a-z]+(?:\s*외|\s*et al\.?)?\s+(?:19|20)\d\d\b[^.。]*[.。]?/g;
+  for (const n of hits) n.nodeValue = n.nodeValue.replace(CITE_RE, '').replace(/\s*근거\s*[:：].*$/, '').replace(STUDY_SENT, '');
+  root.querySelectorAll('.note').forEach(n => { const t = n.textContent.trim(); if (!t || /논문|연구|메타|MET/.test(t) || t.length > 110) n.remove(); });
+}
 function decorateHeads(root) {
+  stripCitations(root);
   // the tab's first title is the screen's h1
   if (root.id === 'main') {
     const first = root.querySelector('.sec-h h2, .calhead h2');
@@ -1021,7 +1034,7 @@ function progInfoHtml(p) {
     <div class="pi-row"><span class="k">추천 대상</span><span>${esc(I.for)}</span></div>
     <div class="k" style="margin-top:10px">이것만 지키세요</div>
     <ul>${I.keys.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-    <div class="links">${I.refs.map(r => `<a href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.t)} ↗</a>`).join('')}
+    <div class="links">
       <a href="${ytLink(I.yt)}" target="_blank" rel="noopener">▶ 유튜브에서 영상 찾기</a></div>
     <div class="note">근비대 = 근육 크기 키우기 · 근력 = 들 수 있는 최대 무게 늘리기. 둘은 겹치지만 반복 수·휴식이 달라요(근력은 무겁게 적게 오래 쉬고, 근비대는 6–15회 정도로 세트 수를 쌓아요).</div>
   </div>`;
@@ -3145,7 +3158,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
