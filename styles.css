@@ -6,6 +6,7 @@
   --ink: #141414; --ink2: #3d3e42; --ink3: #626368;
   --acc: #141414; --acc-ink: #ffffff; --acc-soft: rgba(20, 20, 20, .07);
   --mark: #c41230; --mark-soft: rgba(196, 18, 48, .09);
+  --hi: #12784a; --hi-ink: #ffffff;
   --band: #e4e4df; --band-std: #cdcdc6; --fill: #1d1d1d;
   --good: #1d6b46; --warn: #8a5a00; --bad: #c41230; --info: #2a5ea8;
   --m-chest: #2a64b8; --m-back: #b4532a; --m-shoulder: #237a5c; --m-arm: #8d6a12;
@@ -23,6 +24,7 @@
   --ink: #ededea; --ink2: #c6c8cc; --ink3: #9da1a7;
   --acc: #ededea; --acc-ink: #111213; --acc-soft: rgba(237, 237, 234, .08);
   --mark: #ff5c66; --mark-soft: rgba(255, 92, 102, .13);
+  --hi: #c6f24e; --hi-ink: #111213;
   --band: #23262a; --band-std: #34383d; --fill: #e8e8e5;
   --good: #5ccf96; --warn: #f0b84a; --bad: #ff5c66; --info: #7fb2ff;
   --m-chest: #7fb2ff; --m-back: #f08a5d; --m-shoulder: #5ccf96; --m-arm: #e7c15a;
@@ -35,6 +37,7 @@
     --ink: #ededea; --ink2: #c6c8cc; --ink3: #9da1a7;
     --acc: #ededea; --acc-ink: #111213; --acc-soft: rgba(237, 237, 234, .08);
     --mark: #ff5c66; --mark-soft: rgba(255, 92, 102, .13);
+    --hi: #c6f24e; --hi-ink: #111213;
     --band: #23262a; --band-std: #34383d; --fill: #e8e8e5;
     --good: #5ccf96; --warn: #f0b84a; --bad: #ff5c66; --info: #7fb2ff;
     --m-chest: #7fb2ff; --m-back: #f08a5d; --m-shoulder: #5ccf96; --m-arm: #e7c15a;
@@ -892,3 +895,28 @@ details.fold > summary:focus-visible { outline: 2px solid var(--acc); outline-of
 .monthmus .dlt.up { color: var(--good); } .monthmus .dlt.dn { color: var(--warn, var(--ink2)); }
 .eqsheet + .finbtn { margin-top: 12px; }
 .infobox.sugg .btn { flex: 0 0 auto; white-space: nowrap; }
+
+/* v5.7 — one accent colour for what you look for first: section titles, key numbers, the selected option */
+.sec-h h1, .sec-h h2, .calhead h1, .calhead h2 { color: var(--hi); }
+.sec-h { border-bottom-color: var(--hi); }
+.tile .v, .glance .gl b, .tlabel { color: var(--hi); }
+.tile .v small { color: var(--ink3); }
+.chip.on, .seg button.on, .presets .chip.on, .scale button.on, .setcount button.on, .unitseg button.on { background: var(--hi); border-color: var(--hi); color: var(--hi-ink); }
+.tlabel { font-size: 28px; font-weight: 700; font-family: var(--mono); }
+.rttabs { margin-bottom: 12px; }
+.rttabs button { font-weight: 800; }
+.progcard .recwhy { margin-top: 4px; }
+
+/* movement-first picker */
+.typerow { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 10px 14px; margin-bottom: 6px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; }
+.typerow b { font-size: 16px; font-weight: 800; }
+.typerow span { font-size: 12px; color: var(--ink3); text-align: right; }
+.typerow:active { transform: scale(.99); }
+.usedot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--hi); vertical-align: middle; margin-left: 4px; }
+.pk-title { font-size: 20px; font-weight: 800; margin: 4px 0 6px; }
+.pk-brand { font-size: 12px; font-weight: 800; color: var(--ink3); margin: 10px 2px 4px; }
+.mcard { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; margin-bottom: 8px; }
+.mcard .mh { margin-bottom: 8px; }
+.mcard .mchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mcard .chip { min-height: 38px; font-weight: 700; }
+.mcard .chip.more { color: var(--ink3); border-style: dashed; }

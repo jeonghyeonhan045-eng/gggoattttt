@@ -387,7 +387,7 @@ function renderTimer() {
    ===================================================================== */
 const state = {
   tab: 'workout', date: today(),
-  eqView: 'all', eqM: '전체', eqQ: '',
+  eqView: 'move', eqM: '전체', eqQ: '',
   calM: today().slice(0, 7), statP: '28', checkOpen: false,
   sheet: null,
 };
@@ -794,12 +794,9 @@ function viewWorkout() {
   const nextDay = P0 && P0.days[progDay(P0, DB.prog.next)];
 
   let h = installHint();
-  if (firstTime) h += `<section class="card startcard">
-    <div style="font-weight:800;margin-bottom:6px">이렇게 쓰면 돼요</div>
-    <ol><li><b>운동 추가</b>로 기구를 고르거나, <b>루틴</b>에서 유명 프로그램을 골라요</li><li>무게·횟수를 넣고 <b>세트 기록</b></li><li>휴식 타이머는 자동으로 돌아가요</li></ol></section>`;
 
   // 1) today's workout + the main action
-  h += `<div class="sec-h" style="${firstTime || installHint() ? '' : 'margin-top:6px'}"><h2>${k === today() ? '오늘의 운동' : esc(dateLabel(k)) + ' 운동'}</h2><span class="aside">${sets.length ? `${sets.filter(s => !isCardioSet(s)).length}세트` : ''}<span id="wk-elapsed">${elapsedTxt(k)}</span></span></div>
+  h += `<div class="sec-h" style="${installHint() ? '' : 'margin-top:6px'}"><h2>${k === today() ? '오늘의 운동' : esc(dateLabel(k)) + ' 운동'}</h2><span class="aside">${sets.length ? `${sets.filter(s => !isCardioSet(s)).length}세트` : ''}<span id="wk-elapsed">${elapsedTxt(k)}</span></span></div>
   ${sets.length && d.fin ? `<section class="card fincard"><div class="row between" style="gap:10px"><div><b>✓ ${k === today() ? '오늘' : ''} 운동 완료</b><div class="small muted">${(() => { const R = sessionReport(k); return [R.mins ? `${R.mins}분` : '', `${R.str.length}세트`, R.car.length ? `유산소 ${trimNum(R.car.reduce((a, s) => a + (+s.mins || 0), 0))}분` : ''].filter(Boolean).join(' · '); })()}</div></div>
       <button class="btn sm primary" data-act="fin-open">요약·피드백</button></div>
       <button class="linkbtn" style="margin-top:6px" data-act="day-resume">↺ 이어서 하기 (마무리 취소)</button></section>`
@@ -851,22 +848,20 @@ function viewWorkout() {
     }
     h += '</div>';
     if (!d.fin) h += `<button class="btn block finbtn" data-act="day-finish">✓ ${k === today() ? '오늘' : '이날'} 운동 마무리하기</button>`;
-  } else if (!firstTime && !hasPlan) {
-    h += `<div class="empty" style="margin-top:10px">아직 기록이 없어요. <b>운동 추가</b>를 눌러 시작하세요.</div>`;
   }
 
   if (sets.length && k === today()) h += `<div class="sec-h"><h2>다음 운동</h2></div>` + recCardHtml(k);
 
   // 2) rest timer
-  h += `<div class="sec-h"><h2>휴식 타이머</h2><span class="aside">${S.autoRest ? '세트 기록하면 자동 시작' : '수동 시작'}</span></div>
+  h += `<div class="sec-h"><h2>휴식 타이머</h2></div>
   <section class="card timercard">
-    <div class="row between"><div class="small muted">쉬는 시간</div>
-      <button class="btn primary sm" data-act="timer-start" data-s="${S.rest}">▶ ${fmtSec(S.rest)} 시작</button></div>
+    <div class="row between"><div class="tlabel num">${fmtSec(S.rest)}</div>
+      <button class="btn primary sm" data-act="timer-start" data-s="${S.rest}">▶ 시작</button></div>
     <div class="presets">${[45, 60, 90, 120, 150, 180, 240].map(s => `<button class="chip ${s === S.rest ? 'on' : ''}" data-act="rest-default" data-s="${s}">${fmtSec(s)}</button>`).join('')}</div>
   </section>`;
 
   // 3) optional extras
-  h += `<div class="sec-h"><h2>선택 기록</h2><span class="aside">안 해도 돼요</span></div>
+  h += `<div style="margin-top:22px"></div>
   <details class="check" ${state.checkOpen ? 'open' : ''}>
     <summary>컨디션 체크<span class="val">${esc(checkVal)}</span></summary>
     <div class="body">
@@ -878,12 +873,11 @@ function viewWorkout() {
         <div><div class="flabel">아침 체중 (kg)</div>
         <input type="number" inputmode="decimal" step="0.1" min="20" max="300" placeholder="${latestBodyweight() || '예: 72.4'}" value="${c.bw != null ? c.bw : ''}" data-on="check-bw"></div>
       </div>
-      <div class="note">디로딩 판단에 쓰여요. 야간 근무 다음 날처럼 회복이 덜 된 날을 기록해두면 분석이 정확해져요.</div>
     </div>
   </details>
   <details class="check" style="margin-top:8px" ${state.musOpen ? 'open' : ''} data-k="mus">
-    <summary>부위만 체크<span class="val">${mus.all.length ? esc(mus.all.join(' · ')) : '세트를 기록하면 자동'}</span></summary>
-    <div class="body"><div class="note" style="margin:0 0 8px">세트 기록 없이 운동한 날 달력에 표시할 때 쓰세요.</div>
+    <summary>부위만 체크<span class="val">${mus.all.length ? esc(mus.all.join(' · ')) : '–'}</span></summary>
+    <div class="body">
     <div class="chips">${STRENGTH_MUSCLES.concat(['유산소', '전신']).map(m => {
       const on = mus.all.includes(m), auto = mus.auto.has(m);
       return `<button class="chip ${on ? 'done' : ''} ${auto ? 'auto' : ''}" data-act="done-toggle" data-m="${esc(m)}">${on ? '✓ ' : ''}${esc(mName(m))}</button>`;
@@ -918,71 +912,69 @@ function startPlan(list, label, from) {
 function routinesHtml() {
   const P0 = DB.prog && PROGRAMS.find(p => p.id === DB.prog.id);
   const d = dayRO(state.date), todays = d.sets || [];
+  const TAB = state.rtTab || 'rec';
   let h = '';
   if (P0) {
     const nx = progDay(P0, DB.prog.next), nd = P0.days[nx];
-    h += `<section class="card nextcard" style="margin-bottom:6px"><div class="small muted">진행 중인 프로그램</div>
+    h += `<section class="card nextcard" style="margin-bottom:10px"><div class="small muted">진행 중</div>
       <div class="row between" style="gap:8px;margin-top:2px"><b style="font-size: 16px">${esc(P0.name)}</b><button class="btn sm ghost" data-act="prog-open" data-p="${P0.id}">보기</button></div>
       <div class="grid2" style="margin-top:10px"><button class="btn primary" data-act="prog-start" data-p="${P0.id}" data-d="${nx}">다음: ${esc(nd.t)}${P0.rep ? ` · ${progWeek(P0, DB.prog.next)}주차` : ''}</button><button class="btn" data-act="prog-stop">그만하기</button></div></section>`;
   }
-  h += `<div class="sec-h" style="margin-top:8px"><h2 style="font-size: 16px">내 루틴</h2><span class="aside">${DB.routines.length}개</span></div>`;
-  h += DB.routines.length ? DB.routines.map(r => `<div class="myrt"><button class="main" data-act="my-start" data-id="${r.id}"><b>${esc(r.name)}</b>
-      <div class="small muted">${r.list.length}종목 · ${esc(r.list.slice(0, 3).map(([id]) => (eqById(id) || {}).name).filter(Boolean).join(', '))}${r.list.length > 3 ? '…' : ''}</div></button>
-      <button class="x" data-act="my-del" data-id="${r.id}" aria-label="루틴 삭제">×</button></div>`).join('')
-    : '<div class="small muted" style="margin-bottom:6px">오늘 한 운동을 이름 붙여 저장하면, 다음에 한 번에 불러올 수 있어요.</div>';
-  if (todays.length || (d.plan && d.plan.eqs && d.plan.eqs.length)) h += `<div class="row" style="margin-top:8px;gap:6px"><input id="rt-name" placeholder="예: 월요일 가슴·삼두" maxlength="20"><button class="btn" style="flex:0 0 auto" data-act="my-save">오늘 운동 저장</button></div>`;
-  if (pastSessions(state.date, 1).length) h += `<button class="btn block ghost" style="margin-top:8px" data-act="routine-load">↻ 지난 운동 그대로 불러오기</button>`;
+  // four tabs instead of one long page
+  h += `<div class="seg rttabs">${[['rec', '추천'], ['bw', '집에서'], ['all', '전체'], ['mine', '내 루틴']].map(([v, l]) => `<button class="${TAB === v ? 'on' : ''}" data-act="rt-tab" data-v="${v}">${l}</button>`).join('')}</div>`;
   const isPro = p => /선수 루틴|Heavy Duty|트레이너 루틴/.test(p.who);
-  const card = p => `<button class="progcard" data-act="prog-open" data-p="${p.id}">
-      <div class="row between"><b>${esc(p.name)}</b><span class="small muted">${esc(p.per)}</span></div>
-      <div class="small muted" style="margin:2px 0 4px"><b class="tier t${p.tier || 2}">${esc(p.lv)}</b> ${esc(p.who)}${PROGRAM_INFO[p.id] ? ` · <b class="goaltag">${esc(PROGRAM_INFO[p.id].goal.split(' (')[0])}</b>` : ''}</div>
-      <div class="small">${esc(p.desc)}</div>${p.why ? `<div class="small tierwhy">${esc(p.lv)}인 이유 · ${esc(p.why)}</div>` : ''}</button>`;
-  // suggestions: experience + days per week (self-reported) + goal + sex; every program stays open below
-  if ((state.rtM || '전체') === '전체') {
-    const pf = DB.settings.profile || {}, sex = pf.sex, gk = goalKey(), R = recPrograms();
-    const seg = (act, cur, opts, w) => `<div class="seg" style="${w ? `width:${w}` : ''}">${opts.map(([v, l]) => `<button class="${cur == v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
-    h += `<div class="sec-h"><h2 style="font-size: 16px">추천</h2><span class="aside">${esc([pf.exp != null ? EXP_OPTS[pf.exp][1] : '', pf.freq ? `주 ${FREQ_L[pf.freq]}` : '', sex ? (sex === 'f' ? '여성' : '남성') : '', goal().l].filter(Boolean).join(' · '))}</span></div>
-      <div class="rtpf">
+  const card = (p, extra) => `<button class="progcard" data-act="prog-open" data-p="${p.id}">
+      <div class="row between" style="gap:8px"><b>${esc(p.name)}</b><span class="small muted" style="flex:0 0 auto">${esc(p.per)}</span></div>
+      <div class="small muted" style="margin-top:3px"><b class="tier t${p.tier || 2}">${esc(p.lv)}</b> ${esc(p.why || p.who)}</div>${extra || ''}</button>`;
+
+  if (TAB === 'rec') {
+    const pf = DB.settings.profile || {}, sex = pf.sex, R = recPrograms();
+    const seg = (act, cur, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${cur == v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</button>`).join('')}</div>`;
+    h += R.map(({ p, why }) => card(p, `<div class="small recwhy">${esc(why)}</div>`)).join('');
+    h += `<details class="more"><summary>${esc([pf.exp != null ? EXP_OPTS[pf.exp][1] : '경력', pf.freq ? `주 ${FREQ_L[pf.freq]}` : '주 횟수', sex ? (sex === 'f' ? '여성' : '남성') : '성별'].join(' · '))} 바꾸기</summary>
+      <div class="rtpf" style="margin-top:8px">
         <div><span class="small muted">경력</span>${seg('rt-exp', pf.exp, EXP_OPTS.map(([, l], i) => [i, l]))}</div>
         <div><span class="small muted">주 횟수</span>${seg('rt-freq', pf.freq, Object.entries(FREQ_L))}</div>
-        <div><span class="small muted">성별</span>${seg('rt-sex', sex, [['f', '여성'], ['m', '남성']], '150px')}<span class="small muted" style="margin-left:auto">목표는 바디 탭</span></div>
-      </div>
-      ${R.map(({ p, why }) => card(p).replace('</button>', `<div class="small recwhy">✓ ${esc(why)}</div></button>`)).join('')}`;
-    const ids = R.map(x => x.p.id), fem = PROGRAMS.filter(p => p.fem && !ids.includes(p.id) && (p.tier || 2) <= expTier() + 1);
-    if (sex === 'f' && fem.length) h += `<details class="more" style="margin-top:4px"><summary>여성 추천 루틴 ${fem.length}개 더 보기</summary>${fem.map(card).join('')}</details>`;
+        <div><span class="small muted">성별</span>${seg('rt-sex', sex, [['f', '여성'], ['m', '남성']])}</div>
+      </div></details>`;
+    return h;
   }
-  // pick by body part: every program day that mainly trains it
+  if (TAB === 'bw') {
+    return h + PROGRAMS.filter(p => p.bw).sort((a, b) => (a.tier || 2) - (b.tier || 2)).map(p => card(p)).join('');
+  }
+  if (TAB === 'mine') {
+    h += DB.routines.length ? DB.routines.map(r => `<div class="myrt"><button class="main" data-act="my-start" data-id="${r.id}"><b>${esc(r.name)}</b>
+        <div class="small muted">${r.list.length}종목 · ${esc(r.list.slice(0, 3).map(([id]) => (eqById(id) || {}).name).filter(Boolean).join(', '))}${r.list.length > 3 ? '…' : ''}</div></button>
+        <button class="x" data-act="my-del" data-id="${r.id}" aria-label="루틴 삭제">×</button></div>`).join('')
+      : '<div class="small muted" style="margin:4px 0 8px">저장한 루틴이 없어요.</div>';
+    if (todays.length || (d.plan && d.plan.eqs && d.plan.eqs.length)) h += `<div class="row" style="margin-top:8px;gap:6px"><input id="rt-name" placeholder="예: 월요일 가슴·삼두" maxlength="20"><button class="btn" style="flex:0 0 auto" data-act="my-save">오늘 운동 저장</button></div>`;
+    if (pastSessions(state.date, 1).length) h += `<button class="btn block ghost" style="margin-top:8px" data-act="routine-load">↻ 지난 운동 그대로 불러오기</button>`;
+    return h;
+  }
+  // all: by body part, or every program by level
   const M = state.rtM || '전체';
-  h += `<div class="sec-h"><h2 style="font-size: 16px">부위로 고르기</h2><span class="aside">${M === '전체' ? '루틴 전체' : '루틴의 그 날만'}</span></div>
-    <div class="chips rtchips">${['전체', '가슴', '등', '어깨', '하체', '엉덩이', '팔', '전신'].map(m => `<button class="chip ${m === M ? 'on' : ''}" data-act="rt-m" data-m="${m}">${m}</button>`).join('')}</div>`;
+  h += `<div class="chips rtchips">${['전체', '가슴', '등', '어깨', '하체', '엉덩이', '팔', '전신'].map(m => `<button class="chip ${m === M ? 'on' : ''}" data-act="rt-m" data-m="${m}">${m}</button>`).join('')}</div>`;
   if (M !== '전체') {
     const days = [];
     for (const p of PROGRAMS) p.days.forEach((dd, i) => { if (dayMuscles(dd).has(M) && !days.some(([q, x]) => q === p && x.t === dd.t)) days.push([p, dd, i]); });
-    days.sort((a, b) => dayMuscles(b[1]).share(M) - dayMuscles(a[1]).share(M)); // most focused on that part first
+    days.sort((a, b) => dayMuscles(b[1]).share(M) - dayMuscles(a[1]).share(M));
     h += days.length ? days.map(([p, dd, i]) => { const names = [...new Set(dd.ex.map(([id]) => (eqById(id) || {}).name).filter(Boolean))];
-      return `<div class="daycard"><div class="row between" style="gap:8px"><div style="min-width:0"><b>${esc(dd.t)}</b><div class="small muted">${esc(p.name)} · ${esc(p.lv)}${PROGRAM_INFO[p.id] ? ` · <span class="goaltag">${esc(PROGRAM_INFO[p.id].goal.split(' (')[0])}</span>` : ''}</div></div>
+      return `<div class="daycard"><div class="row between" style="gap:8px"><div style="min-width:0"><b>${esc(dd.t)}</b><div class="small muted">${esc(p.name)} · ${esc(p.lv)}</div></div>
         <a class="vlink" href="${ytLink(dayQuery(p, dd))}" target="_blank" rel="noopener">▶ 영상</a></div>
-        <div class="small" style="margin-top:4px;color:var(--ink2)">${names.length}종목 · ${esc(names.slice(0, 4).join(', '))}${names.length > 4 ? '…' : ''}</div>
+        <div class="small" style="margin-top:4px;color:var(--ink2)">${esc(names.slice(0, 4).join(', '))}${names.length > 4 ? '…' : ''}</div>
         <div class="grid2" style="margin-top:8px"><button class="btn sm" data-act="prog-open" data-p="${p.id}">루틴 보기</button><button class="btn sm primary" data-act="day-start" data-p="${p.id}" data-d="${i}">오늘 이걸로</button></div></div>`; }).join('')
       : '<div class="small muted">해당하는 날이 없어요.</div>';
     return h;
   }
-  // every program by level (non-athlete programs first inside each level)
-  const TIERS = [[1, '초급', '운동 0–1년 · 주 2–3회 · 매번 조금씩 증량할 수 있는 시기'], [2, '중급', '1–3년 · 주 4–6회 분할 · 주 단위로 증량·볼륨 관리'], [3, '상급', '3년 이상 · 고볼륨이나 드롭세트·강제 반복 같은 강도 기법 · 회복 관리 필수']];
+  const TIERS = [[1, '초급'], [2, '중급'], [3, '상급']];
   const LV = state.rtLv || 0, SX = state.rtSx || (DB.settings.profile || {}).sex || 'a';
-  // women: women-focused + unisex plans; men: everything except the women-focused ones
   const inSx = p => SX === 'a' ? true : SX === 'f' ? !!(p.fem || p.uni) : !p.fem || !!p.uni;
-  { const bw = PROGRAMS.filter(p => p.bw).sort((a, b) => (a.tier || 2) - (b.tier || 2));
-    h += `<div class="sec-h"><h2 style="font-size: 16px">맨몸 루틴</h2><span class="aside">집·공원 · 기구 없이</span></div>
-      ${bw.map(card).join('')}`; }
-  h += `<div class="sec-h"><h2 style="font-size: 16px">수준별 루틴</h2><span class="aside">운동 경력 기준</span></div>
-    <div class="seg" style="margin-bottom:8px">${[['f', '여성 루틴'], ['m', '남성 루틴'], ['a', '전체']].map(([v, l]) => `<button class="${SX === v ? 'on' : ''}" data-act="rt-sx" data-v="${v}">${l}</button>`).join('')}</div>
-    <div class="chips rtchips">${[[0, '전체'], ...TIERS].map(([t, l]) => `<button class="chip ${LV === t ? 'on' : ''}" data-act="rt-lv" data-v="${t}">${l}</button>`).join('')}</div>`;
-  for (const [t, l, d] of TIERS) {
+  h += `<div class="row" style="gap:6px;margin:4px 0 8px"><div class="seg">${[['f', '여성'], ['m', '남성'], ['a', '전체']].map(([v, l]) => `<button class="${SX === v ? 'on' : ''}" data-act="rt-sx" data-v="${v}">${l}</button>`).join('')}</div>
+    <div class="seg">${[[0, '전체'], ...TIERS].map(([t, l]) => `<button class="${LV === t ? 'on' : ''}" data-act="rt-lv" data-v="${t}">${l}</button>`).join('')}</div></div>`;
+  for (const [t, l] of TIERS) {
     if (LV && LV !== t) continue;
     const list = PROGRAMS.filter(p => (p.tier || 2) === t && inSx(p) && !p.bw).sort((x, y) => (SX === 'f' ? !!y.fem - !!x.fem : 0) || isPro(x) - isPro(y));
-    if (!list.length) continue;
-    h += `<div class="tierh"><b class="tier t${t}">${l}</b><span>${d}</span></div>` + list.map(card).join('');
+    if (list.length) h += `<div class="tierh"><b class="tier t${t}">${l}</b></div>` + list.map(p => card(p)).join('');
   }
   return h;
 }
@@ -1066,30 +1058,48 @@ function openProgram(id) {
 }
 
 /* ---------- exercise picker (full-height sheet) ---------- */
-const EQ_VIEWS = [['all', '전체'], ['machine', '머신'], ['free', '프리웨이트'], ['cardio', '유산소'], ['fav', '★ 즐겨찾기']];
+const EQ_VIEWS = [['move', '운동별'], ['all', '기구 전체'], ['cardio', '유산소'], ['fav', '★ 즐겨찾기']];
+/* movement-first picker: the well-known movements of each part first, the rest behind "더 보기" */
+const TYPE_ORDER = {
+  '가슴': ['벤치프레스', '인클라인 프레스', '체스트 프레스', '펙 플라이', '푸시업', '딥스'],
+  '등': ['랫 풀다운', '로우', '풀업', '풀오버', '슈러그'],
+  '어깨': ['숄더 프레스', '레터럴 레이즈', '리어 델트', '핸드스탠드 푸시업'],
+  '팔': ['바이셉 컬', '트라이셉 익스텐션', '트라이셉 딥'],
+  '다리': ['스쿼트', '레그 프레스', '런지', '레그 익스텐션', '레그 컬', '루마니안 데드리프트', '데드리프트', '힙 쓰러스트', '힙 어브덕션', '힙 어덕션', '카프 레이즈'],
+  '코어': ['복근 크런치', '레그 레이즈', '코어 로테이션', '백 익스텐션'],
+};
+const KIND_RANK = e => e.custom ? 0 : e.kind === 'free' ? (e.bw ? 2 : 1) : e.kind === 'crossfit' ? 3 : 4;
+function typesOf(m, pool) {
+  const by = {};
+  for (const e of pool) { if (e.kind === 'cardio' || e.m !== m) continue; const t = typeOfEq(e); (by[t] = by[t] || []).push(e); }
+  const ord = TYPE_ORDER[m] || [], U = eqUse();
+  const used = t => by[t].reduce((a, e) => a + ((U[e.id] || {}).n || 0), 0);
+  return Object.keys(by).sort((a, b) => (used(b) > 0) - (used(a) > 0) || (ord.includes(a) ? ord.indexOf(a) : 99) - (ord.includes(b) ? ord.indexOf(b) : 99) || by[b].length - by[a].length)
+    .map(t => ({ t, items: by[t].sort((x, y) => byUse(x, y) || KIND_RANK(x) - KIND_RANK(y)) }));
+}
 function pickerHtml() {
   return `<div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <input id="eq-q" type="search" placeholder="검색 (예: 벤치, 익스텐션, ㄹㅇㅍ)" value="${esc(state.eqQ)}" data-on="eq-q" autocomplete="off"></div>
   <div class="seg" style="margin-top:10px">${EQ_VIEWS.map(([v, l]) => `<button class="${state.eqView === v ? 'on' : ''}" data-act="eq-view" data-v="${v}">${l}</button>`).join('')}</div>
-  <div class="chips scrollx ${['all', 'machine', 'free'].includes(state.eqView) ? '' : 'hidden'}" style="margin-top:8px" id="eq-mchips">${['전체'].concat(STRENGTH_MUSCLES, ['전신']).map(m => `<button class="chip ${state.eqM === m ? 'on' : ''}" data-act="eq-m" data-m="${esc(m)}">${esc(mName(m))}</button>`).join('')}</div>
+  <div class="chips scrollx ${['all', 'move'].includes(state.eqView) ? '' : 'hidden'}" style="margin-top:8px" id="eq-mchips">${['전체'].concat(STRENGTH_MUSCLES, ['전신']).map(m => `<button class="chip ${state.eqM === m ? 'on' : ''}" data-act="eq-m" data-m="${esc(m)}">${esc(mName(m))}</button>`).join('')}</div>
   <div class="eqlist" id="eqlist"></div>
   <button class="btn block" style="margin-top:8px" data-act="custom-eq">+ 목록에 없는 기구 직접 추가</button>`;
 }
 function openPicker() {
-  if (!EQ_VIEWS.some(([v]) => v === state.eqView)) state.eqView = 'all';
-  state.eqQ = '';
+  if (!EQ_VIEWS.some(([v]) => v === state.eqView)) state.eqView = 'move';
+  state.eqQ = ''; state.pkType = null;
   openSheet('운동 추가', '어떤 운동을 할까요?', pickerHtml(), { kind: 'picker' });
   renderEqList();
 }
 
-function eqRow(e) {
+function eqRow(e, slim) {
   const last = lastSetOfEq(e.id);
   const fav = DB.fav.includes(e.id);
   const unit = e.kind === 'cardio' ? '' : `<span class="unitb">${unitFor(e.id)}</span>`;
   const use = eqUse()[e.id];
-  const meta = last ? `최근 ${shortDate(last.date)} · ${fmtSetFull(last)}${use && use.n > 1 ? ` · 총 ${use.n}세트` : ''}` : e.custom ? `직접 추가 · ${typeOfEq(e)}` : (e.kind === 'free' || e.kind === 'machine' ? `${typeOfEq(e)}` : '');
+  const meta = last ? `최근 ${shortDate(last.date)} · ${fmtSetFull(last)}${use && use.n > 1 ? ` · 총 ${use.n}세트` : ''}` : e.custom ? `직접 추가 · ${typeOfEq(e)}` : slim ? '' : (e.kind === 'free' || e.kind === 'machine' ? `${typeOfEq(e)}` : '');
   return `<div class="eqrow" data-act="open-set" data-eq="${esc(e.id)}">
-    <div class="main"><div class="b">${esc(e.brand)} ${unit}</div><div class="nm">${esc(e.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</div>
+    <div class="main">${slim ? '' : `<div class="b">${esc(e.brand)} ${unit}</div>`}<div class="nm">${esc(e.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</div>
     <button class="star ${fav ? 'on' : ''}" data-act="fav" data-eq="${esc(e.id)}" aria-label="즐겨찾기"><svg viewBox="0 0 24 24" fill="${fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></button>
   </div>`;
 }
@@ -1112,6 +1122,7 @@ function renderEqList() {
   const groups = [];
   const mFilter = e => M === '전체' || e.m === M;
   const inView = e => v === 'all' ? true : v === 'machine' ? (e.kind === 'machine' || !!e.custom) : v === 'free' ? (e.kind === 'free' || e.kind === 'crossfit') : v === 'cardio' ? e.kind === 'cardio' : true;
+  if (!q && v === 'move') { box.innerHTML = moveListHtml(all, M); return; }
   if (q) {
     groups.push(['검색 결과', all.filter(e => matchQ(`${e.name} ${e.brand} ${typeOfEq(e)} ${e.m}`, q)).sort(byUse)]);
   } else if (v === 'fav') {
@@ -1144,6 +1155,58 @@ function renderEqList() {
     h += shown.length ? shown.map(eqRow).join('') + (items.length > shown.length ? `<button class="btn sm ghost block" style="margin-bottom:6px" data-act="eq-more" data-k="${esc(v + label)}">${esc(label)} ${items.length - shown.length}개 더 보기</button>` : '') : `<div class="empty">${v === 'fav' ? '별(★)을 눌러 자주 쓰는 기구를 모아두세요.' : '결과가 없어요. 아래 "직접 추가"로 만들 수 있어요.'}</div>`;
   }
   box.innerHTML = h || `<div class="empty">결과가 없어요.</div>`;
+}
+
+function moveListHtml(all, M) {
+  state.eqOpen = state.eqOpen || {};
+  const U = eqUse();
+  // step 2: the equipment for one movement — free weights and bodyweight first, machines by brand after
+  if (state.pkType) {
+    const T = state.pkType, items = all.filter(e => e.kind !== 'cardio' && typeOfEq(e) === T).sort((x, y) => byUse(x, y) || KIND_RANK(x) - KIND_RANK(y));
+    const mine = items.filter(e => U[e.id] || e.custom), free = items.filter(e => !mine.includes(e) && e.kind !== 'machine'), mach = items.filter(e => !mine.includes(e) && e.kind === 'machine');
+    let h = `<button class="linkbtn" data-act="pk-type" data-t="">← ${esc(M === '전체' ? '운동 목록' : mName(M) + ' 운동')}</button><div class="pk-title">${esc(T)}</div>`;
+    if (mine.length) h += `<div class="eqgroup-h">내가 쓴 기구<span>${mine.length}</span></div>` + mine.map(eqRow).join('');
+    if (free.length) h += `<div class="eqgroup-h">${free.some(e => e.kind === 'free' && !e.bw) ? '바벨 · 덤벨' : ''}${free.some(e => e.bw) ? (free.some(e => e.kind === 'free' && !e.bw) ? ' · ' : '') + '맨몸' : ''}${free.some(e => e.kind === 'crossfit') ? ' · 크로스핏' : ''}<span>${free.length}</span></div>` + free.map(e => eqRow(e, true)).join('');
+    if (mach.length) {
+      const brands = [...new Set(mach.map(e => e.brand))];
+      const open = state.eqOpen['m' + T] || (!free.length && !mine.length);
+      h += `<div class="eqgroup-h">머신 · 브랜드별<span>${mach.length}</span></div>`;
+      h += open ? brands.map(b => `<div class="pk-brand">${esc(b)}</div>` + mach.filter(e => e.brand === b).map(e => eqRow(e, true)).join('')).join('')
+        : `<button class="btn block" data-act="eq-more" data-k="${esc('m' + T)}">머신 ${mach.length}개 보기 · ${esc(brands.slice(0, 3).join(', '))}${brands.length > 3 ? ' 등' : ''}</button>`;
+    }
+    return h;
+  }
+  // step 1: movements by body part
+  let h = '';
+  const mine = all.filter(e => e.kind !== 'cardio' && (U[e.id] || e.custom) && (M === '전체' || e.m === M)).sort(byUse);
+  if (mine.length) {
+    const lim = state.eqOpen['mine'] ? Infinity : 5;
+    h += `<div class="eqgroup-h">최근에 한 운동<span>${mine.length}</span></div>` + mine.slice(0, lim).map(eqRow).join('')
+      + (mine.length > lim ? `<button class="btn sm ghost block" style="margin-bottom:6px" data-act="eq-more" data-k="mine">${mine.length - lim}개 더 보기</button>` : '');
+  }
+  if (M === '전체') {
+    // every part on one screen: its five best-known movements, the rest one tap away
+    for (const m of STRENGTH_MUSCLES.concat(['전신'])) {
+      const ts = typesOf(m, all); if (!ts.length) continue;
+      h += `<div class="mcard"><div class="mh">${mtag(m)}</div><div class="mchips">${ts.slice(0, 5).map(({ t, items }) => items.length === 1
+        ? `<button class="chip" data-act="open-set" data-eq="${esc(items[0].id)}">${esc(t)}</button>`
+        : `<button class="chip" data-act="pk-type" data-t="${esc(t)}">${esc(t)}</button>`).join('')}${ts.length > 5 ? `<button class="chip more" data-act="eq-m" data-m="${esc(m)}">+${ts.length - 5} 더 보기</button>` : ''}</div></div>`;
+    }
+    return h;
+  }
+  for (const m of [M]) {
+    const ts = typesOf(m, all); if (!ts.length) continue;
+    const lim = M !== '전체' || state.eqOpen['t' + m] ? Infinity : 5;
+    h += `<div class="eqgroup-h">${mtag(m)}<span>${ts.length}가지</span></div>`;
+    h += ts.slice(0, lim).map(({ t, items }) => {
+      const used = items.some(e => U[e.id]);
+      const kinds = [items.some(e => e.kind === 'free' && !e.bw) ? '바벨·덤벨' : '', items.some(e => e.bw) ? '맨몸' : '', items.some(e => e.kind === 'machine') ? `머신 ${items.filter(e => e.kind === 'machine').length}` : ''].filter(Boolean).join(' · ');
+      return items.length === 1 ? `<div class="typerow" data-act="open-set" data-eq="${esc(items[0].id)}"><b>${esc(t)}</b><span>${esc(items[0].name)}</span></div>`
+        : `<div class="typerow" data-act="pk-type" data-t="${esc(t)}"><b>${esc(t)}${used ? ' <i class="usedot" aria-label="해본 운동"></i>' : ''}</b><span>${esc(kinds)} ›</span></div>`;
+    }).join('');
+    if (ts.length > lim) h += `<button class="btn sm ghost block" style="margin-bottom:6px" data-act="eq-more" data-k="${esc('t' + m)}">${esc(mName(m))} ${ts.length - lim}가지 더 보기</button>`;
+  }
+  return h || '<div class="empty">결과가 없어요.</div>';
 }
 
 /* ---------- set entry sheet ---------- */
@@ -1244,7 +1307,7 @@ function setSheetHtml(e) {
     </div>
     <div class="row" style="gap:6px;margin-top:8px"><button class="btn sm" data-act="row-add">+ 세트 추가</button>${S.rows.length ? `<button class="btn sm ghost" data-act="row-del">− 마지막 줄 빼기</button>` : ''}</div>
     <div class="preview" id="ss-prev">${nextPreview()}</div>
-    ${!S.rows.length && todays.length ? `<button class="btn primary block big" style="margin-top:10px" data-act="sheet-close">✓ ${todays.length}세트 완료 · 닫기</button>` : `<div class="note" style="text-align:center">한 세트 끝날 때마다 <b>✓</b>를 누르세요. 숫자가 다르면 고치고 누르면 돼요.</div>`}
+    ${!S.rows.length && todays.length ? `<button class="btn primary block big" style="margin-top:10px" data-act="sheet-close">✓ ${todays.length}세트 완료 · 닫기</button>` : ''}
     <div class="ss-below">${gripHtml(e, type)}
     ${musclePeekHtml(e.name, type, e.m, false, gripOf(e))}</div>
     <details class="more" ${S.moreOpen ? 'open' : ''}>
@@ -1360,7 +1423,7 @@ function tutSteps() {
       <div class="tut-table">${[0, 1, 2].map(j => { const d = j < (state.tutCk || 0), nx = j === (state.tutCk || 0); return `<div class="r ${d ? 'done' : nx ? 'next' : ''}"><span>${j + 1}</span><span>40kg</span><span>${j === 2 ? 8 : 10}회</span><button class="ck ${d ? 'on' : ''}" ${nx ? 'data-act="tut-ck"' : 'disabled'} aria-label="${j + 1}세트 완료">✓</button></div>`; }).join('')}</div>
       ${(state.tutCk || 0) >= 3 ? `<div class="tut-ok">✓ 잘했어요! 실제로는 이 순간 다음 운동 고르기 화면이 열려요.</div>` : (state.tutCk || 0) ? `<div class="tut-ok soft">✓를 누르면 휴식 타이머가 돌아요(화면 위 시계). 다음 세트도 눌러보세요.</div>` : ''}
       <ul class="tut-ol"><li>무게·횟수는 앞 세트나 지난번 기록에서 미리 채워져요. 실제로 한 횟수가 다르면 숫자만 고치고 ✓.</li><li>운동 중에 바로 눌러도 되고, 끝나고 몰아서 기록해도 돼요.</li><li>무게를 올릴 때가 되면 "오늘 추천"으로 알려줘요.</li><li>다 끝나면 운동 탭 위쪽 <b>"✓ 오늘 운동 마무리하기"</b> — 오늘 쓴 부위 그림과 피드백이 나와요. 더 하고 싶으면 "이어서 하기".</li></ul>` },
-    { at: 'main button[data-act="routines-open"]', tap: 1, t: '루틴', b: `<p><b>"루틴"을 눌러보세요.</b></p><ul class="tut-ol"><li>뭘 할지 모르겠으면 여기. 맨 위 <b>추천</b>은 성별·목표에 맞춘 프로그램이에요.</li><li>프로그램을 시작하면 오늘 할 종목·세트가 한 번에 깔리고, 다음엔 순서대로 다음 날 루틴이 나와요.</li><li>"부위로 고르기"로 오늘 하고 싶은 부위의 하루치만 골라 할 수도 있어요.</li></ul>` },
+    { at: 'main button[data-act="routines-open"]', tap: 1, t: '루틴', b: `<p><b>"루틴"을 눌러보세요.</b></p><ul class="tut-ol"><li>뭘 할지 모르겠으면 여기. 맨 위 <b>추천</b>은 성별·목표에 맞춘 프로그램이에요.</li><li>프로그램을 시작하면 오늘 할 종목·세트가 한 번에 깔리고, 다음엔 순서대로 다음 날 루틴이 나와요.</li><li><b>집에서</b> 탭엔 기구 없이 하는 맨몸 루틴이 있어요.</li></ul>` },
     { at: 'header .datenav', t: '날짜 옮기기', b: `<ul class="tut-ol"><li>‹ › 로 날짜를 옮기면 그날 기록을 보거나, 깜빡한 운동을 나중에 넣을 수 있어요.</li><li>날짜를 누르면 오늘로 돌아와요.</li></ul>` },
     { at: 'nav button[data-tab="records"]', tap: 'records', t: '기록 탭', b: `<p><b>아래 "기록" 탭을 눌러보세요.</b></p>` },
     { at: 'main section.card', t: '기록 탭', b: `<ul class="tut-ol"><li>운동한 날이 달력에 표시돼요. 날짜를 누르면 그날 한 운동을 보고 고칠 수 있어요.</li><li>운동 안 한 날도 한눈에 보여서 꾸준함을 확인하기 좋아요. 지난 날짜를 눌러 그날 운동을 나중에 넣어도 돼요.</li></ul>` },
@@ -1751,7 +1814,7 @@ function recCardHtml(k) {
   const R = recommendNext(T); if (!R) return '';
   const when = T === k ? '오늘' : '내일';
   if (R.first) return `<section class="card reccard"><div class="small muted">${when} 추천 · 첫 운동</div><b style="font-size: 16px">전신 5종목</b>
-    <div class="small muted" style="margin-top:2px">스쿼트 · 벤치프레스 · 로우 · 레터럴 레이즈 · 복근. 처음엔 부위를 나누기보다 전신으로 시작하는 게 무난해요.</div>
+    <div class="small muted" style="margin-top:2px">스쿼트 · 벤치프레스 · 로우 · 레터럴 레이즈 · 복근</div>
     <button class="btn sm block" style="margin-top:8px" data-act="rec-plan" data-t="${T}" data-k="full">${T === k ? '이걸로 시작' : '내일 계획에 넣기'}</button></section>`;
   const P0 = DB.prog && PROGRAMS.find(p => p.id === DB.prog.id);
   if (P0 && T !== k) {
@@ -3056,7 +3119,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.6 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.8 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3150,7 +3213,7 @@ const ACT = {
 
   'eq-view': el => { state.eqView = el.dataset.v; state.eqQ = ''; if (state.sheet && state.sheet.kind === 'picker') { setSheetBody(pickerHtml()); renderEqList(); } },
   'picker-open': () => openPicker(),
-  'eq-m': el => { state.eqM = el.dataset.m; $$('#eq-mchips .chip').forEach(c => c.classList.toggle('on', c.dataset.m === state.eqM)); renderEqList(); },
+  'eq-m': el => { state.eqM = el.dataset.m; state.pkType = null; $$('#eq-mchips .chip').forEach(c => c.classList.toggle('on', c.dataset.m === state.eqM)); renderEqList(); },
   'fav': (el, ev) => {
     ev.stopPropagation();
     const id = el.dataset.eq, i = DB.fav.indexOf(id);
@@ -3161,6 +3224,7 @@ const ACT = {
   },
   'open-set': el => openSetSheet(el.dataset.eq),
   'eq-more': el => { state.eqOpen[el.dataset.k] = true; renderEqList(); },
+  'pk-type': el => { state.pkType = el.dataset.t || null; renderEqList(); const b = $('#sheet-body'); if (b) b.scrollTop = 0; },
   'set-unit': el => {
     const S = state.sheet, nu = el.dataset.u; if (S.u === nu) return;
     for (const r of S.rows) { const w = parseFloat(r.w); if (w > 0) { const conv = fromKg(toKg(w, S.u), nu); r.w = nu === 'lb' ? Math.round(conv / 5) * 5 || r1(conv) : Math.round(conv * 2) / 2; } }
@@ -3324,6 +3388,7 @@ const ACT = {
   'tut-freq': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { freq: +el.dataset.v }); save(); setSheetBody(tutorialHtml(state.tutI), true); },
   'rt-sex': el => { DB.settings.profile = Object.assign({}, DB.settings.profile, { sex: el.dataset.v }); save(); setSheetBody(routinesHtml(), true); },
   'rt-sx': el => { state.rtSx = el.dataset.v; setSheetBody(routinesHtml(), true); },
+  'rt-tab': el => { state.rtTab = el.dataset.v; setSheetBody(routinesHtml()); },
   'rt-lv': el => { state.rtLv = +el.dataset.v; setSheetBody(routinesHtml(), true); },
   'rt-m': el => { state.rtM = el.dataset.m; setSheetBody(routinesHtml(), true); },
   // one day from a program, without signing up for the whole program

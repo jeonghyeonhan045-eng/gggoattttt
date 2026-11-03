@@ -422,9 +422,11 @@ const BW_RAW = [
   ['bw-superman', '슈퍼맨 (엎드려 등 들기)', '코어', '백 익스텐션'],
 ];
 
+// free-weight entries that are done with bodyweight
+const BW_FREE = new Set(['fw-pushup', 'fw-dips', 'fw-pullup', 'fw-chinup', 'fw-invrow', 'fw-plank', 'fw-sideplank', 'fw-crunch', 'fw-hangleg', 'fw-glutebridge', 'fw-slbridge']);
 const BUILTIN_EQ = [
   ...EQ_RAW.map(([id, brand, name, m, type]) => ({ id, brand, name, m, type, kind: 'machine' })),
-  ...FREE_RAW.map(([id, name, m, type, sector]) => ({ id, brand: '프리웨이트', name, m, type, kind: 'free', sector })),
+  ...FREE_RAW.map(([id, name, m, type, sector]) => ({ id, brand: '프리웨이트', name, m, type, kind: 'free', sector, ...(BW_FREE.has(id) ? { bw: 1 } : {}) })),
   ...BW_RAW.map(([id, name, m, type]) => ({ id, brand: '맨몸', name, m, type, kind: 'free', sector: 'bw', bw: 1 })),
   ...CARDIO_RAW.map(([id, brand, name, type]) => ({ id, brand, name, m: '유산소', type, kind: 'cardio' })),
   ...CF_RAW.map(([id, name, m, type]) => ({ id, brand: '크로스핏', name, m, type, kind: 'crossfit' })),
