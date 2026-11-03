@@ -932,3 +932,4 @@ details.mealplan > summary { display: flex; align-items: center; justify-content
 details.mealplan > summary::-webkit-details-marker { display: none; }
 details.mealplan > summary .muted::after { content: ' ▾'; }
 details.mealplan[open] > summary .muted::after { content: ' ▴'; }
+.pk-sub { font-size: 13px; font-weight: 800; color: var(--hi); margin: 14px 2px 6px; }

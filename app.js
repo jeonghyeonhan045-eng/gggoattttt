@@ -1081,6 +1081,14 @@ const TYPE_ORDER = {
   '다리': ['스쿼트', '레그 프레스', '런지', '레그 익스텐션', '레그 컬', '루마니안 데드리프트', '데드리프트', '힙 쓰러스트', '힙 어브덕션', '힙 어덕션', '카프 레이즈'],
   '코어': ['복근 크런치', '레그 레이즈', '코어 로테이션', '백 익스텐션'],
 };
+/* plain names and sub-parts, so the list reads like "옆 어깨 · 뒤 어깨", "이두 · 삼두" */
+const TYPE_LABEL = { '바이셉 컬': '이두 컬', '트라이셉 익스텐션': '삼두 익스텐션·푸시다운', '트라이셉 딥': '삼두 딥스', '리어 델트': '리어 델트 (뒤로 펴기)', '레터럴 레이즈': '레터럴 레이즈 (옆으로 들기)', '핸드스탠드 푸시업': '물구나무 푸시업', '힙 어브덕션': '다리 벌리기 (어브덕션)', '힙 어덕션': '다리 모으기 (어덕션)', '펙 플라이': '체스트 플라이' };
+const tLabel = t => TYPE_LABEL[t] || t;
+const TYPE_SUB = {
+  '어깨': [['앞 어깨', ['숄더 프레스', '핸드스탠드 푸시업']], ['옆 어깨 (측면)', ['레터럴 레이즈']], ['뒤 어깨 (후면)', ['리어 델트']]],
+  '팔': [['이두 (팔 앞쪽)', ['바이셉 컬']], ['삼두 (팔 뒤쪽)', ['트라이셉 익스텐션', '트라이셉 딥']]],
+  '다리': [['허벅지 앞', ['스쿼트', '레그 프레스', '런지', '레그 익스텐션']], ['허벅지 뒤 · 엉덩이', ['루마니안 데드리프트', '데드리프트', '레그 컬', '힙 쓰러스트', '힙 익스텐션']], ['엉덩이 옆 · 허벅지 안쪽', ['힙 어브덕션', '힙 어덕션']], ['종아리', ['카프 레이즈']]],
+};
 const KIND_RANK = e => e.custom ? 0 : e.kind === 'free' ? (e.bw ? 2 : 1) : e.kind === 'crossfit' ? 3 : 4;
 function typesOf(m, pool) {
   const by = {};
@@ -1177,7 +1185,7 @@ function moveListHtml(all, M) {
   if (state.pkType) {
     const T = state.pkType, items = all.filter(e => e.kind !== 'cardio' && typeOfEq(e) === T).sort((x, y) => byUse(x, y) || KIND_RANK(x) - KIND_RANK(y));
     const mine = items.filter(e => U[e.id] || e.custom), free = items.filter(e => !mine.includes(e) && e.kind !== 'machine'), mach = items.filter(e => !mine.includes(e) && e.kind === 'machine');
-    let h = `<button class="linkbtn" data-act="pk-type" data-t="">← ${esc(M === '전체' ? '운동 목록' : mName(M) + ' 운동')}</button><div class="pk-title">${esc(T)}</div>`;
+    let h = `<button class="linkbtn" data-act="pk-type" data-t="">← ${esc(M === '전체' ? '운동 목록' : mName(M) + ' 운동')}</button><div class="pk-title">${esc(tLabel(T))}</div>`;
     if (mine.length) h += `<div class="eqgroup-h">내가 쓴 기구<span>${mine.length}</span></div>` + mine.map(eqRow).join('');
     if (free.length) h += `<div class="eqgroup-h">${free.some(e => e.kind === 'free' && !e.bw) ? '바벨 · 덤벨' : ''}${free.some(e => e.bw) ? (free.some(e => e.kind === 'free' && !e.bw) ? ' · ' : '') + '맨몸' : ''}${free.some(e => e.kind === 'crossfit') ? ' · 크로스핏' : ''}<span>${free.length}</span></div>` + free.map(e => eqRow(e, true)).join('');
     if (mach.length) {
@@ -1202,8 +1210,8 @@ function moveListHtml(all, M) {
     for (const m of STRENGTH_MUSCLES.concat(['전신'])) {
       const ts = typesOf(m, all); if (!ts.length) continue;
       h += `<div class="mcard"><div class="mh">${mtag(m)}</div><div class="mchips">${ts.slice(0, 5).map(({ t, items }) => items.length === 1
-        ? `<button class="chip" data-act="open-set" data-eq="${esc(items[0].id)}">${esc(t)}</button>`
-        : `<button class="chip" data-act="pk-type" data-t="${esc(t)}">${esc(t)}</button>`).join('')}${ts.length > 5 ? `<button class="chip more" data-act="eq-m" data-m="${esc(m)}">+${ts.length - 5} 더 보기</button>` : ''}</div></div>`;
+        ? `<button class="chip" data-act="open-set" data-eq="${esc(items[0].id)}">${esc(tLabel(t))}</button>`
+        : `<button class="chip" data-act="pk-type" data-t="${esc(t)}">${esc(tLabel(t))}</button>`).join('')}${ts.length > 5 ? `<button class="chip more" data-act="eq-m" data-m="${esc(m)}">+${ts.length - 5} 더 보기</button>` : ''}</div></div>`;
     }
     return h;
   }
@@ -1211,12 +1219,22 @@ function moveListHtml(all, M) {
     const ts = typesOf(m, all); if (!ts.length) continue;
     const lim = M !== '전체' || state.eqOpen['t' + m] ? Infinity : 5;
     h += `<div class="eqgroup-h">${mtag(m)}<span>${ts.length}가지</span></div>`;
-    h += ts.slice(0, lim).map(({ t, items }) => {
+    const row = ({ t, items }) => {
       const used = items.some(e => U[e.id]);
       const kinds = [items.some(e => e.kind === 'free' && !e.bw) ? '바벨·덤벨' : '', items.some(e => e.bw) ? '맨몸' : '', items.some(e => e.kind === 'machine') ? `머신 ${items.filter(e => e.kind === 'machine').length}` : ''].filter(Boolean).join(' · ');
-      return items.length === 1 ? `<div class="typerow" data-act="open-set" data-eq="${esc(items[0].id)}"><b>${esc(t)}</b><span>${esc(items[0].name)}</span></div>`
-        : `<div class="typerow" data-act="pk-type" data-t="${esc(t)}"><b>${esc(t)}${used ? ' <i class="usedot" aria-label="해본 운동"></i>' : ''}</b><span>${esc(kinds)} ›</span></div>`;
-    }).join('');
+      return items.length === 1 ? `<div class="typerow" data-act="open-set" data-eq="${esc(items[0].id)}"><b>${esc(tLabel(t))}</b><span>${esc(items[0].name)}</span></div>`
+        : `<div class="typerow" data-act="pk-type" data-t="${esc(t)}"><b>${esc(tLabel(t))}${used ? ' <i class="usedot" aria-label="해본 운동"></i>' : ''}</b><span>${esc(kinds)} ›</span></div>`;
+    };
+    const SUB = TYPE_SUB[m];
+    if (SUB) {
+      const done = new Set();
+      for (const [sl, list] of SUB) { const g = ts.filter(x => list.includes(x.t)); if (!g.length) continue; g.forEach(x => done.add(x.t)); h += `<div class="pk-sub">${esc(sl)}</div>` + g.map(row).join(''); }
+      const rest = ts.filter(x => !done.has(x.t));
+      if (rest.length) h += state.eqOpen['r' + m] || rest.length <= 2 ? `<div class="pk-sub">그 밖의 운동</div>` + rest.map(row).join('')
+        : `<button class="btn sm ghost block" style="margin-top:10px" data-act="eq-more" data-k="${esc('r' + m)}">그 밖의 운동 ${rest.length}가지 (크로스핏 등)</button>`;
+      continue;
+    }
+    h += ts.slice(0, lim).map(row).join('');
     if (ts.length > lim) h += `<button class="btn sm ghost block" style="margin-bottom:6px" data-act="eq-more" data-k="${esc('t' + m)}">${esc(mName(m))} ${ts.length - lim}가지 더 보기</button>`;
   }
   return h || '<div class="empty">결과가 없어요.</div>';
@@ -3158,7 +3176,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
