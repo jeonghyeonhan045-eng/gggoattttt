@@ -891,3 +891,4 @@ details.fold > summary:focus-visible { outline: 2px solid var(--acc); outline-of
 .monthmus .dlt { font-size: 12px; color: var(--ink3); text-align: right; }
 .monthmus .dlt.up { color: var(--good); } .monthmus .dlt.dn { color: var(--warn, var(--ink2)); }
 .eqsheet + .finbtn { margin-top: 12px; }
+.infobox.sugg .btn { flex: 0 0 auto; white-space: nowrap; }

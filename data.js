@@ -149,6 +149,7 @@ function inferType(name, m) {
 /* ---------- equipment ----------
    kind: machine | free | cardio ; sec: sector for free weights               */
 const FREE_SECTORS = [
+  ['bw', '맨몸 (기구 없이)'],
   ['press', '벤치·가슴 프레스'], ['squat', '스쿼트·하체'], ['hinge', '데드리프트·힌지'],
   ['ohp', '어깨 프레스·레이즈'], ['pull', '로우·풀업'], ['arm', '팔'], ['kb', '케틀벨·기능성'], ['core', '코어'],
 ];
@@ -396,9 +397,35 @@ const CF_RAW = [
   ['cf-du', '더블 언더', '전신', '줄넘기'],
 ];
 
+/* bodyweight: no equipment, or a bar / table / chair. Weight stays empty (or extra load from a vest). */
+const BW_RAW = [
+  ['bw-squat', '맨몸 스쿼트', '다리', '스쿼트'],
+  ['bw-jumpsquat', '점프 스쿼트', '다리', '스쿼트'],
+  ['bw-revlunge', '리버스 런지 (맨몸)', '다리', '런지'],
+  ['bw-bss', '맨몸 불가리안 스플릿 스쿼트', '다리', '런지'],
+  ['bw-pistol', '피스톨 스쿼트 (박스·의자 보조)', '다리', '스쿼트'],
+  ['bw-nordic', '노르딕 햄스트링 컬', '다리', '레그 컬'],
+  ['bw-sliderc', '슬라이딩 레그 컬 (수건·양말)', '다리', '레그 컬'],
+  ['bw-calf', '싱글레그 카프 레이즈 (계단)', '다리', '카프 레이즈'],
+  ['bw-kneepush', '무릎 푸시업', '가슴', '푸시업'],
+  ['bw-inclinepush', '인클라인 푸시업 (책상·벤치 짚고)', '가슴', '푸시업'],
+  ['bw-declinepush', '디클라인 푸시업 (발 올리고)', '가슴', '인클라인 프레스'],
+  ['bw-diamond', '다이아몬드 푸시업', '팔', '트라이셉 딥'],
+  ['bw-benchdip', '벤치 딥스 (의자)', '팔', '트라이셉 딥'],
+  ['bw-pike', '파이크 푸시업', '어깨', '핸드스탠드 푸시업'],
+  ['bw-wallhspu', '벽 핸드스탠드 푸시업', '어깨', '핸드스탠드 푸시업'],
+  ['bw-negpull', '네거티브 풀업 (천천히 내려오기)', '등', '풀업'],
+  ['bw-ytw', '엎드려 Y·T 레이즈 (맨몸)', '어깨', '리어 델트'],
+  ['bw-hollow', '할로우 홀드 (회 = 초)', '코어', '복근 크런치'],
+  ['bw-legraise', '라잉 레그 레이즈', '코어', '레그 레이즈'],
+  ['bw-mtclimb', '마운틴 클라이머 (회 = 초)', '전신', '기능성 전신'],
+  ['bw-superman', '슈퍼맨 (엎드려 등 들기)', '코어', '백 익스텐션'],
+];
+
 const BUILTIN_EQ = [
   ...EQ_RAW.map(([id, brand, name, m, type]) => ({ id, brand, name, m, type, kind: 'machine' })),
   ...FREE_RAW.map(([id, name, m, type, sector]) => ({ id, brand: '프리웨이트', name, m, type, kind: 'free', sector })),
+  ...BW_RAW.map(([id, name, m, type]) => ({ id, brand: '맨몸', name, m, type, kind: 'free', sector: 'bw', bw: 1 })),
   ...CARDIO_RAW.map(([id, brand, name, type]) => ({ id, brand, name, m: '유산소', type, kind: 'cardio' })),
   ...CF_RAW.map(([id, name, m, type]) => ({ id, brand: '크로스핏', name, m, type, kind: 'crossfit' })),
 ];
@@ -548,6 +575,8 @@ const REFS = [
   { id: 'awgs19', short: 'AWGS 2019', text: 'Chen LK 외. Asian Working Group for Sarcopenia: 2019 Consensus Update on Sarcopenia Diagnosis and Treatment. J Am Med Dir Assoc 21(3):300–307, 2020.', url: 'https://doi.org/10.1016/j.jamda.2019.12.012', use: '체성분 측정(BIA) 팔다리 근육량/키² 남성 7.0, 여성 5.7kg/m² 미만이면 근육량 부족(근감소증 기준).' },
   { id: 'norman12', short: 'Norman 외 2012', text: 'Norman K, Stobäus N, Pirlich M, Bosy-Westphal A. Bioelectrical phase angle and impedance vector analysis — clinical relevance and applicability of impedance parameters. Clin Nutr 31(6):854–861, 2012.', url: 'https://doi.org/10.1016/j.clnu.2012.05.008', use: '위상각은 세포막 건강·근육 질을 반영 — 높을수록 좋은 영양·기능 상태와 관련.' },
   { id: 'schoenfeld17', short: 'Schoenfeld 외 2017', text: 'Schoenfeld BJ, Ogborn D, Krieger JW. Dose-response relationship between weekly resistance training volume and increases in muscle mass. J Sports Sci 35(11), 2017.', url: 'https://doi.org/10.1080/02640414.2016.1210197', use: '부위별 주 10세트 이상에서 근비대 효과가 더 큼.' },
+  { id: 'schoenfeld17ll', short: 'Schoenfeld 외 2017 (무게)', text: 'Schoenfeld BJ, Grgic J, Ogborn D, Krieger JW. Strength and Hypertrophy Adaptations Between Low- vs. High-Load Resistance Training: A Systematic Review and Meta-analysis. J Strength Cond Res 31(12):3508–3523, 2017.', url: 'https://doi.org/10.1519/JSC.0000000000002200', use: '실패 근처까지 하면 가벼운 무게(1RM 60% 이하)도 무거운 무게와 근비대가 비슷. 근력(1RM)은 무거운 쪽이 더 늘었음. 맨몸 루틴의 근거.' },
+  { id: 'kikuchi17', short: 'Kikuchi & Nakazato 2017', text: 'Kikuchi N, Nakazato K. Low-load bench press and push-up induce similar muscle hypertrophy and strength gain. J Exerc Sci Fit 15(1):37–42, 2017.', url: 'https://pubmed.ncbi.nlm.nih.gov/?term=Kikuchi+Nakazato+2017+push-up+bench+press+hypertrophy', use: '8주간 같은 강도로 맞춘 푸시업과 벤치프레스는 가슴·삼두 근비대와 근력 향상이 비슷했음.' },
   { id: 'schoenfeld16r', short: 'Schoenfeld 외 2016 (휴식)', text: 'Schoenfeld BJ, Pope ZK, Benik FM, et al. Longer Interset Rest Periods Enhance Muscle Strength and Hypertrophy in Resistance-Trained Men. J Strength Cond Res 30(7):1805–1812, 2016.', url: 'https://doi.org/10.1519/JSC.0000000000001272', use: '세트 사이 3분 휴식이 1분보다 근력·근비대 모두 더 늘었음 (훈련 경력자 남성).' },
   { id: 'singer24', short: 'Singer 외 2024', text: 'Singer A, Wolf M, Generoso L, et al. Give it a rest: a systematic review with Bayesian meta-analysis on the effect of inter-set rest interval duration on muscle hypertrophy. Front Sports Act Living 6:1429789, 2024.', url: 'https://doi.org/10.3389/fspor.2024.1429789', use: '60초 넘게 쉬면 근비대에 약간 유리, 90초를 넘기면 차이는 작음 — 결정적인 차이는 아님.' },
   { id: 'schoenfeld16', short: 'Schoenfeld 외 2016', text: 'Schoenfeld BJ, Ogborn D, Krieger JW. Effects of Resistance Training Frequency on Measures of Muscle Hypertrophy. Sports Med 46(11), 2016.', url: 'https://doi.org/10.1007/s40279-016-0543-8', use: '부위당 주 2회가 1회보다 유리 (단, 이후 연구에서 볼륨을 맞추면 차이는 작음).' },
@@ -571,6 +600,18 @@ const REFS = [
 /* ---------- 루틴 라이브러리 ----------
    ex: [equipment id, target]. Targets are "sets×reps"; programs that use percentages explain them in note. */
 const PROGRAM_INFO = {
+ "bwfb3": { "goal": "기구 없이 근육 만들기 (입문)", "for": "헬스장에 가기 어렵거나 운동을 집에서 시작하는 사람",
+  "keys": ["맨몸도 실패 1–3회 전까지 하면 무거운 무게와 비슷하게 근육이 커져요 — 대신 횟수가 많아져요", "범위 위쪽 횟수를 모든 세트에서 채우면 더 어려운 동작으로 (앱이 다음 단계를 알려줘요)", "푸시업은 벤치프레스와 비슷한 근비대·근력 효과가 있었어요 (강도를 맞췄을 때)", "인버티드 로우·네거티브 풀업은 철봉이 없으면 식탁 아래에서 당기기로"],
+  "refs": [{ "t": "Schoenfeld 외 2017 · 가벼운 무게 vs 무거운 무게", "u": "https://doi.org/10.1519/JSC.0000000000002200" }, { "t": "Kikuchi & Nakazato 2017 · 푸시업 vs 벤치프레스", "u": "https://pubmed.ncbi.nlm.nih.gov/?term=Kikuchi+Nakazato+2017+push-up+bench+press+hypertrophy" }], "yt": "맨몸 전신 운동 루틴 초보 홈트" },
+ "bwdiet3": { "goal": "체지방 감량 + 근육 유지 (맨몸)", "for": "집에서 다이어트하는 입문자",
+  "keys": ["한 바퀴는 쉬지 않고, 바퀴 사이에만 1–2분", "근육을 지키는 건 근력 자극이라 스쿼트·푸시업은 횟수를 채워요", "체중은 식사로 빠져요 — 단백질 체중 1kg당 1.6g 이상", "운동 안 하는 날 걷기 30분이면 주 150분 권장량에 가까워져요"],
+  "refs": [{ "t": "Willis 외 2012 · 유산소+근력 병행", "u": "https://pubmed.ncbi.nlm.nih.gov/23019316/" }, { "t": "WHO 2020 신체활동 지침", "u": "https://doi.org/10.1136/bjsports-2020-102955" }], "yt": "맨몸 서킷 다이어트 홈트" },
+ "bwul4": { "goal": "맨몸 근비대 (중급)", "for": "풀업 5개·딥스 6개 이상, 주 4회 가능한 사람",
+  "keys": ["부위당 주 10세트 이상 — 맨몸이라도 볼륨 원칙은 같아요", "하체는 한 다리 동작으로 강도를 올려요", "노르딕 컬은 내려오는 것만 해도 햄스트링에 강한 자극", "쉬워지면 배낭·가중 조끼로 무게를 더해서 무게 칸에 기록"],
+  "refs": [{ "t": "Schoenfeld 외 2017 · 가벼운 무게 vs 무거운 무게", "u": "https://doi.org/10.1519/JSC.0000000000002200" }, { "t": "Schoenfeld 외 2017 · 주간 세트와 근비대", "u": "https://doi.org/10.1080/02640414.2016.1210197" }], "yt": "맨몸 상하체 분할 루틴 철봉 평행봉" },
+ "bwadv3": { "goal": "맨몸 근력·기술 (상급)", "for": "풀업 12개·딥스 15개 이상, 기술 동작을 배우고 싶은 사람",
+  "keys": ["기술 동작은 세션 처음, 실패 전에 멈추기", "물구나무 푸시업은 벽을 등지고 시작 — 머리 아래 쿠션", "피스톨은 박스 높이를 조금씩 낮추며 깊이를 늘려요", "풀업·딥스는 가중으로 강도를 올려요"],
+  "refs": [{ "t": "Schoenfeld 외 2017 · 가벼운 무게 vs 무거운 무게", "u": "https://doi.org/10.1519/JSC.0000000000002200" }], "yt": "맨몸 운동 머슬업 핸드스탠드 푸시업 피스톨 루틴" },
  "gg12": { "goal": "엉덩이 중심 근력·근비대 (중급)", "for": "입문 12주를 끝냈거나 바벨 기본 동작이 익숙한 사람",
   "keys": ["A는 주 2회(월·목), B·C는 1회 — 앱이 순서를 세어줘요", "힙 쓰러스트 변형이 매번 바뀌어요: 무겁게 → 버티기 → 레스트포즈·느리게", "로우와 스쿼트처럼 상·하체를 번갈아 하면(슈퍼세트) 시간이 줄어요", "단계 첫 주는 무게를 조금 낮춰 새 종목에 적응"],
   "refs": [{ "t": "Gluteal Goddess 구성 (StrongrFastr)", "u": "https://www.strongrfastr.com/en/api/v1/workout_routines/73546/preview_pdf.html" }, { "t": "Plotkin 외 2023 · 힙 쓰러스트 vs 스쿼트", "u": "https://doi.org/10.3389/fphys.2023.1279170" }], "yt": "스트롱 커브스 글루트 고데스" },
@@ -930,6 +971,30 @@ const PROGRAMS = [
       { l: 'B', t: '전신 B + 유산소', ex: [['lf-legpress', '3×12'], ['fw-db-ohp', '3×12'], ['cb-row', '3×12'], ['fw-hipthrust', '3×12'], ['mx-ellip', '1×20–30분']] }],
     desc: '근력운동으로 근육을 지키고 유산소로 소모를 늘리는 감량용 구성. A·B를 번갈아 주 3회, 다른 날 걷기를 더하면 좋아요.',
     note: '휴식은 60–90초로 짧게. 무게는 12회를 겨우 채우는 정도로 유지하고, 줄이지 마세요.' },
+  { id: 'bwfb3', name: '맨몸 전신 3일 (집에서)', who: '기구 없이 · 앱 구성', lv: '초급', tier: 1, why: '쉬운 동작부터 단계적으로', uni: 1, fem: 1, bw: 1, per: '주 3일', days: [
+      { l: 'A', t: '맨몸 전신 A', ex: [['bw-squat', '3×15–20'], ['bw-inclinepush', '3×8–15'], ['fw-invrow', '3×8–12'], ['fw-glutebridge', '3×15–20'], ['fw-plank', '3×30초']] },
+      { l: 'B', t: '맨몸 전신 B', ex: [['bw-revlunge', '3×10–12'], ['fw-pushup', '3×5–12'], ['bw-negpull', '3×3–5'], ['bw-ytw', '2×10–12'], ['bw-hollow', '3×20초']] },
+      { l: 'C', t: '맨몸 전신 C', ex: [['bw-bss', '3×8–12'], ['bw-pike', '3×5–10'], ['fw-invrow', '3×8–12'], ['fw-slbridge', '3×10–12'], ['bw-legraise', '3×10']] }],
+    desc: '헬스장 없이 집에서 하는 전신 3일. A·B·C를 돌아가며 주 3회. 필요한 건 바닥, 튼튼한 식탁(인버티드 로우), 의자, 있으면 문틀 철봉 정도예요.',
+    note: '맨몸은 무게 대신 횟수와 동작 난이도로 올려요. 모든 세트에서 범위 위쪽 횟수를 채우면 한 단계 어려운 동작으로 넘어가요(예: 인클라인 푸시업 → 푸시업 → 발 올린 푸시업). 기록하면 앱이 다음 단계를 알려줘요. 세트는 실패 1–3회 전까지 하는 게 핵심이에요.' },
+  { id: 'bwdiet3', name: '맨몸 다이어트 서킷 3일', who: '기구 없이 · 근력+심박 서킷', lv: '초급', tier: 1, why: '짧은 휴식으로 이어서 · 30–35분', uni: 1, fem: 1, bw: 1, per: '주 3일', days: [
+      { l: 'A', t: '맨몸 서킷 A', ex: [['bw-jumpsquat', '3×12'], ['fw-pushup', '3×8–12'], ['bw-revlunge', '3×10'], ['bw-mtclimb', '3×30초'], ['fw-glutebridge', '3×15'], ['cf-burpee', '3×8']] },
+      { l: 'B', t: '맨몸 서킷 B', ex: [['bw-squat', '3×20'], ['bw-inclinepush', '3×12'], ['fw-invrow', '3×10'], ['bw-mtclimb', '3×30초'], ['bw-superman', '3×12'], ['bw-hollow', '3×20초']] }],
+    desc: '한 종목씩 쉬지 않고 이어서 한 바퀴 → 1–2분 쉬고 → 3바퀴. 근육을 지키면서 심박을 올리는 감량용 구성이에요. A·B를 번갈아 주 3회, 다른 날엔 걷기 30분.',
+    note: '점프가 무릎에 부담되면 점프 스쿼트는 맨몸 스쿼트로, 버피는 팔굽혀펴기 없이 일어서기만 해도 돼요. 감량은 식사가 결정하고, 이 루틴은 근육을 지키고 소모를 조금 늘리는 역할이에요.' },
+  { id: 'bwul4', name: '맨몸 상하체 4일', who: '철봉·평행봉 있는 곳 · 앱 구성', lv: '중급', tier: 2, why: '풀업·딥스가 몇 개 되는 사람', uni: 1, bw: 1, per: '주 4일', days: [
+      { l: '상A', t: '상체 A · 당기기 위주', ex: [['fw-pullup', '4×5–10'], ['fw-dips', '4×6–12'], ['bw-pike', '3×6–10'], ['fw-invrow', '3×10–15'], ['bw-diamond', '3×8–15'], ['bw-hollow', '3×30초']] },
+      { l: '하A', t: '하체 A · 한 다리', ex: [['bw-bss', '4×10–15'], ['fw-sl-rdl', '3×10–12'], ['bw-nordic', '3×3–6'], ['bw-calf', '3×12–20'], ['bw-legraise', '3×10–15']] },
+      { l: '상B', t: '상체 B · 밀기 위주', ex: [['fw-chinup', '4×6–10'], ['bw-declinepush', '4×8–15'], ['fw-invrow', '3×10–15'], ['bw-ytw', '3×10–12'], ['bw-benchdip', '3×10–15'], ['fw-sideplank', '2×30초']] },
+      { l: '하B', t: '하체 B · 엉덩이·뒤쪽', ex: [['bw-pistol', '4×5–8'], ['fw-slhipthrust', '3×12–20'], ['bw-sliderc', '3×8–12'], ['bw-jumpsquat', '3×6–8'], ['bw-calf', '3×15–20'], ['bw-superman', '2×12']] }],
+    desc: '공원 철봉·평행봉이나 집 문틀 철봉으로 하는 상하체 4일(예: 월 상A · 화 하A · 목 상B · 금 하B). 맨몸이지만 부위당 주 10세트 이상이 되게 짰어요.',
+    note: '하체는 맨몸으로 무게를 못 올리니 한 다리 동작(불가리안·피스톨·싱글레그)으로 강도를 올려요. 노르딕 컬은 처음엔 천천히 내려오기만 해도 충분히 힘들어요. 배낭에 책·물병을 넣어 메면 무게를 더할 수 있어요(무게 칸에 입력).' },
+  { id: 'bwadv3', name: '맨몸 스킬·근력 3일', who: '앱 구성 · 상급 맨몸', lv: '상급', tier: 3, why: '풀업 12개·딥스 15개 이상 되는 사람', uni: 1, bw: 1, per: '주 3일', days: [
+      { l: 'A', t: '밀기 · 물구나무', ex: [['bw-wallhspu', '5×3–6'], ['fw-dips', '4×8–15'], ['bw-declinepush', '3×12–20'], ['bw-diamond', '3×10–15'], ['fw-hangleg', '3×8–12']] },
+      { l: 'B', t: '다리 · 한 다리', ex: [['bw-pistol', '5×5–8'], ['bw-nordic', '4×4–8'], ['bw-bss', '3×12–15'], ['fw-slhipthrust', '3×15–20'], ['bw-calf', '3×20']] },
+      { l: 'C', t: '당기기 · 머슬업', ex: [['fw-pullup', '5×6–12'], ['cf-barmu', '4×2–5'], ['fw-chinup', '3×8–12'], ['fw-invrow', '3×12–15'], ['bw-ytw', '3×12'], ['bw-hollow', '3×45초']] }],
+    desc: '물구나무 푸시업·피스톨·머슬업 같은 기술 동작을 근력 운동으로 쓰는 3일. 맨몸으로 강도를 최대한 올리는 구성이에요.',
+    note: '기술 동작은 힘이 남아 있을 때(세션 처음) 하고 실패까지 가지 마세요. 풀업·딥스가 범위 위쪽에서 쉬워지면 가중 조끼나 배낭으로 무게를 더해요(무게 칸에 추가 무게). 머슬업이 아직 안 되면 가슴까지 끌어올리는 풀업으로 대신해요.' },
   { id: 'sl5', name: '스트롱리프트 5×5', who: 'Mehdi · StrongLifts', lv: '초급', tier: 1, why: '매번 증량하는 초보 근력 프로그램', uni: 1, per: '주 3일', days: [
       { l: 'A', t: '워크아웃 A', ex: [['fw-squat', '5×5'], ['fw-bench', '5×5'], ['fw-bbrow', '5×5']] },
       { l: 'B', t: '워크아웃 B', ex: [['fw-squat', '5×5'], ['fw-ohp', '5×5'], ['fw-deadlift', '1×5']] }],
