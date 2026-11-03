@@ -2810,7 +2810,7 @@ function bodyNowHtml(last, fatPct, items) {
   const risks = items.filter(([lv]) => lv === 'warn' || lv === 'bad').map(([, t]) => t.split(' · ')[0]);
   // goal plan
   const kg = r => r1(Math.abs(bw * r / 100)), [lo, hi] = G.rate, fatHigh = band && (band.lv === 'warn' || band.lv === 'bad') && band.t !== '낮음', fatLow = band && band.t === '낮음';
-  if (M) todo.push(`하루 <b>${fmtInt(M.kcal)}kcal</b> · 단백질 <b>${M.p}g</b> (한 끼 ${Math.round(M.p / 4)}g씩 4번)`);
+  if (M) todo.push(`하루 <b>${fmtInt(M.kcal)}kcal</b> · 단백질 <b>${M.p}g</b> (한 끼 ${Math.round(M.p / (DB.settings.mealN === 4 ? 4 : 3))}g씩 ${DB.settings.mealN === 4 ? 4 : 3}번)`);
   if (bw) todo.push(lo >= 0 && hi > 0 ? (lo === 0 ? `체중 주 <b>0~+${kg(hi)}kg</b> (한 달 최대 +${r1(bw * hi / 100 * 4.3)}kg)` : `체중 주 <b>+${kg(lo)}~${kg(hi)}kg</b> (한 달 +${r1(bw * lo / 100 * 4.3)}~${r1(bw * hi / 100 * 4.3)}kg)`) : hi <= 0 ? `체중 주 <b>−${kg(Math.abs(hi))}~${kg(Math.abs(lo))}kg</b> (한 달 −${r1(bw * Math.abs(hi) / 100 * 4.3)}~${r1(bw * Math.abs(lo) / 100 * 4.3)}kg)` : `체중은 <b>±${kg(hi)}kg/주</b> 안에서 유지`);
   if (base === 'leanbulk' || base === 'bulk') {
     if (fatHigh) todo.unshift(`<b class="warnc">체지방이 높은 편이라 지금은 증량보다 "체형 바꾸기"나 "살 빼기"가 더 맞아요.</b> 증량하면 지방이 같이 늘기 쉬워요`);
@@ -2930,11 +2930,11 @@ function macroCardHtml() {
   return `<section class="card" style="margin-top:10px"><div class="row between"><h3 style="margin:0">하루 섭취 목표</h3><span class="small muted">${esc(g.l)} 기준</span></div>
     <div class="macro4">
       <div><div class="k">칼로리</div><div class="v">${fmtInt(M.kcal)}</div><div class="k">kcal</div></div>
-      <div><div class="k">단백질</div><div class="v">${M.p}g</div><div class="k">${pct(M.p * 4)}% · ${r1(M.p / M.bw)}g/kg</div></div>
-      <div><div class="k">탄수화물</div><div class="v">${M.c}g</div><div class="k">${pct(M.c * 4)}% · ${r1(M.c / M.bw)}g/kg</div></div>
-      <div><div class="k">지방</div><div class="v">${M.f}g</div><div class="k">${pct(M.f * 9)}% · ${r1(M.f / M.bw)}g/kg</div></div>
+      <div><div class="k">단백질</div><div class="v">${M.p}g</div></div>
+      <div><div class="k">탄수화물</div><div class="v">${M.c}g</div></div>
+      <div><div class="k">지방</div><div class="v">${M.f}g</div></div>
     </div>
-    <div class="small" style="margin-top:8px">유지 칼로리 ${fmtInt(M.tdee)}kcal → <b>${esc(adj || g.l)}</b></div>
+    <div class="small" style="margin-top:8px">${M.kcal === M.tdee ? `유지 칼로리 ${fmtInt(M.tdee)}kcal 그대로` : `유지 칼로리(${fmtInt(M.tdee)}kcal)보다 <b>${fmtInt(Math.abs(M.tdee - M.kcal))}kcal ${M.kcal < M.tdee ? '적게' : '많이'}</b>`}</div>
     ${mealPlanHtml(M)}</section>`;
 }
 /* the day's targets as meals of ordinary Korean food: how much rice, how much meat/eggs per meal */
@@ -3158,7 +3158,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
