@@ -3052,7 +3052,14 @@ function trainRxHtml(last, ctx) {
     const low = main.filter(m => R.mv14.vol[m] < volRange(m)[0]).map(m => `${mName(m)} ${r1(R.mv14.vol[m])}→${volRange(m)[0]}`);
     const high = STRENGTH_MUSCLES.filter(m => R.mv14.vol[m] > volRange(m)[1]).map(m => `${mName(m)} ${r1(R.mv14.vol[m])}`);
     if (gk !== 'strength' && gk !== 'health') rx.push(low.length ? `지금 기록: <b>${esc(low.join(' · '))}세트</b>로 늘리기` : '지금 기록: 주요 부위 모두 주 10세트 이상 ✓');
-    if (high.length) rx.push(`${esc(high.join(' · '))}세트 — 주 20세트를 넘으면 효과가 크게 늘지 않아요. 피곤하면 여기부터 줄이세요`);
+    if (high.length) {
+      // above 20 the extra sets still help a little; the person's own trend decides whether it's worth it
+      const P = progression(), hm = STRENGTH_MUSCLES.filter(m => R.mv14.vol[m] > volRange(m)[1]);
+      const rising = hm.filter(m => P.some(p => p.m === m && p.status === 'up') && !P.some(p => p.m === m && p.status === 'down'));
+      rx.push(rising.length === hm.length
+        ? `${esc(high.join(' · '))}세트 — 고볼륨이지만 이 부위 무게가 오르고 있어요. 회복되면 유지해도 돼요`
+        : `${esc(high.join(' · '))}세트 — 20세트를 넘으면 세트당 효과는 줄어요. 무게가 정체되거나 피곤하면 여기부터 줄이세요`);
+    }
     if (base === 'cut' || gk === 'health') { const car = setsBetween(addDays(today(), -6), today()).filter(isCardioSet).reduce((a, s) => a + (+s.mins || 0), 0); rx.push(`유산소 주 150분 목표 · 최근 7일 <b>${fmtInt(car)}분</b>${car >= 150 ? ' ✓' : ` → ${fmtInt(150 - car)}분 더 (빠르게 걷기 하루 20–30분)`}`); }
   }
   return `<div class="ibtodo ibrx"><div class="k">운동 처방</div><ol>${rx.map(t => `<li>${t}</li>`).join('')}</ol></div>`;
@@ -3382,7 +3389,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.2.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
