@@ -760,7 +760,7 @@ function finishHtml(k) {
   }
   if (R.rest != null && R.str.length >= 6) {
     const rr = Math.round(R.rest / 5) * 5, rs = rr >= 60 ? `${Math.floor(rr / 60)}분${rr % 60 ? ` ${rr % 60}초` : ''}` : `${rr}초`, big = R.str.some(s => ['스쿼트', '데드리프트', '벤치프레스', '레그 프레스', '로우', '숄더 프레스'].includes(s.type));
-    if (R.rest < 75 && big && goalKey() !== 'health') fb.push(['info', `세트 사이 휴식 평균 ${rs}`, '큰 운동(스쿼트·벤치·로우 등)에서 짧게 쉬면 다음 세트 횟수가 많이 떨어져요. 이런 종목은 2–3분 쉬는 쪽이 근육·근력 모두 더 늘었어요. 보조 종목은 1–2분이면 충분해요.', 'Schoenfeld 2016 (휴식) · Singer 2024']);
+    if (R.rest < 75 && big && goalKey() !== 'health') fb.push(['info', `세트 사이 휴식 평균 ${rs}`, '휴식 길이 자체가 근육 성장에 주는 차이는 크지 않아요. 다만 스쿼트·벤치·로우처럼 무거운 종목은 짧게 쉬면 다음 세트 횟수가 떨어지니, 횟수가 많이 줄면 2분 정도 쉬어보세요.', 'ACSM 2026 · Singer 2024']);
     else if (R.rest > 240) fb.push(['info', `세트 사이 휴식 평균 ${rs}`, '충분히 쉬었어요. 시간이 부족한 날엔 보조 종목만 1–2분으로 줄여도 효과 차이는 작아요.', 'Singer 2024']);
     else fb.push(['good', `세트 사이 휴식 평균 ${rs}`, '근성장에 무난한 범위예요(1분 이상이면 충분하고, 큰 운동은 2–3분).', 'Singer 2024']);
   }
@@ -3355,7 +3355,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.1.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
