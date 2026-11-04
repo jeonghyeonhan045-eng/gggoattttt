@@ -1958,7 +1958,7 @@ function deloadAnalysis() {
   if (down.length >= 2) { pts += 1; reasons.push(`추정 1RM이 3% 이상 떨어진 운동 ${down.length}개 — 누적 피로 신호일 수 있어요.`); }
   if (cur.condN >= 3 && cur.cond <= 2.5) { pts += 2; reasons.push(`최근 7일 평균 컨디션 ${r1(cur.cond)}/5로 낮아요.`); }
   if (cur.sore != null && cur.sore >= 3.5) { pts += 1; reasons.push(`근육통 평균 ${r1(cur.sore)}/5 — 회복이 따라오지 못하고 있어요.`); }
-  if (cur.sleepN >= 3 && cur.sleep < 6) { pts += 1; reasons.push(`평균 수면 ${r1(cur.sleep)}시간 — 교대·야간 근무가 겹치면 회복 여유가 줄어요.`); }
+  if (cur.sleepN >= 3 && cur.sleep < 6) { pts += 1; reasons.push(`평균 수면 ${r1(cur.sleep)}시간 — 잠이 부족하면 회복 여유가 줄어요.`); }
   if (cur.rirN >= 6 && cur.rir <= 0.7) { pts += 1; reasons.push(`최근 세트 평균 RIR ${r1(cur.rir)} — 거의 매 세트 실패 지점까지 가고 있어요.`); }
 
   const light = lightWeeks();
@@ -2052,7 +2052,7 @@ function buildReport() {
   if (totalAll < 5) add('info', 0, '기록이 쌓이면 분석이 시작돼요', '세트를 일주일 정도 기록하면 부위별 볼륨, 정체, 디로딩 시점을 분석해 드려요.', '운동 탭에서 기구를 골라 세트를 기록하세요.', '');
 
   if (dl.level === 'bad') add('bad', 10, '이번 주는 디로딩 주간으로', dl.reasons.join(' '), `세트 수를 30–50% 줄이고(이번 주 ${dl.base}세트 → ${Math.round(dl.base * .5)}–${Math.round(dl.base * .7)}세트), 무게는 유지하되 RIR 1–3을 더 남기세요. 5–7일 후 원래 볼륨으로 복귀.`, 'Bell 2022 · Coleman 2024');
-  else if (dl.level === 'warn') add('warn', 7, '디로딩을 미리 계획하세요', dl.reasons.join(' '), '다음 1–2주 중 일정이 바쁜 주(예: 야간 근무가 몰린 주)를 디로딩 주간으로 잡으면 손해가 적어요.', 'Bell 2022');
+  else if (dl.level === 'warn') add('warn', 7, '디로딩을 미리 계획하세요', dl.reasons.join(' '), '다음 1–2주 중 일정이 바쁜 주를 디로딩 주간으로 잡으면 손해가 적어요.', 'Bell 2022');
 
   if (dl.inDeload) add('good', 9, '디로딩 주간 — 계획대로 가고 있어요', '이번 주는 일부러 가볍게 하는 주라 볼륨 부족·정체 경고를 띄우지 않아요.', '무게는 유지하고 세트만 줄인 상태로 마무리한 뒤, 다음 주 원래 루틴으로 복귀하세요.', 'Bell 2022');
   if (strengthSets >= 6 && !dl.inDeload) {
@@ -2187,6 +2187,64 @@ function goalTrainHtml(R, RW, ES) {
   </section>`;
 }
 
+/* ---------- training / rest cycle ----------
+   Reads the last 6 weeks as runs of training days and rest days, finds the usual pattern (e.g. 4 on · 2 off),
+   and checks whether one rest day fewer still leaves every body part 2+ days between sessions.
+   One rest day fewer = the same routine more often, so weekly sets rise by cycle/(cycle−1). */
+const CYCLE_MS = ['가슴', '등', '어깨', '다리', '팔'];
+function restCycle(R, prog) {
+  const t = today(), from = addDays(t, -41);
+  const ss = setsBetween(from, t).filter(s => !isCardioSet(s));
+  const dayN = {}; for (const s of ss) dayN[s.date] = (dayN[s.date] || 0) + 1;
+  const days = Object.keys(dayN).filter(k => dayN[k] >= 3).sort();
+  if (days.length < 3) return null;
+  // runs from the first training day to today
+  const runs = []; let k = days[0];
+  while (k <= t) { const on = !!dayN[k] && dayN[k] >= 3, last = runs[runs.length - 1]; if (last && last.on === on) last.n++; else runs.push({ on, n: 1, start: k }); k = addDays(k, 1); }
+  const onR = runs.filter(r => r.on), offR = runs.filter(r => !r.on);
+  if (!onR.length || !offR.length) return null;
+  const med = a => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor((b.length - 1) / 2)]; };
+  // a rest run still going today counts only once it is as long as the usual one, or it's the only one
+  const lastOpen = !runs[runs.length - 1].on;
+  const closedOff = offR.slice(0, lastOpen ? -1 : undefined).map(r => r.n);
+  const on = med(onR.map(r => r.n)), off = closedOff.length ? med(closedOff) : offR[offR.length - 1].n;
+  if (on > 7 || off > 6) return { irregular: true, on, off };
+  const cycle = on + off;
+  // where each part sits inside the latest full training run
+  const block = onR[onR.length - 1].n >= on ? onR[onR.length - 1] : onR.find(r => r.n >= on) || onR[onR.length - 1];
+  const pos = {};
+  for (let i = 0; i < block.n; i++) { const d = addDays(block.start, i); for (const m of CYCLE_MS) if (ss.filter(s => s.date === d && s.m === m).length >= 2) (pos[m] = pos[m] || []).push(i); }
+  const gapOf = (m, offDays) => { const p = pos[m]; if (!p) return null; let g = (p[0] + block.n - p[p.length - 1]) + offDays; for (let i = 1; i < p.length; i++) g = Math.min(g, p[i] - p[i - 1]); return g; };
+  const parts = CYCLE_MS.filter(m => pos[m]).map(m => ({ m, gap: gapOf(m, off), gapLess: off > 1 ? gapOf(m, off - 1) : null, perCycle: pos[m].length }));
+  const tooClose = parts.filter(p => p.gap < 2 && p.m !== '팔'); // biceps one day, triceps the next is normal
+  // weekly sets now and with one rest day fewer
+  const scale = off > 1 ? cycle / (cycle - 1) : 1;
+  const proj = STRENGTH_MUSCLES.filter(m => R.mv14.dW[m] >= 0.5).map(m => { const [lo, hi] = volRange(m); return { m, now: R.mv14.dW[m], next: R.mv14.dW[m] * scale, totNow: R.mv14.vol[m], hi }; });
+  const c = st => prog.filter(p => p.status === st).length, slipping = c('down') > c('up') || R.dl.level === 'bad' || R.dl.level === 'warn';
+  let verdict, lv;
+  if (tooClose.length) { verdict = `${jo(tooClose.map(p => mName(p.m)).join('·'), '을', '를')} 하루 만에 다시 해요. 같은 부위는 이틀 이상 띄우세요`; lv = 'warn'; }
+  else if (off >= 2 && slipping) { verdict = `무게가 떨어지는 종목이 있어서 지금처럼 ${off}일 쉬는 게 나아요`; lv = 'info'; }
+  else if (off >= 2 && parts.every(p => p.gapLess == null || p.gapLess >= 2)) { verdict = `${off - 1 === 1 ? '하루' : off - 1 === 2 ? '이틀' : `${off - 1}일`}만 쉬어도 돼요 — 주간 세트 약 +${Math.round((scale - 1) * 100)}%`; lv = 'good'; }
+  else if (off === 1 && slipping) { verdict = '무게가 떨어지는 종목이 늘었어요. 피곤하면 하루 더 쉬어보세요'; lv = 'warn'; }
+  else { verdict = '지금 주기가 적당해요'; lv = 'good'; }
+  return { on, off, cycle, parts, proj, scale, verdict, lv, slipping, cycles: onR.length };
+}
+function restCycleHtml(C) {
+  if (!C) return '';
+  if (C.irregular) return fold('cycle', '운동·휴식 주기', '불규칙', `<section class="card"><div class="small">운동한 날과 쉰 날이 일정하지 않아서 주기를 판단하기 어려워요.</div></section>`, false);
+  const fewer = C.lv === 'good' && C.scale > 1;
+  const high = C.proj.filter(p => p.totNow > p.hi); // already high-volume today
+  const body = `<section class="card">
+    <div class="cy-now"><b>${C.on}일 운동 · ${C.off}일 휴식</b><span class="small muted">${C.cycle}일 주기${C.cycles < 2 ? ' · 기록 한 바퀴' : ''}</span></div>
+    <div class="cy-parts">${C.parts.map(p => `<span>${esc(mName(p.m))} <b class="num">${p.gap}일</b>마다</span>`).join('')}</div>
+    <div class="verdict ${C.lv === 'good' ? '' : C.lv}" style="margin-top:10px"><div class="vt"><span class="status ${C.lv}">${ICON[C.lv]} ${esc(C.verdict)}</span></div>
+      ${fewer ? `<ul><li>같은 부위 사이가 지금 ${Math.min(...C.parts.map(p => p.gap))}일 이상이라, 하루 줄여도 모두 이틀 넘게 쉬어요.</li>
+        <li>주간 세트(직접): ${C.proj.slice(0, 5).map(p => `${esc(mName(p.m))} ${Math.round(p.now)}→${Math.round(p.next)}`).join(' · ')}</li>
+        ${high.length ? `<li>${esc(jo(high.map(p => mName(p.m)).join('·'), '은', '는'))} 이미 많은 편이라 그날 2–3세트 줄이세요.</li>` : ''}
+        <li>2–3주 해보고 무게가 떨어지는 종목이 늘면 다시 ${C.off === 2 ? '이틀' : `${C.off}일`}로.</li></ul>` : ''}
+    </div></section>`;
+  return fold('cycle', '운동·휴식 주기', esc(C.verdict.split(' — ')[0]), body, C.lv !== 'good' || fewer);
+}
 /* a section that folds: the title row shows the conclusion, the body opens on tap. Open state is kept per section. */
 function fold(key, title, aside, body, defOpen) {
   const open = state.fold && key in state.fold ? state.fold[key] : !!defOpen;
@@ -2207,7 +2265,10 @@ function glanceHtml(R, prog) {
   // 3) weights
   const c = st => prog.filter(p => p.status === st).length, up = c('up'), flat = c('flat'), dn = c('down');
   if (up + flat + dn) rows.push(['무게', [up ? `상승 ${up}` : '', flat ? `정체 ${flat}` : '', dn ? `하락 ${dn}` : ''].filter(Boolean).join(' · ') + '종목', dn > up || flat > up ? 'warn' : 'good']);
-  // 4) next session
+  // 4) rest pattern
+  const C = restCycle(R, prog);
+  if (C && !C.irregular) rows.push(['휴식', C.verdict.split(' — ')[0], C.lv]);
+  // 5) next session
   const N = recommendNext(today());
   if (N && !N.first) rows.push(['다음', N.best ? `${N.rest ? '쉬거나 ' : ''}${N.best.l}${N.addSh ? ' + 옆·뒤 어깨' : ''}` : '쉬는 날', 'info']);
   return `<section class="card glance">${rows.map(([k, v, lv]) => `<div class="gl"><span class="k">${k}</span><span class="status ${lv}">${ICON[lv]}</span><b>${esc(v)}</b></div>`).join('')}</section>`;
@@ -2285,6 +2346,7 @@ function viewAnalysis() {
     <details class="more"><summary>읽는 법</summary><div class="note">진한 막대 = 그 부위를 직접 한 세트, 연한 연장 = 다른 운동에 딸려 쓰인 몫(+숫자). 가운데 칸이 연구에서 효과적인 범위(근육당 주 10–20세트, 하체는 14–30, 팔·코어는 6세트부터)예요. 누르면 세부 부위가 열려요 — 세부는 어디에 몰렸는지 보는 참고용이고, 종아리·전완근은 협응근이라 판단하지 않아요.</div></details>${R.dl.inDeload ? '<div class="note">지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.</div>' : ''}
   </section>`;
 
+  h += restCycleHtml(restCycle(R, prog));
   // exercise mix (optional notes)
   const tips = mixTips();
   h += fold('mix', '종목 구성 참고', tips.length ? `짚을 곳 ${tips.length}개` : '고르게 섞여 있어요', `<section class="card">
@@ -3190,7 +3252,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 5.9.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 

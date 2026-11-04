@@ -933,3 +933,9 @@ details.mealplan > summary::-webkit-details-marker { display: none; }
 details.mealplan > summary .muted::after { content: ' ▾'; }
 details.mealplan[open] > summary .muted::after { content: ' ▴'; }
 .pk-sub { font-size: 13px; font-weight: 800; color: var(--hi); margin: 14px 2px 6px; }
+.cy-now { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 16px; }
+.cy-parts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; color: var(--ink2); }
+.cy-parts b { color: var(--ink); }
+details.fold > summary .aside { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
+.glance .gl b, .cy-now b { min-width: 0; overflow-wrap: anywhere; }
+.verdict .vt .status { white-space: normal; display: inline; }
