@@ -1708,6 +1708,7 @@ function viewRecords() {
       const cur = muscleVolume(setsBetween(a, b)).direct, prv = muscleVolume(setsBetween(pStart, pEnd)).direct;
       const tot = STRENGTH_MUSCLES.reduce((x, k) => x + cur[k], 0), ptot = STRENGTH_MUSCLES.reduce((x, k) => x + prv[k], 0);
       const top = Math.max(1, ...STRENGTH_MUSCLES.map(k => cur[k]));
+      if (tot) h += `<button class="btn block rp-open" data-act="report-open" data-a="${a}" data-b="${mk(days)}" data-t="${m}월">${m}월 리포트 보기</button>`;
       if (tot) h += `<div class="sec-h"><h2>${m}월 부위별 세트</h2><span class="aside">${ptot ? `지난달 같은 기간 ${ptot}세트 → ${tot}세트 (${tot >= ptot ? '+' : ''}${Math.round((tot - ptot) / ptot * 100)}%)` : '직접 한 세트'}</span></div>
         <section class="card monthmus">${STRENGTH_MUSCLES.map(k => { const v = cur[k], p = prv[k], d = v - p;
           return `<div class="mm"><span class="l">${mtag(k)}</span><span class="bar"><i style="width:${(v / top * 100).toFixed(1)}%;background:var(--m-${MKEY[k]})"></i></span><span class="v num">${v}</span><span class="dlt num ${!ptot ? '' : d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${ptot ? (d > 0 ? `+${d}` : d < 0 ? `${d}` : '=') : ''}</span></div>`; }).join('')}
@@ -2245,6 +2246,107 @@ function restCycleHtml(C) {
     </div></section>`;
   return fold('cycle', '운동·휴식 주기', esc(C.verdict.split(' — ')[0]), body, C.lv !== 'good' || fewer);
 }
+/* ---------- period report (a month, or the last 4 weeks) ----------
+   Puts body change (InBody, body weight) next to the training that produced it and says whether the
+   two together point the way the chosen goal needs. Changes inside measurement noise are called that. */
+function periodReport(a, b) {
+  const t = today(); if (b > t) b = t;
+  // weekly figures count from the first workout, not from an empty start of the window
+  const first = (allSets().find(s => !isCardioSet(s)) || {}).date; if (first && first > a && first <= b) a = first;
+  const days = Math.max(7, daysBetween(a, b) + 1), wk = days / 7;
+  const all = setsBetween(a, b), str = all.filter(s => !isCardioSet(s));
+  const perDay = {}; for (const s of str) perDay[s.date] = (perDay[s.date] || 0) + 1;
+  const sess = Object.keys(perDay).filter(k => perDay[k] >= 3).sort();
+  const perWeek = sess.length / wk;
+  const carMin = all.filter(isCardioSet).reduce((x, s) => x + (+s.mins || 0), 0);
+  const mv = muscleVolume(str);
+  const parts = STRENGTH_MUSCLES.map(m => { const v = mv.direct[m] / wk, tot = mv.vol[m] / wk, [lo, hi] = volRange(m); return { m, v, tot, lo, hi, st: v < 0.5 ? 'none' : tot < lo ? 'low' : tot > hi ? 'high' : 'ok' }; });
+  // strength: first vs last session of each exercise done 2+ times in the period
+  const byEq = {}; for (const s of str) (byEq[s.eq] = byEq[s.eq] || []).push(s);
+  const lifts = Object.entries(byEq).map(([eq, list]) => {
+    const ds = [...new Set(list.map(s => s.date))].sort(); if (ds.length < 2) return null;
+    const bw = list.every(s => !(setKg(s) > 0)), score = s => bw ? +s.r || 0 : setE1(s);
+    const f = Math.max(...list.filter(s => s.date === ds[0]).map(score)), l = Math.max(...list.filter(s => s.date === ds[ds.length - 1]).map(score));
+    if (!f || !l) return null;
+    const pct = (l - f) / f, e = eqById(eq) || list[0];
+    return { name: e.name, n: list.length, bw, f, l, pct, st: pct >= 0.02 ? 'up' : pct <= -0.03 ? 'down' : 'flat' };
+  }).filter(Boolean).sort((x, y) => y.n - x.n).slice(0, 6);
+  const up = lifts.filter(x => x.st === 'up').length, down = lifts.filter(x => x.st === 'down').length;
+  // body: InBody pair inside (or just around) the period, and the body-weight slope
+  const ibl = DB.inbody.slice().filter(e => e.date >= addDays(a, -14) && e.date <= b && e.muscle != null && e.fatKg != null).sort((x, y) => (x.date < y.date ? -1 : 1));
+  const ibPair = ibl.length >= 2 && daysBetween(ibl[0].date, ibl[ibl.length - 1].date) >= 14 ? [ibl[0], ibl[ibl.length - 1]] : null;
+  const ibv = ibPair ? inbodyGoalFeedback(ibPair) : null;
+  const pts = weightSeries().filter(x => x.date >= a && x.date <= b);
+  let wpct = null, wd = null;
+  if (pts.length >= 4 && daysBetween(pts[0].date, pts[pts.length - 1].date) >= 10) {
+    const xs = pts.map(x => daysBetween(pts[0].date, x.date)), ys = pts.map(x => x.w), n = pts.length;
+    const mx = xs.reduce((p, q) => p + q, 0) / n, my = ys.reduce((p, q) => p + q, 0) / n;
+    let num = 0, den = 0; for (let i = 0; i < n; i++) { num += (xs[i] - mx) * (ys[i] - my); den += (xs[i] - mx) ** 2; }
+    wd = den ? num / den * 7 : 0; wpct = wd / my * 100;
+  }
+  const wv = wpct != null ? weightVerdict(wpct) : null;
+  return { a, b, days, wk, sess, perWeek, carMin, parts, lifts, up, down, ibPair, ibv, wpct, wd, wv, nSets: str.length };
+}
+function reportHtml(P) {
+  const gk = goalKey(), key = goalBase(gk), G = GOALS[gk];
+  const low = P.parts.filter(p => (p.st === 'low' || p.st === 'none') && ['가슴', '등', '어깨', '다리'].includes(p.m));
+  const high = P.parts.filter(p => p.st === 'high');
+  const minFreq = gk === 'health' ? 2 : 2.5;
+  const trainOk = P.perWeek >= minFreq && low.length <= 1 && P.down <= P.up;
+  const body = P.ibv ? P.ibv.lv : P.wv ? P.wv.lv : null; // good / warn / info / null
+  // the verdict: body change and training read together
+  let lv, head, why;
+  if (P.sess.length < 4 || P.days < 14) { lv = 'info'; head = '아직 판단하기엔 기록이 적어요'; why = `기록 ${P.days}일치 · 운동한 날 ${P.sess.length}일. 아래 숫자는 참고로 보고, 2주 이상 쌓이면 방향을 판단해요.`; }
+  else if (body === 'good' && trainOk) { lv = 'good'; head = `${G.l} 목표대로 가고 있어요`; why = '몸 변화와 운동량이 둘 다 목표 방향이에요.'; }
+  else if (body === 'good') { lv = 'info'; head = '몸은 목표대로, 운동은 더 채울 곳이 있어요'; why = '지금 변화를 이어가려면 아래 "고칠 점"의 운동 쪽을 채우세요.'; }
+  else if (body === 'warn' && trainOk) { lv = 'warn'; head = '운동은 충분한데 몸 변화가 목표와 달라요'; why = `운동량과 무게는 괜찮아서 원인은 식사(칼로리·단백질) 쪽일 가능성이 커요.`; }
+  else if (body === 'warn') { lv = 'warn'; head = '몸 변화도 운동량도 목표와 어긋나요'; why = '운동 빈도와 세트부터 채우고, 그다음 식사를 조정하세요.'; }
+  else if (trainOk) { lv = 'good'; head = '운동은 목표에 맞게 하고 있어요'; why = '몸 변화는 인바디를 4주 간격으로 재거나 아침 체중을 주 3회 이상 적으면 같이 판단해요.'; }
+  else { lv = 'info'; head = '운동량을 조금 더 채우면 좋아요'; why = '몸 변화는 인바디나 아침 체중을 기록하면 같이 판단해요.'; }
+
+  const good = [], fix = [], todo = [];
+  if (P.perWeek >= minFreq) good.push(`주 ${r1(P.perWeek)}회 꾸준히 운동했어요`); else fix.push(`운동 빈도가 주 ${r1(P.perWeek)}회예요 — 주 ${Math.ceil(minFreq)}회 이상이 목표예요`);
+  if (P.up) good.push(`${P.up}개 종목에서 힘이 늘었어요${key === 'cut' ? ' — 감량 중 근육이 유지되고 있다는 신호예요' : ''}`);
+  if (P.down > P.up) fix.push(`힘이 떨어진 종목이 ${P.down}개예요 — ${key === 'cut' ? '감량 속도가 빠르거나 단백질이 부족할 수 있어요' : '잠·회복과 세트 수를 점검하세요'}`);
+  for (const p of low) fix.push(p.st === 'none' ? `${jo(mName(p.m), '을', '를')} 직접 한 세트가 없어요` : `${mName(p.m)} 주 ${r1(p.tot)}세트 — 주 ${p.lo}세트 이상이 효과 범위예요`);
+  if (!low.length && P.sess.length >= 4) good.push('주요 부위 모두 효과적인 세트 범위예요');
+  for (const p of high) fix.push(`${mName(p.m)} 주 ${r1(p.tot)}세트로 많은 편이에요 — 피곤하면 이 부위부터 줄이세요`);
+  if ((gk === 'health' || key === 'cut') && P.carMin / P.wk < 150) fix.push(`유산소 주 ${Math.round(P.carMin / P.wk)}분 — 주 150분 이상 권장`);
+  if (P.ibv) (P.ibv.lv === 'good' ? good : fix).push(`인바디: ${P.ibv.t}`);
+  else if (P.wv) (P.wv.lv === 'good' ? good : fix).push(`체중: ${P.wv.t}`);
+  // next month: at most three concrete things
+  if (low.length) todo.push(`${low.slice(0, 2).map(p => mName(p.m)).join('·')} 주 ${Math.max(...low.slice(0, 2).map(p => Math.ceil(p.lo - p.tot)))}세트씩 더하기`);
+  if (P.perWeek < minFreq) todo.push(`주 ${Math.ceil(minFreq)}회 운동 맞추기`);
+  // InBody outranks the scale: weight can drop while muscle goes up
+  if (P.ibv) { if (P.ibv.lv !== 'good') todo.push(P.ibv.a); }
+  else if (P.wv && P.wv.lv !== 'good') todo.push(P.wv.a);
+  if (!P.ibPair) todo.push('4주 뒤 같은 조건(아침 공복)으로 인바디 재기');
+  if (P.down > P.up) todo.push('무게가 떨어진 종목은 세트를 1개 줄이고 무게를 지키기');
+  if (!todo.length) todo.push('지금 루틴 그대로, 종목마다 범위 위쪽 횟수를 채우면 무게 올리기');
+
+  const d = (x, u, inv) => { const v = r1(x); const c = Math.abs(x) < (u === 'kg' ? 0.5 : 0.5) ? 'muted' : (x > 0) !== !!inv ? 'up' : 'dn'; return `<b class="num ${c}">${v > 0 ? '+' : ''}${v}${u}</b>`; };
+  let bodyH = '';
+  if (P.ibPair) {
+    const [x, y] = P.ibPair;
+    bodyH = `<div class="rp-k">몸 변화 · 인바디 ${shortDate(x.date)} → ${shortDate(y.date)}</div><div class="rp-grid">
+      ${x.weight && y.weight ? `<div><span>체중</span>${d(y.weight - x.weight, 'kg')}</div>` : ''}
+      <div><span>골격근</span>${d(y.muscle - x.muscle, 'kg')}</div><div><span>체지방</span>${d(y.fatKg - x.fatKg, 'kg', true)}</div>
+      ${x.fatPct && y.fatPct ? `<div><span>체지방률</span>${d(y.fatPct - x.fatPct, '%p', true)}</div>` : ''}</div>
+      <div class="note">±0.5kg 안의 변화는 측정 오차일 수 있어요.</div>`;
+  } else if (P.wd != null) bodyH = `<div class="rp-k">몸 변화 · 아침 체중</div><div class="rp-grid"><div><span>주당 변화</span>${d(P.wd, 'kg')}</div><div><span>목표 속도</span><b class="num">${pctTxt(G.rate[0])} ~ ${pctTxt(G.rate[1])}</b></div></div>`;
+  else bodyH = `<div class="rp-k">몸 변화</div><div class="small muted">이 기간엔 인바디 2회(2주 이상 간격)나 아침 체중 기록이 없어서 몸 쪽은 판단하지 못했어요.</div>`;
+
+  const liftH = P.lifts.length ? `<div class="rp-k">힘 변화 · 처음 → 마지막</div>${P.lifts.map(x => `<div class="rp-lift"><span>${esc(x.name)}</span><span class="num">${x.bw ? `${x.f}회 → ${x.l}회` : `${r1(x.f)} → ${r1(x.l)}kg`}</span><b class="num ${x.st === 'up' ? 'up' : x.st === 'down' ? 'dn' : 'muted'}">${x.pct > 0 ? '+' : ''}${Math.round(x.pct * 100)}%</b></div>`).join('')}<div class="note">무게는 추정 1RM(무게·횟수로 계산한 최대 무게)이에요.</div>` : '';
+  const partH = `<div class="rp-k">부위별 주평균 세트</div><div class="rp-parts">${P.parts.filter(p => p.st !== 'none' || ['가슴', '등', '어깨', '다리'].includes(p.m)).map(p => `<span class="${p.st}">${esc(mName(p.m))} <b class="num">${r1(p.tot)}</b></span>`).join('')}</div>`;
+  const list = (k, arr, cls) => arr.length ? `<div class="rp-k">${k}</div><ul class="rp-list ${cls}">${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+  return `<div class="verdict ${lv === 'good' ? '' : lv}"><div class="vt"><span class="status ${lv}">${ICON[lv]} ${esc(head)}</span></div><div class="small" style="margin-top:4px">${esc(why)}</div></div>
+    <div class="tiles fin-tiles" style="margin-top:10px">${[[`${P.sess.length}일`, '운동한 날'], [`${r1(P.perWeek)}회`, '주 평균'], [fmtInt(P.nSets), '근력 세트'], [`${fmtInt(P.carMin)}분`, '유산소']].map(([v, l]) => `<div class="tile"><div class="k">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
+    ${bodyH}${partH}${liftH}
+    ${list('잘한 점', good, 'good')}${list('고칠 점', fix, 'fix')}${list('다음 달 할 일', todo.slice(0, 3), 'todo')}`;
+}
+function openReport(a, b, title) {
+  openSheet(title, `${shortDate(a)}–${shortDate(b > today() ? today() : b)} 리포트`, reportHtml(periodReport(a, b)), { kind: 'report' });
+}
 /* a section that folds: the title row shows the conclusion, the body opens on tap. Open state is kept per section. */
 function fold(key, title, aside, body, defOpen) {
   const open = state.fold && key in state.fold ? state.fold[key] : !!defOpen;
@@ -2278,6 +2380,7 @@ function viewAnalysis() {
   const prog = progression();
   let h = `<div class="sec-h" style="margin-top:4px"><h2>한눈에 보기</h2><span class="aside">${shortDate(R.range[0])}–${shortDate(R.range[1])} (최근 7일)</span></div>
   ${glanceHtml(R, prog)}
+  ${allSets().some(s => !isCardioSet(s)) ? `<button class="btn block rp-open" data-act="report-open" data-a="${addDays(today(), -27)}" data-b="${today()}" data-t="최근 4주">최근 4주 리포트 — 목표대로 가고 있나요?</button>` : ''}
   <div class="tiles">
     <div class="tile"><div class="k">운동한 날</div><div class="v">${ws.sessions}<small>/7일</small></div></div>
     <div class="tile"><div class="k">근력 세트</div><div class="v">${ws.sets}<small>세트</small></div></div>
@@ -3252,7 +3355,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3502,6 +3605,7 @@ const ACT = {
   'fin-open': () => openFinish(state.date),
   'meal-n': el => { DB.settings.mealN = +el.dataset.v; save(); render(); },
   'fin-open-k': el => openFinish(el.dataset.k),
+  'report-open': el => openReport(el.dataset.a, el.dataset.b, el.dataset.t),
   'day-resume': () => { const k = state.date; delete day(k).fin; save(); if (state.sheet && state.sheet.kind === 'finish') closeSheet(); render(); toast('이어서 기록해요'); },
   'fin-cond': el => { const d = day(state.sheet.k); d.check = Object.assign({}, d.check, { cond: +el.dataset.v }); save(); setSheetBody(finishHtml(state.sheet.k), true); render(); },
   'tut-tap': () => {

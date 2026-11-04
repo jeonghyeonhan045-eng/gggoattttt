@@ -939,3 +939,18 @@ details.mealplan[open] > summary .muted::after { content: ' ▴'; }
 details.fold > summary .aside { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
 .glance .gl b, .cy-now b { min-width: 0; overflow-wrap: anywhere; }
 .verdict .vt .status { white-space: normal; display: inline; }
+
+/* period report */
+.rp-open { margin: 10px 0 4px; font-weight: 800; }
+.rp-k { font-size: 13px; font-weight: 800; color: var(--hi); margin: 16px 0 6px; }
+.rp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.rp-grid > div { background: var(--card2); border-radius: var(--r-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.rp-grid span { font-size: 12px; color: var(--ink3); }
+.rp-grid b { font-size: 18px; }
+.num.up { color: var(--good); } .num.dn { color: var(--bad); } .num.muted { color: var(--ink3); }
+.rp-parts { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 14px; }
+.rp-parts .low, .rp-parts .none { color: var(--warn); } .rp-parts .high { color: var(--mark); }
+.rp-lift { display: grid; grid-template-columns: 1fr auto 52px; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; align-items: baseline; }
+.rp-lift b { text-align: right; }
+.rp-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; }
+.rp-list.todo li { font-weight: 700; }
