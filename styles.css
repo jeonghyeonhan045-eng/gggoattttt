@@ -954,3 +954,4 @@ details.fold > summary .aside { white-space: normal; min-width: 0; overflow-wrap
 .rp-lift b { text-align: right; }
 .rp-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; }
 .rp-list.todo li { font-weight: 700; }
+.ibrx { margin-top: 12px; }

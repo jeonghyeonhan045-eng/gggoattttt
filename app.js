@@ -1993,7 +1993,7 @@ function deloadAnalysis() {
 }
 
 /* weekly set range per muscle: legs combine quads, hamstrings, glutes and calves, so their range is wider */
-function volRange(m) { return m === '다리' ? [14, 40] : (m === '팔' || m === '코어') ? [6, 25] : [10, 25]; }
+function volRange(m) { return m === '다리' ? [14, 30] : (m === '팔' || m === '코어') ? [6, 20] : [10, 20]; } // ACSM 2026: ≥10/wk, gains level off ~18–20
 function nutritionAnalysis() {
   const t = today(), days = [];
   for (let i = 0; i < 7; i++) { const k = addDays(t, -i), d = dayRO(k); if ((d.meals || []).length) days.push(mealTotals(d.meals)); }
@@ -3012,15 +3012,11 @@ function bodyNowHtml(last, fatPct, items) {
   if (base === 'leanbulk' || base === 'bulk') {
     if (fatHigh) todo.unshift(`<b class="warnc">체지방이 높은 편이라 지금은 증량보다 "체형 바꾸기"나 "살 빼기"가 더 맞아요.</b> 증량하면 지방이 같이 늘기 쉬워요`);
     else if (fatPct != null && band) todo.push(`체지방이 ${band.t}라 증량을 시작하기 좋은 상태예요. ${pf.sex === 'f' ? '28' : '18'}%를 넘으면 증량 속도를 줄이세요`);
-    todo.push(gk === 'strength' ? '메인 종목(스쿼트·벤치·데드)은 1–6회로 무겁게, 같은 동작을 주 2–3회 — 추정 1RM이 오르는지 분석 탭에서 확인' : '근육마다 주 10–20세트, 같은 무게에서 횟수가 늘면 증량 — 분석 탭 "점진적 과부하"로 확인');
   } else if (base === 'cut') {
     if (fatLow || (fatPct != null && fatPct < (pf.sex === 'f' ? 18 : 10))) todo.unshift(`<b class="warnc">이미 체지방이 낮아요.</b> 더 빼면 근육·컨디션 손실이 커지니 주 0.5% 이하로 천천히, 4주마다 1주는 유지 칼로리로`);
-    todo.push('세트는 줄여도 무게는 유지 — 무게가 떨어지면 칼로리를 조금 올리세요');
   } else if (base === 'recomp') {
-    todo.push('체중은 거의 그대로, 근력운동 주 3회 이상 + 단백질 우선');
+    todo.push('체중은 거의 그대로, 단백질 우선');
   } else {
-    if (last.vfl != null && last.vfl >= 10) todo.push('내장지방 낮추기: 유산소 주 150분 이상 + 근력운동 주 2회');
-    else todo.push('근력운동 주 2회 이상, 유산소 주 150분이면 충분해요');
   }
   // what the next InBody should show
   const next = base === 'leanbulk' || base === 'bulk' ? `골격근 +0.3kg 이상, 체지방 증가는 근육 증가의 ${base === 'bulk' ? '2' : '1'}배 이하면`
@@ -3028,7 +3024,38 @@ function bodyNowHtml(last, fatPct, items) {
   todo.push(`4주 뒤 아침 공복에 다시 재서 → <b>${next}</b> 순조로워요`);
   return `<div class="ibnow">${chips.map(([lv, t]) => `<span class="ibchip ${lv}">${esc(t)}</span>`).join('')}</div>
     ${risks.length ? `<div class="ibrisk">⚠ 확인할 것: ${esc(risks.join(' · '))}</div>` : ''}
-    <div class="ibtodo"><div class="k">${esc(G.l)} — 이렇게 하세요</div><ol>${todo.map(t => `<li>${t}</li>`).join('')}</ol></div>`;
+    <div class="ibtodo"><div class="k">${esc(G.l)} — 이렇게 하세요</div><ol>${todo.map(t => `<li>${t}</li>`).join('')}</ol></div>
+    ${trainRxHtml(last, { musLv, pf, h })}`;
+}
+/* exercise prescription: the goal's rule (ACSM 2026), what this InBody points at, and the last two weeks of logs against it */
+function trainRxHtml(last, ctx) {
+  const gk = goalKey(), base = goalBase(gk), rx = [];
+  // a) the goal
+  if (gk === 'strength') rx.push('스쿼트·벤치·데드처럼 큰 종목을 <b>운동 초반에</b>, <b>8회 이하로 드는 무게</b>로 종목당 <b>2–3세트</b>. 끝까지 내리고 올리기');
+  else if (gk === 'health' || base === 'keep') rx.push('주 <b>2회 이상</b> 전신, 하체·등·가슴 같은 큰 근육 위주. 가벼운 무게를 <b>빠르게 드는 세트</b>도 섞으면 걷기·균형에 좋아요');
+  else if (base === 'cut') rx.push('부위마다 주 <b>10세트 이상 유지</b>, 무게는 줄이지 않기 — 근육을 지키는 신호예요');
+  else rx.push('부위마다 주 <b>10–20세트</b>, 세트마다 <b>2–3회 남기고</b> 멈추기, 운동은 주 2회 이상');
+  // b) what the InBody shows
+  const sg = k => last[k] != null ? +last[k] : null, arms = [sg('segRA'), sg('segLA')], legs = [sg('segRL'), sg('segLL')];
+  const weak = ([r, l], name) => r && l && Math.abs(r - l) / Math.max(r, l) >= 0.1 ? `${r < l ? '오른' : '왼'}${name}` : null;
+  const wk = weak(legs, '다리') || weak(arms, '팔');
+  if (wk) rx.push(`${jo(wk, '이', '가')} 반대쪽보다 10% 이상 약해요 → <b>한쪽씩 하는 운동</b>(런지·싱글 레그 프레스·원암 덤벨)을 약한 쪽부터, 같은 횟수로`);
+  const { pf, h } = ctx;
+  if (h && pf.sex && arms[0] && arms[1] && legs[0] && legs[1] && (arms[0] + arms[1] + legs[0] + legs[1]) / (h * h) < (pf.sex === 'f' ? 5.7 : 7.0)) rx.push('팔다리 근육이 기준보다 적어요 → <b>하체·등</b> 큰 근육부터 채우세요');
+  else if (ctx.musLv === '적은 편') rx.push('근육량이 적은 편이라 <b>전신 루틴 주 3회</b>로 큰 근육부터 키우는 게 빨라요');
+  if (last.vfl != null && last.vfl >= 10) rx.push(`내장지방 ${trimNum(last.vfl)} → 근력운동과 별도로 <b>유산소 주 150분</b> 이상`);
+  // c) the last two weeks against it
+  const anyStr = allSets().some(s => !isCardioSet(s));
+  if (!anyStr) { rx.push('아직 운동 기록이 없어요 → 운동 탭 <b>루틴</b>에서 추천 루틴으로 시작'); if (base === 'cut' || gk === 'health') rx.push('유산소 <b>주 150분</b> (빠르게 걷기 하루 20–30분)'); }
+  else {
+    const R = buildReport(), main = ['가슴', '등', '어깨', '다리'];
+    const low = main.filter(m => R.mv14.vol[m] < volRange(m)[0]).map(m => `${mName(m)} ${r1(R.mv14.vol[m])}→${volRange(m)[0]}`);
+    const high = STRENGTH_MUSCLES.filter(m => R.mv14.vol[m] > volRange(m)[1]).map(m => `${mName(m)} ${r1(R.mv14.vol[m])}`);
+    if (gk !== 'strength' && gk !== 'health') rx.push(low.length ? `지금 기록: <b>${esc(low.join(' · '))}세트</b>로 늘리기` : '지금 기록: 주요 부위 모두 주 10세트 이상 ✓');
+    if (high.length) rx.push(`${esc(high.join(' · '))}세트 — 주 20세트를 넘으면 효과가 크게 늘지 않아요. 피곤하면 여기부터 줄이세요`);
+    if (base === 'cut' || gk === 'health') { const car = setsBetween(addDays(today(), -6), today()).filter(isCardioSet).reduce((a, s) => a + (+s.mins || 0), 0); rx.push(`유산소 주 150분 목표 · 최근 7일 <b>${fmtInt(car)}분</b>${car >= 150 ? ' ✓' : ` → ${fmtInt(150 - car)}분 더 (빠르게 걷기 하루 20–30분)`}`); }
+  }
+  return `<div class="ibtodo ibrx"><div class="k">운동 처방</div><ol>${rx.map(t => `<li>${t}</li>`).join('')}</ol></div>`;
 }
 function profileHtml() {
   const pf = DB.settings.profile || {};
@@ -3355,7 +3382,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.1.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3372,7 +3399,8 @@ async function exportData() {
   }
   openSheet('백업 내보내기', '백업 코드', `<div class="small muted">아래 코드를 전부 복사해 메모장이나 카톡 '나에게 보내기'에 저장하세요. 나중에 '백업 가져오기'에 붙여넣으면 복원돼요. APK 앱에서는 파일로 저장돼요.</div>
     <textarea id="bk-code" readonly rows="8" style="margin-top:10px;font-family:var(--mono);font-size: 12px">${esc(data)}</textarea>
-    <button class="btn primary block" style="margin-top:10px" data-act="bk-copy">전체 복사</button>`, { kind: 'backup' });
+    <div class="grid2" style="margin-top:10px"><button class="btn primary" data-act="bk-copy">전체 복사</button><button class="btn" data-act="bk-file">파일로 저장</button></div>`, { kind: 'backup' });
+  state.bkData = data; state.bkName = name;
 }
 function importData(file) {
   const rd = new FileReader();
@@ -3734,6 +3762,7 @@ const ACT = {
     save(); closeSheet(); render(); toast('목표를 저장했어요');
   },
   'export': () => exportData(),
+  'bk-file': () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([state.bkData || ''], { type: 'application/json' })); a.download = state.bkName || 'ounwan-backup.json'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); toast('다운로드 폴더에 저장했어요'); } catch (e) { toast('저장하지 못했어요. 전체 복사를 써주세요'); } },
   'import': () => openSheet('백업 가져오기', '복원', `<button class="btn block" data-act="import-file">백업 파일 선택</button>
     <div class="small muted" style="margin:12px 0 6px">또는 복사해 둔 백업 코드를 붙여넣기</div>
     <textarea id="bk-in" rows="6" style="font-family:var(--mono);font-size: 12px" placeholder='{"app":"ironlog", ...}'></textarea>
