@@ -1082,8 +1082,19 @@ const TYPE_ORDER = {
   '코어': ['복근 크런치', '레그 레이즈', '코어 로테이션', '백 익스텐션'],
 };
 /* plain names and sub-parts, so the list reads like "옆 어깨 · 뒤 어깨", "이두 · 삼두" */
-const TYPE_LABEL = { '바이셉 컬': '이두 컬', '트라이셉 익스텐션': '삼두 익스텐션·푸시다운', '트라이셉 딥': '삼두 딥스', '리어 델트': '리어 델트 (리버스 플라이·페이스풀)', '레터럴 레이즈': '레터럴 레이즈 (옆으로 들기)', '핸드스탠드 푸시업': '물구나무 푸시업', '힙 어브덕션': '다리 벌리기 (어브덕션)', '힙 어덕션': '다리 모으기 (어덕션)', '펙 플라이': '체스트 플라이' };
+const TYPE_LABEL = { '풀오버': '풀오버·암 풀다운', '바이셉 컬': '이두 컬', '트라이셉 익스텐션': '삼두 익스텐션·푸시다운', '트라이셉 딥': '삼두 딥스', '리어 델트': '리어 델트 (리버스 플라이·페이스풀)', '레터럴 레이즈': '레터럴 레이즈 (옆으로 들기)', '핸드스탠드 푸시업': '물구나무 푸시업', '힙 어브덕션': '다리 벌리기 (어브덕션)', '힙 어덕션': '다리 모으기 (어덕션)', '펙 플라이': '체스트 플라이' };
 const tLabel = t => TYPE_LABEL[t] || t;
+/* gym slang and other names people type, by movement */
+const SEARCH_ALIAS = {
+  '풀오버': '암풀다운 스트레이트암 스암풀 풀오버', '랫 풀다운': '랫풀 렛풀다운 광배 풀다운', '풀업': '턱걸이 풀업 친업 어시스트', '로우': '시티드로우 케이블로우 바벨로우 티바 덤벨로우 등',
+  '레터럴 레이즈': '사레레 사이드레터럴 사이드레이즈 측면', '리어 델트': '후면 리어 리버스플라이 페이스풀 뒤어깨', '숄더 프레스': '숄프 밀프 밀리터리 ohp 오버헤드', '슈러그': '승모',
+  '바이셉 컬': '이두 팔컬 덤벨컬 해머컬', '트라이셉 익스텐션': '삼두 푸시다운 푸쉬다운 케이블푸시다운 스컬', '트라이셉 딥': '삼두 딥스',
+  '벤치프레스': '벤치 가슴', '인클라인 프레스': '인클 윗가슴', '체스트 프레스': '체프 가슴', '펙 플라이': '펙덱 플라이 버터플라이 가슴', '딥스': '딥',
+  '스쿼트': '스쿼트 스쿼드 하체', '레그 프레스': '레프 레그프레스', '레그 익스텐션': '레그익스 레익 대퇴', '레그 컬': '레그컬 햄스트링 레컬', '런지': '런지 불가리안 스플릿',
+  '루마니안 데드리프트': 'rdl 루마 루데', '데드리프트': '데드 데드리프트', '힙 쓰러스트': '힙쓰 힙쓰러스트 엉덩이', '힙 어브덕션': '어브덕션 아웃타이 엉덩이옆', '힙 어덕션': '어덕션 이너타이 안쪽허벅지',
+  '카프 레이즈': '종아리 카프', '복근 크런치': '복근 크런치 앱', '레그 레이즈': '복근 하복부', '백 익스텐션': '허리 백익', '푸시업': '팔굽혀펴기 푸쉬업',
+};
+const searchText = e => { const t = typeOfEq(e); return `${e.name} ${e.brand} ${t} ${tLabel(t)} ${mName(e.m)} ${SEARCH_ALIAS[t] || ''}`; };
 /* what you actually hold or sit at, read from the name — so a row says "덤벨 · 케이블 · 머신", not a generic "바벨·덤벨" */
 const TOOL_ORDER = ['덤벨', '바벨', '케이블', '머신', '맨몸', '밴드', '케틀벨'];
 function toolOf(e) {
@@ -1114,7 +1125,7 @@ function typesOf(m, pool) {
 }
 function pickerHtml() {
   return `<div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    <input id="eq-q" type="search" placeholder="검색 (예: 벤치, 익스텐션, ㄹㅇㅍ)" value="${esc(state.eqQ)}" data-on="eq-q" autocomplete="off"></div>
+    <input id="eq-q" type="search" placeholder="운동 검색 (예: 암풀다운, 사레레, 힙쓰)" value="${esc(state.eqQ)}" data-on="eq-q" autocomplete="off"></div>
   <div class="seg" style="margin-top:10px">${EQ_VIEWS.map(([v, l]) => `<button class="${state.eqView === v ? 'on' : ''}" data-act="eq-view" data-v="${v}">${l}</button>`).join('')}</div>
   <div class="chips scrollx ${['all', 'move'].includes(state.eqView) ? '' : 'hidden'}" style="margin-top:8px" id="eq-mchips">${['전체'].concat(STRENGTH_MUSCLES, ['전신']).map(m => `<button class="chip ${state.eqM === m ? 'on' : ''}" data-act="eq-m" data-m="${esc(m)}">${esc(mName(m))}</button>`).join('')}</div>
   <div class="eqlist" id="eqlist"></div>
@@ -1159,7 +1170,9 @@ function renderEqList() {
   const inView = e => v === 'all' ? true : v === 'machine' ? (e.kind === 'machine' || !!e.custom) : v === 'free' ? (e.kind === 'free' || e.kind === 'crossfit') : v === 'cardio' ? e.kind === 'cardio' : true;
   if (!q && v === 'move') { box.innerHTML = moveListHtml(all, M); return; }
   if (q) {
-    groups.push(['검색 결과', all.filter(e => matchQ(`${e.name} ${e.brand} ${typeOfEq(e)} ${e.m}`, q)).sort(byUse)]);
+    // names that contain the words first, then matches through the movement / slang
+    const hits = all.filter(e => matchQ(searchText(e), q)), byName = e => matchQ(`${e.name} ${e.brand}`, q) ? 0 : 1;
+    groups.push(['검색 결과', hits.sort((x, y) => byName(x) - byName(y) || byUse(x, y))]);
   } else if (v === 'fav') {
     groups.push(['즐겨찾기', DB.fav.map(eqById).filter(Boolean)]);
   } else {
@@ -3389,7 +3402,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.2.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.2.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
