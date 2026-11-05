@@ -2054,8 +2054,28 @@ function buildReport() {
   // weekly average over 14 days, used for deficit/excess calls (smoother than one rolling week)
   const mv14 = muscleVolume(setsBetween(addDays(b, -13), b));
   const span14 = Math.min(14, Math.max(7, daysBetween((allSets()[0] || { date: b }).date, b) + 1));
-  mv14.dW = {};
-  for (const m of STRENGTH_MUSCLES) { mv14.vol[m] = mv14.vol[m] * 7 / span14; mv14.dW[m] = mv14.direct[m] * 7 / span14; }
+  mv14.dW = {}; mv14.ratio = {};
+  /* under two weeks of history the window starts on a workout day, so a part done on day 1 and again
+     on day 7 gets counted twice in "one week". Estimate its real spacing instead: n sessions spread over
+     (last − first) days means one every (last − first)/(n − 1) days. */
+  const short = span14 < 14, s14 = setsBetween(addDays(b, -13), b);
+  for (const m of STRENGTH_MUSCLES) {
+    let span = span14;
+    if (short) { const ds = [...new Set(s14.filter(x => x.m === m && !isCardioSet(x)).map(x => x.date))].sort(); if (ds.length >= 2) span = Math.max(3, daysBetween(ds[0], ds[ds.length - 1]) * ds.length / (ds.length - 1)); }
+    mv14.ratio[m] = span14 / span;
+    mv14.dW[m] = mv14.direct[m] * 7 / span;
+  }
+  // indirect sets follow the frequency of the exercise that produced them (rows → biceps at the back-day rate)
+  if (short) {
+    const raw = mv14.vol; mv14.vol = {}; for (const m of STRENGTH_MUSCLES) mv14.vol[m] = 0;
+    for (const x of s14) {
+      if (isCardioSet(x) || mv14.vol[x.m] == null) continue;
+      const f = 7 / span14 * (mv14.ratio[x.m] || 1);
+      mv14.vol[x.m] += f;
+      for (const [m2, v] of Object.entries((TYPE_INFO[x.type] || {}).sec || {})) if (mv14.vol[m2] != null && m2 !== x.m) mv14.vol[m2] += v * f;
+    }
+    void raw;
+  } else for (const m of STRENGTH_MUSCLES) mv14.vol[m] = mv14.vol[m] * 7 / span14;
   const dl = deloadAnalysis();
   const nu = nutritionAnalysis();
   const recs = [];
@@ -2445,7 +2465,8 @@ function viewAnalysis() {
   }
 
   // muscle volume: six groups, each opening into its regions (weekly average of the last 2 weeks)
-  const RW = (() => { const t = regionTotals(addDays(today(), -13), today()), first = (allSets()[0] || {}).date || today(); const span = Math.min(14, Math.max(7, daysBetween(first, today()) + 1)); for (const k in t) t[k] = t[k] * 7 / span; return t; })();
+  const RW = (() => { const t = regionTotals(addDays(today(), -13), today()), first = (allSets()[0] || {}).date || today(); const span = Math.min(14, Math.max(7, daysBetween(first, today()) + 1)); for (const k in t) t[k] = t[k] * 7 / span;
+    for (const [m, ks] of Object.entries(REG_GROUP)) for (const k of ks) if (t[k] != null && R.mv14.ratio[m]) t[k] *= R.mv14.ratio[m]; return t; })();
   h += goalTrainHtml(R, RW, ES);
   h += `<div class="sec-h"><h2>부위별 주간 세트</h2><span class="aside">최근 2주 주평균 · 누르면 세부 부위</span></div><section class="card">
     ${bandHead(['적음', '효과 범위', '고볼륨'])}
@@ -3402,7 +3423,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.2.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.2.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
