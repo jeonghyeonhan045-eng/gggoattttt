@@ -3059,7 +3059,32 @@ function bodyNowHtml(last, fatPct, items) {
   return `<div class="ibnow">${chips.map(([lv, t]) => `<span class="ibchip ${lv}">${esc(t)}</span>`).join('')}</div>
     ${risks.length ? `<div class="ibrisk">⚠ 확인할 것: ${esc(risks.join(' · '))}</div>` : ''}
     <div class="ibtodo"><div class="k">${esc(G.l)} — 이렇게 하세요</div><ol>${todo.map(t => `<li>${t}</li>`).join('')}</ol></div>
+    ${peerHtml(last)}
     ${trainRxHtml(last, { musLv, pf, h })}`;
+}
+/* where a value sits among Korean adults of the same sex and age band (linear between the published percentiles) */
+function krPercentile(v, row) {
+  if (v <= row[0]) return Math.max(1, 5 * v / row[0]);
+  for (let i = 1; i < row.length; i++) if (v <= row[i]) return KR_PCT[i - 1] + (KR_PCT[i] - KR_PCT[i - 1]) * (v - row[i - 1]) / (row[i] - row[i - 1]);
+  return Math.min(99, 95 + 5 * (v - row[6]) / (row[6] - row[5] || 1));
+}
+function peerHtml(last) {
+  const pf = DB.settings.profile || {}, age = pf.birth ? new Date().getFullYear() - pf.birth : null, h = pf.height ? pf.height / 100 : null;
+  if (!pf.sex || !age || age < 10 || !h || !last.weight || last.fatKg == null) return '';
+  const band = Math.min(6, Math.max(0, Math.floor(age / 10) - 1)), T = KR_BODY[pf.sex];
+  const ffmi = (last.weight - last.fatKg) / (h * h), fmi = last.fatKg / (h * h);
+  const pm = krPercentile(ffmi, T.ffmi[band]), pfat = krPercentile(fmi, T.fmi[band]);
+  // the previous measurement, for "지난번 상위 18%"
+  const prev = DB.inbody.filter(e => e.date < last.date && e.weight && e.fatKg != null).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+  const was = prev ? { m: krPercentile((prev.weight - prev.fatKg) / (h * h), T.ffmi[band]), f: krPercentile(prev.fatKg / (h * h), T.fmi[band]) } : null;
+  const who = `${band === 6 ? '70대 이상' : `${(band + 1) * 10}대`} ${pf.sex === 'f' ? '여성' : '남성'}`;
+  const top = p => p >= 95 ? '상위 5% 이내' : p <= 5 ? '하위 5%' : `상위 ${Math.max(1, Math.round(100 - p))}%`;
+  const row = (label, p, txt, good, before) => `<div class="peer-row"><div class="pl"><span>${label}${before != null && Math.round(100 - before) !== Math.round(100 - p) ? ` <em class="was">지난번 ${top(before)}</em>` : ''}</span><b class="${good ? 'up' : ''}">${txt}</b></div>
+    <div class="pbar"><i style="left:${Math.min(98, Math.max(2, p)).toFixed(1)}%"></i><span style="left:25%"></span><span style="left:50%"></span><span style="left:75%"></span></div></div>`;
+  return `<div class="peer"><div class="k">한국인 ${who}과 비교</div>
+    ${row('근육 (제지방)', pm, top(pm), pm >= 75, was && was.m)}
+    ${row('체지방 적은 순', 100 - pfat, top(100 - pfat), pfat <= 25, was && 100 - was.f)}
+    <div class="note">국민건강영양조사 2022–2023 · 같은 인바디 방식으로 잰 ${who} 기준이에요.</div></div>`;
 }
 /* exercise prescription: the goal's rule (ACSM 2026), what this InBody points at, and the last two weeks of logs against it */
 function trainRxHtml(last, ctx) {
@@ -3423,7 +3448,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.2.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 

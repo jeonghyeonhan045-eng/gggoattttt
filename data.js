@@ -579,6 +579,7 @@ const REFS = [
   { id: 'schoenfeld17', short: 'Schoenfeld 외 2017', text: 'Schoenfeld BJ, Ogborn D, Krieger JW. Dose-response relationship between weekly resistance training volume and increases in muscle mass. J Sports Sci 35(11), 2017.', url: 'https://doi.org/10.1080/02640414.2016.1210197', use: '부위별 주 10세트 이상에서 근비대 효과가 더 큼.' },
   { id: 'schoenfeld17ll', short: 'Schoenfeld 외 2017 (무게)', text: 'Schoenfeld BJ, Grgic J, Ogborn D, Krieger JW. Strength and Hypertrophy Adaptations Between Low- vs. High-Load Resistance Training: A Systematic Review and Meta-analysis. J Strength Cond Res 31(12):3508–3523, 2017.', url: 'https://doi.org/10.1519/JSC.0000000000002200', use: '실패 근처까지 하면 가벼운 무게(1RM 60% 이하)도 무거운 무게와 근비대가 비슷. 근력(1RM)은 무거운 쪽이 더 늘었음. 맨몸 루틴의 근거.' },
   { id: 'kikuchi17', short: 'Kikuchi & Nakazato 2017', text: 'Kikuchi N, Nakazato K. Low-load bench press and push-up induce similar muscle hypertrophy and strength gain. J Exerc Sci Fit 15(1):37–42, 2017.', url: 'https://pubmed.ncbi.nlm.nih.gov/?term=Kikuchi+Nakazato+2017+push-up+bench+press+hypertrophy', use: '8주간 같은 강도로 맞춘 푸시업과 벤치프레스는 가슴·삼두 근비대와 근력 향상이 비슷했음.' },
+  { id: 'kim26', short: 'Kim 외 2026 (한국인 체성분)', text: 'Kim H, Hong YH, Jang YC, Lee Y, Lee JY, Eom SH, Chung S, Kim CH. National Reference Values of FFMI and FMI Using Body Composition Chart in Korean Adults. Nutrients 18(8):1170, 2026.', url: 'https://doi.org/10.3390/nu18081170', use: '국민건강영양조사 2022–2023, 한국인 10,140명을 InBody 970으로 측정한 성별·연령대별 제지방지수(FFMI)·체지방지수(FMI) 백분위. 또래 비교의 기준.' },
   { id: 'acsm26', short: 'ACSM 2026 (Currier 외)', text: 'Currier BS, D\'Souza AC, Singh MAF, et al. American College of Sports Medicine Position Stand. Resistance Training Prescription for Muscle Function, Hypertrophy, and Physical Performance in Healthy Adults: An Overview of Reviews. Med Sci Sports Exerc 58(4):851–872, 2026.', url: 'https://doi.org/10.1249/MSS.0000000000003897', use: '체계적 고찰 137편 종합(건강한 성인). 근비대: 부위당 주 10세트 이상, 약 18–20세트에서 효과 둔화. 실패까지는 불필요(2–3회 여유 제안). 볼륨이 같으면 빈도·무게(30–100% 1RM)·머신/프리웨이트 차이 작음. 근비대 휴식 시간은 근거 부족. 근거 질은 중간 수준(QoE 44–75%).' },
   { id: 'schoenfeld16r', short: 'Schoenfeld 외 2016 (휴식)', text: 'Schoenfeld BJ, Pope ZK, Benik FM, et al. Longer Interset Rest Periods Enhance Muscle Strength and Hypertrophy in Resistance-Trained Men. J Strength Cond Res 30(7):1805–1812, 2016.', url: 'https://doi.org/10.1519/JSC.0000000000001272', use: '세트 사이 3분 휴식이 1분보다 근력·근비대 모두 더 늘었음 (훈련 경력자 남성).' },
   { id: 'singer24', short: 'Singer 외 2024', text: 'Singer A, Wolf M, Generoso L, et al. Give it a rest: a systematic review with Bayesian meta-analysis on the effect of inter-set rest interval duration on muscle hypertrophy. Front Sports Act Living 6:1429789, 2024.', url: 'https://doi.org/10.3389/fspor.2024.1429789', use: '60초 넘게 쉬면 근비대에 약간 유리, 90초를 넘기면 차이는 작음 — 결정적인 차이는 아님.' },
@@ -1100,3 +1101,13 @@ const PROGRAMS = [
     desc: '미스터 올림피아 6연패 도리안 예이츠의 "Blood & Guts" 방식. 종목당 워밍업 후 실패 지점까지 1세트만.',
     note: '"1×"는 워밍업을 뺀 본세트 1개를 한계까지 한다는 뜻이에요. 강도가 매우 높아 회복 관리가 중요하고, 종목 구성은 그의 방식을 따른 대표 예시예요.' },
 ];
+
+/* Korean body-composition percentiles, KNHANES 2022–2023 (InBody 970, n=10,140) — Kim et al., Nutrients 2026.
+   [P5, P10, P25, P50, P75, P90, P95] per age band 10–19 … 70–80, kg/m². */
+const KR_PCT = [5, 10, 25, 50, 75, 90, 95];
+const KR_BODY = {
+  m: { ffmi: [[12.9,13.5,14.7,16.4,18.1,19.7,20.9],[15.5,16.3,17.4,18.6,20.0,21.5,22.4],[16.1,16.7,17.8,19.0,20.3,21.5,22.5],[16.2,16.7,17.9,19.0,20.2,21.5,22.4],[16.1,16.7,17.6,18.7,19.8,20.7,21.5],[15.6,16.0,17.0,18.1,19.3,20.1,20.6],[14.8,15.4,16.3,17.4,18.4,19.2,19.6]],
+       fmi:  [[1.8,2.1,2.8,4.4,6.4,9.0,10.6],[2.5,3.0,4.1,5.4,7.7,10.0,12.0],[3.0,3.6,4.6,6.0,7.7,9.8,11.4],[3.3,3.9,5.0,6.3,7.8,9.5,10.8],[3.4,4.1,4.9,6.0,7.4,8.9,10.1],[3.1,3.7,4.8,5.9,7.1,8.4,9.3],[3.2,3.9,5.0,6.1,7.4,8.9,9.7]] },
+  f: { ffmi: [[12.3,12.6,13.4,14.2,15.2,16.5,17.1],[12.7,13.1,13.8,14.7,15.8,17.1,18.2],[13.3,13.6,14.3,15.2,16.2,17.5,18.6],[13.3,13.7,14.6,15.4,16.4,17.8,18.6],[13.6,14.0,14.7,15.5,16.6,17.6,18.3],[13.6,14.1,14.9,15.8,16.6,17.6,18.2],[13.5,14.0,14.6,15.5,16.5,17.2,17.7]],
+       fmi:  [[2.7,3.3,4.3,5.6,7.1,9.2,10.3],[4.0,4.4,5.2,6.5,8.6,11.1,13.0],[4.0,4.4,5.4,6.9,8.9,11.5,13.3],[4.1,4.6,5.7,7.1,8.9,11.0,12.7],[4.7,5.3,6.5,7.8,9.5,11.1,12.5],[4.8,5.5,6.8,8.1,9.7,11.4,12.6],[5.0,5.8,7.0,8.5,10.2,11.7,12.8]] },
+};

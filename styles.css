@@ -955,3 +955,15 @@ details.fold > summary .aside { white-space: normal; min-width: 0; overflow-wrap
 .rp-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; }
 .rp-list.todo li { font-weight: 700; }
 .ibrx { margin-top: 12px; }
+
+/* peer comparison (Korean percentiles) */
+.peer { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card2); }
+.peer .k { font-size: 13px; font-weight: 800; margin-bottom: 8px; }
+.peer-row { margin: 8px 0; }
+.peer-row .pl { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; }
+.peer-row .pl b { font-size: 18px; font-family: var(--mono); }
+.peer-row .pl b.up { color: var(--hi); }
+.pbar { position: relative; height: 8px; margin-top: 6px; border-radius: 4px; background: linear-gradient(90deg, var(--band), var(--band-std)); }
+.pbar span { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line2); }
+.pbar i { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--hi); }
+.peer-row .was { font-style: normal; font-size: 12px; color: var(--ink3); margin-left: 4px; }
