@@ -363,6 +363,7 @@ function renderTimer() {
   const bar = $('#timerbar');
   const r = timerRemain();
   const active = r != null;
+  const fr = $('#fx-rest-t'); if (fr) { if (r == null) fxRender(); else fr.textContent = fmtSec(Math.ceil(r)); }
   const st = $('#sheet-timer');
   if (st) {
     const show = active && state.sheet && (state.sheet.kind === 'set' || state.sheet.kind === 'cardio');
@@ -810,6 +811,7 @@ function viewWorkout() {
   let h = installHint();
 
   // 1) today's workout + the main action
+  if (k === today() && !d.fin && fxList().length) h += `<button class="btn primary block fxbtn" data-act="focus-open">▶ 운동 모드 — 한 종목씩 크게</button>`;
   h += `<div class="sec-h" style="${installHint() ? '' : 'margin-top:6px'}"><h2>${k === today() ? '오늘의 운동' : esc(dateLabel(k)) + ' 운동'}</h2><span class="aside">${sets.length ? `${sets.filter(s => !isCardioSet(s)).length}세트` : ''}<span id="wk-elapsed">${elapsedTxt(k)}</span></span></div>
   ${sets.length && d.fin ? `<section class="card fincard"><div class="row between" style="gap:10px"><div><b>✓ ${k === today() ? '오늘' : ''} 운동 완료</b><div class="small muted">${(() => { const R = sessionReport(k); return [R.mins ? `${R.mins}분` : '', `${R.str.length}세트`, R.car.length ? `유산소 ${trimNum(R.car.reduce((a, s) => a + (+s.mins || 0), 0))}분` : ''].filter(Boolean).join(' · '); })()}</div></div>
       <button class="btn sm primary" data-act="fin-open">요약·피드백</button></div>
@@ -914,11 +916,60 @@ function fixStrip(s) {
 
 /* ---------- routines: my saved routines + well-known programs ---------- */
 const tgSets = t => String(t).split('+').reduce((a, part) => { part = part.trim(); return a + (/^\d+\/\d+\/\d+/.test(part) ? 3 : parseInt(part, 10) || 0); }, 0) || 3;
+/* ---------- workout mode: one exercise at a time, big buttons, rest timer in the same screen ---------- */
+function fxList() {
+  const d = dayRO(state.date), plan = d.plan, done = (d.sets || []).filter(s => !isCardioSet(s));
+  const ids = plan && plan.eqs && plan.eqs.length ? plan.eqs.slice() : [];
+  for (const s of done) if (!ids.includes(s.eq)) ids.push(s.eq);
+  return ids.filter(id => { const e = eqById(id) || eqOrRecord(id); return e && e.kind !== 'cardio'; });
+}
+function fxTarget(id) {
+  const d = dayRO(state.date), tg = d.plan && d.plan.tg && d.plan.tg[id], prev = prevSessionOfEq(id, state.date);
+  return { tg, n: tg ? tgSets(tg) : prev ? prev.sets.length : 3, prev };
+}
+function fxPrefill() {
+  const F = state.fx, id = fxList()[F.i]; if (!id) return;
+  const e = eqById(id) || eqOrRecord(id), u = unitFor(id), todays = (dayRO(state.date).sets || []).filter(s => s.eq === id);
+  const { prev } = fxTarget(id), last = todays[todays.length - 1];
+  const sg = !last && prev ? progressionHint(e, prev, u) : null;
+  const src = last || (sg ? { w: sg.w, r: sg.r, u } : prev ? prev.sets[0] : null);
+  F.w = src ? (src.u === u || !src.u ? +src.w || 0 : r1(fromKg(setKg(src), u))) : 0; F.r = src ? +src.r || 10 : 10; F.sg = sg;
+}
+function openFocus() {
+  const L = fxList(); if (!L.length) { toast('먼저 운동을 추가하세요'); return; }
+  const todays = dayRO(state.date).sets || [];
+  let i = L.findIndex(id => todays.filter(s => s.eq === id).length < fxTarget(id).n); if (i < 0) i = L.length - 1;
+  state.fx = { i }; fxPrefill();
+  openSheet('운동 모드', '지금 할 운동', focusHtml(), { kind: 'focus' });
+}
+function focusHtml() {
+  const F = state.fx, L = fxList(), id = L[F.i]; if (!id) return '<div class="empty">운동이 없어요</div>';
+  const e = eqById(id) || eqOrRecord(id), u = unitFor(id), bw = e.bw || BW_NEXT[id], { tg, n, prev } = fxTarget(id);
+  const did = (dayRO(state.date).sets || []).filter(s => s.eq === id);
+  const step = u === 'lb' ? 5 : 2.5, rem = timerRemain();
+  const lastTxt = prev ? `${fmtSetW(prev.sets[0])} × ${prev.sets.map(s => s.r).join('·')}` : '첫 기록';
+  return `<div class="fx">
+    <div class="fx-top"><span class="small muted">${F.i + 1} / ${L.length} 종목</span><button class="linkbtn" data-act="open-set" data-eq="${esc(id)}">자세히 기록 ›</button></div>
+    <div class="fx-name">${esc(e.name)}</div>
+    <div class="small muted">${tg ? `목표 ${esc(tg)} · ` : ''}지난번 ${esc(lastTxt)}</div>
+    <div class="fx-dots">${Array.from({ length: Math.max(n, did.length) }, (_, k) => `<span class="${k < did.length ? 'on' : ''}">${k < did.length ? esc(`${did[k].w > 0 ? trimNum(did[k].w) : ''}${did[k].w > 0 ? '×' : ''}${did[k].r}`) : k + 1}</span>`).join('')}</div>
+    ${rem != null ? `<div class="fx-rest" id="fx-rest"><span class="small">휴식</span><b class="num" id="fx-rest-t">${fmtSec(Math.ceil(rem))}</b>
+        <div class="row" style="gap:6px"><button class="btn sm" data-act="fx-add15">+15초</button><button class="btn sm" data-act="fx-skip">건너뛰기</button></div></div>` : ''}
+    ${bw ? '' : `<div class="fx-step"><span class="lb">무게 ${u}</span><button class="btn" data-act="fx-w" data-d="${-step}" aria-label="무게 줄이기">−</button><b class="num">${trimNum(F.w)}</b><button class="btn" data-act="fx-w" data-d="${step}" aria-label="무게 늘리기">+</button></div>`}
+    <div class="fx-step"><span class="lb">횟수</span><button class="btn" data-act="fx-r" data-d="-1" aria-label="횟수 줄이기">−</button><b class="num">${F.r}</b><button class="btn" data-act="fx-r" data-d="1" aria-label="횟수 늘리기">+</button></div>
+    ${F.sg && !did.length ? `<div class="small muted" style="text-align:center">${esc(F.sg.why)}</div>` : ''}
+    <button class="btn primary block fx-go" data-act="fx-done">✓ ${did.length + 1}세트 완료</button>
+    <div class="grid2" style="margin-top:8px"><button class="btn" data-act="fx-move" data-d="-1" ${F.i ? '' : 'disabled'}>← 이전 종목</button><button class="btn" data-act="fx-move" data-d="1" ${F.i < L.length - 1 ? '' : 'disabled'}>다음 종목 →</button></div>
+  </div>`;
+}
+const fxRender = () => { if (state.sheet && state.sheet.kind === 'focus') setSheetBody(focusHtml(), true); };
 function startPlan(list, label, from) {
   // list: [[eqId, target]]; the same exercise twice (5/3/1 main + 5×10) becomes one row with both targets
   const eqs = [], tg = {};
-  for (const [id, t] of list) { if (!eqById(id)) continue; if (!eqs.includes(id)) { eqs.push(id); tg[id] = t; } else tg[id] += ` + ${t}`; }
+  let swapped = 0;
+  for (const [id0, t] of list) { const id = gymSwap(id0); if (id !== id0) swapped++; if (!eqById(id)) continue; if (!eqs.includes(id)) { eqs.push(id); tg[id] = t; } else tg[id] += ` + ${t}`; }
   day(state.date).plan = { from: from || state.date, eqs, tg, label };
+  if (swapped) setTimeout(() => toast(`내 헬스장에 없는 기구 ${swapped}개를 같은 운동으로 바꿨어요`), 1600);
   state.planOpen = false; state.openEq = null;
   save(); closeSheet(); render(); window.scrollTo(0, 0);
   toast(`${label} · ${eqs.length}종목 · 종목을 눌러 기록하세요`);
@@ -1129,9 +1180,40 @@ function pickerHtml() {
     <input id="eq-q" type="search" placeholder="운동 검색 (예: 암풀다운, 사레레, 힙쓰)" value="${esc(state.eqQ)}" data-on="eq-q" autocomplete="off"></div>
   <div class="seg" style="margin-top:10px">${EQ_VIEWS.map(([v, l]) => `<button class="${state.eqView === v ? 'on' : ''}" data-act="eq-view" data-v="${v}">${l}</button>`).join('')}</div>
   <div class="chips scrollx ${['all', 'move'].includes(state.eqView) ? '' : 'hidden'}" style="margin-top:8px" id="eq-mchips">${['전체'].concat(STRENGTH_MUSCLES, ['전신']).map(m => `<button class="chip ${state.eqM === m ? 'on' : ''}" data-act="eq-m" data-m="${esc(m)}">${esc(mName(m))}</button>`).join('')}</div>
+  <div class="gymbar">${DB.settings.gym && DB.settings.gym.length
+    ? `<button class="chip ${state.gymOnly !== false ? 'on' : ''}" data-act="gym-only">내 헬스장 기구만</button><button class="linkbtn" data-act="gym-open">기구 고치기</button>`
+    : `<button class="linkbtn" data-act="gym-open">+ 내 헬스장 기구 등록하면 있는 머신만 보여요</button>`}</div>
   <div class="eqlist" id="eqlist"></div>
   <button class="btn block" style="margin-top:8px" data-act="custom-eq">+ 목록에 없는 기구 직접 추가</button>`;
 }
+/* ---------- my gym: the machines this person's gym has ----------
+   Free weights, cables and bodyweight are everywhere; only brand machines are filtered.
+   Any machine already logged counts as "in my gym". */
+const gymOn = () => !!(DB.settings.gym && DB.settings.gym.length) && state.gymOnly !== false;
+const gymHas = e => !gymOn() || toolOf(e) !== '머신' || DB.settings.gym.includes(e.id) || !!eqUse()[e.id] || e.custom;
+// the plan uses an exercise this gym doesn't have → the same movement on something it does have
+function gymSwap(id) {
+  const e = eqById(id); if (!e || gymHas(e)) return id;
+  const t = typeOfEq(e), pool = allEq().filter(x => x.kind !== 'cardio' && typeOfEq(x) === t && x.m === e.m && gymHas(x));
+  const best = pool.sort((a, b) => byUse(a, b) || (toolOf(a) === '머신' ? 0 : 1) - (toolOf(b) === '머신' ? 0 : 1))[0];
+  return best ? best.id : id;
+}
+function gymHtml() {
+  return `<div class="small muted" style="margin-bottom:8px">다니는 헬스장에 있는 머신을 눌러 체크하세요. 덤벨·바벨·케이블·맨몸은 어디나 있다고 보고, 이미 기록한 머신은 자동으로 포함돼요.</div>
+    <div class="search"><input id="gym-q" type="search" placeholder="머신 검색 (예: 해머, 레그프레스)" value="${esc(state.gymQ || '')}" data-on="gym-q" autocomplete="off"></div>
+    <div id="gym-list">${gymListHtml()}</div>
+    <button class="btn primary block" style="margin-top:12px" data-act="sheet-close">완료</button>`;
+}
+function gymListHtml() {
+  const G = DB.settings.gym || [], used = eqUse(), q = norm(state.gymQ || '');
+  const machines = allEq().filter(e => toolOf(e) === '머신' && (!q || matchQ(searchText(e), q)));
+  const brands = [...new Set(machines.map(e => e.brand))];
+  return `<div class="small" style="margin:8px 0"><b class="num">${G.length}</b>개 체크 · 기록에서 자동 ${machines.filter(e => used[e.id] && !G.includes(e.id)).length}개</div>
+    ${brands.map(b => { const list = machines.filter(e => e.brand === b), n = list.filter(e => G.includes(e.id) || used[e.id]).length;
+      return `<details class="gymb" ${q || n ? 'open' : ''}><summary><b>${esc(b)}</b><span class="small muted">${n}/${list.length}</span></summary>
+        <div class="gymchips">${list.map(e => { const on = G.includes(e.id), auto = !on && !!used[e.id]; return `<button class="chip ${on || auto ? 'on' : ''}" data-act="gym-toggle" data-eq="${esc(e.id)}" ${auto ? 'disabled' : ''}>${esc(e.name)}</button>`; }).join('')}</div></details>`; }).join('') || '<div class="empty">찾는 머신이 없어요</div>'}`;
+}
+function openGym() { state.gymQ = ''; openSheet('내 헬스장 기구', '어떤 머신이 있나요?', gymHtml(), { kind: 'gym' }); }
 function openPicker() {
   if (!EQ_VIEWS.some(([v]) => v === state.eqView)) state.eqView = 'move';
   state.eqQ = ''; state.pkType = null;
@@ -1169,7 +1251,7 @@ function renderEqList() {
   const groups = [];
   const mFilter = e => M === '전체' || e.m === M;
   const inView = e => v === 'all' ? true : v === 'machine' ? (e.kind === 'machine' || !!e.custom) : v === 'free' ? (e.kind === 'free' || e.kind === 'crossfit') : v === 'cardio' ? e.kind === 'cardio' : true;
-  if (!q && v === 'move') { box.innerHTML = moveListHtml(all, M); return; }
+  if (!q && v === 'move') { box.innerHTML = moveListHtml(all.filter(gymHas), M); return; }
   if (q) {
     // names that contain the words first, then matches through the movement / slang
     const hits = all.filter(e => matchQ(searchText(e), q)), byName = e => matchQ(`${e.name} ${e.brand}`, q) ? 0 : 1;
@@ -3548,11 +3630,13 @@ function openSettings(focus) {
       <ol class="reflist" style="padding-left:18px;margin:6px 0 0">${REFS.map(r => `<li>${esc(r.text)} <a href="${esc(r.url)}" target="_blank" rel="noopener">링크</a><span class="use">→ ${esc(r.use)}</span></li>`).join('')}</ol>
       <div class="note">연구의 평균적인 결과를 규칙으로 옮긴 참고용이에요. 개인차가 크고, 통증·부상은 전문가와 상담하세요.</div></details>
 
+    <div class="sec-h"><h2 style="font-size: 15px">내 헬스장</h2><span class="aside">${(DB.settings.gym || []).length}개 체크</span></div>
+    <button class="btn block" data-act="gym-open">헬스장 머신 등록·수정</button>
     <div class="sec-h"><h2 style="font-size: 15px">데이터</h2></div>
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3809,6 +3893,22 @@ const ACT = {
   'fin-open': () => openFinish(state.date),
   'meal-n': el => { DB.settings.mealN = +el.dataset.v; save(); render(); },
   'fin-open-k': el => openFinish(el.dataset.k),
+  'gym-open': () => openGym(),
+  'gym-only': () => { state.gymOnly = state.gymOnly === false; setSheetBody(pickerHtml(), true); renderEqList(); },
+  'gym-toggle': el => { const G = DB.settings.gym = DB.settings.gym || [], id = el.dataset.eq, i = G.indexOf(id); if (i >= 0) G.splice(i, 1); else G.push(id); save(); const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },
+  'focus-open': () => openFocus(),
+  'fx-w': el => { state.fx.w = Math.max(0, r1(state.fx.w + +el.dataset.d)); fxRender(); },
+  'fx-r': el => { state.fx.r = Math.max(1, state.fx.r + +el.dataset.d); fxRender(); },
+  'fx-move': el => { const L = fxList(); state.fx.i = Math.min(L.length - 1, Math.max(0, state.fx.i + +el.dataset.d)); fxPrefill(); fxRender(); },
+  'fx-add15': () => { timerAdd(15); fxRender(); },
+  'fx-skip': () => { timerStop(); fxRender(); },
+  'fx-done': () => {
+    const F = state.fx, L = fxList(), id = L[F.i], e = eqById(id) || eqOrRecord(id); if (!e) return;
+    addStrengthSet(e, F.w, unitFor(id), F.r); bump(); render();
+    const did = (dayRO(state.date).sets || []).filter(s => s.eq === id).length;
+    if (did >= fxTarget(id).n && F.i < L.length - 1) { F.i++; fxPrefill(); setTimeout(() => toast(`다음: ${(eqById(L[F.i]) || {}).name || ''}`), 1200); }
+    fxRender();
+  },
   'report-open': el => openReport(el.dataset.a, el.dataset.b, el.dataset.t),
   'day-resume': () => { const k = state.date; delete day(k).fin; save(); if (state.sheet && state.sheet.kind === 'finish') closeSheet(); render(); toast('이어서 기록해요'); },
   'fin-cond': el => { const d = day(state.sheet.k); d.check = Object.assign({}, d.check, { cond: +el.dataset.v }); save(); setSheetBody(finishHtml(state.sheet.k), true); render(); },
@@ -3956,6 +4056,7 @@ const ACT = {
 };
 
 const ON = {
+  'gym-q': (el, ev) => { if (ev.type !== 'input') return; state.gymQ = el.value; const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },
   'eq-q': (el, ev) => { if (ev.type !== 'input') return; state.eqQ = el.value; renderEqList(); },
   'row-w': el => { const S = state.sheet; if (!S || !S.rows) return; const r = S.rows[+el.dataset.i]; if (!r) return; r.w = el.value; r.touched = true; if (+el.dataset.i === 0) { const p = $('#ss-prev'); if (p) p.innerHTML = nextPreview(); } },
   'row-r': el => { const S = state.sheet; if (!S || !S.rows) return; const r = S.rows[+el.dataset.i]; if (!r) return; r.r = el.value; r.rTouched = true; if (+el.dataset.i === 0) { const p = $('#ss-prev'); if (p) p.innerHTML = nextPreview(); } },

@@ -975,3 +975,25 @@ details.fold > summary .aside { white-space: normal; min-width: 0; overflow-wrap
 .split-t b { text-align: right; font-size: 15px; }
 .split-t .sh span:not(:first-child) { text-align: right; }
 .split-t .now b { color: var(--hi); }
+
+/* my gym */
+.gymbar { margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+details.gymb { border-bottom: 1px solid var(--line); padding: 6px 0; }
+details.gymb > summary { display: flex; justify-content: space-between; align-items: center; min-height: 40px; cursor: pointer; list-style: none; }
+details.gymb > summary::-webkit-details-marker { display: none; }
+.gymchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 8px; }
+.gymchips .chip[disabled] { opacity: .75; }
+/* workout mode */
+.fxbtn { margin: 8px 0 4px; font-weight: 800; }
+.fx-top { display: flex; justify-content: space-between; align-items: center; }
+.fx-name { font-size: 24px; font-weight: 800; margin: 6px 0 2px; line-height: 1.25; }
+.fx-dots { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.fx-dots span { min-width: 40px; height: 32px; padding: 0 8px; border-radius: 16px; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.fx-dots span.on { background: var(--hi); border-color: var(--hi); color: var(--hi-ink); font-weight: 700; }
+.fx-rest { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; margin-bottom: 10px; border-radius: var(--r); background: var(--card2); }
+.fx-rest b { font-size: 34px; font-family: var(--mono); color: var(--hi); }
+.fx-step { display: grid; grid-template-columns: 64px 64px 1fr 64px; align-items: center; gap: 8px; margin: 10px 0; }
+.fx-step .lb { font-size: 13px; color: var(--ink3); font-weight: 700; }
+.fx-step .btn { height: 64px; font-size: 28px; font-weight: 700; }
+.fx-step b { text-align: center; font-size: 40px; font-family: var(--mono); }
+.fx-go { height: 64px; font-size: 18px; margin-top: 8px; }
