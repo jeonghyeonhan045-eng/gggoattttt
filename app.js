@@ -1807,6 +1807,26 @@ function lastTrained(m, before) {
   for (const s of allSets()) if (s.m === m && !isCardioSet(s) && s.date < before && (!last || s.date > last)) last = s.date;
   return last;
 }
+/* the person's own rotation: find the last time they trained what they trained most recently,
+   and suggest what came after it then (back → chest → legs → shoulders·arms → …) */
+function dayLabelMs(k) {
+  const ss = (dayRO(k).sets || []).filter(s => !isCardioSet(s) && s.m !== '코어'), n = {};
+  for (const s of ss) n[s.m] = (n[s.m] || 0) + 1;
+  const tot = ss.length; if (tot < 3) return null;
+  const ms = STRENGTH_MUSCLES.filter(m => (n[m] || 0) / tot >= 0.25);
+  ms.main = STRENGTH_MUSCLES.reduce((a, m) => (n[m] || 0) > (n[a] || 0) ? m : a, ms[0]); // the day's biggest part
+  return ms;
+}
+function ownOrder(T) {
+  const days = []; for (let k = addDays(T, -35); k < T; k = addDays(k, 1)) { const ms = dayLabelMs(k); if (ms && ms.length) days.push({ k, ms, sig: ms.main }); } // match days by their main part (등 vs 등·팔 is the same back day)
+  if (days.length < 3) return null;
+  const last = days[days.length - 1];
+  let j = -1; for (let i = days.length - 2; i >= 0; i--) if (days[i].sig === last.sig) { j = i; break; }
+  if (j < 0 || j + 1 >= days.length - 1) return null;
+  const nx = days[j + 1];
+  const cycle = days.slice(j, days.length - 1).map(d => d.ms.map(mName).join('·'));
+  return { src: nx.k, ms: nx.ms, l: nx.ms.map(mName).join('·'), cycle };
+}
 function recommendNext(T) {
   if (!allSets().some(s => !isCardioSet(s))) return { T, first: true };
   const mvT = muscleVolume(setsBetween(addDays(T, -7), addDays(T, -1))), vol = mvT.vol;
@@ -1826,7 +1846,9 @@ function recommendNext(T) {
   const rest = streak >= 3 || tired, best = opts[0] || null;
   // few direct shoulder sets this week → add two shoulder moves to whatever day comes next
   const addSh = !!best && !best.ms.includes('어깨') && info['어깨'].dir < 8 && info['어깨'].days >= 2;
-  return { T, best, info, streak, tired, rest, addSh };
+  // the person's own order wins when those parts have had their two days
+  const own = ownOrder(T), ownReady = own && own.ms.every(m => info[m].days >= 2) ? own : null;
+  return { T, best, info, streak, tired, rest, addSh: ownReady ? false : addSh, own: ownReady };
 }
 /* a balanced session for each split: the user's own equipment first, then staples */
 function pickEq(filter, n, prefer) {
@@ -1880,6 +1902,14 @@ function recCardHtml(k) {
     const nd = P0.days[progDay(P0, DB.prog.next)];
     return `<section class="card reccard"><div class="small muted">${when} 추천</div><div class="row between" style="gap:8px"><b style="font-size: 16px">${esc(nd.t)}</b><span class="small muted">${esc(P0.name)} 다음 차례</span></div>
       ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '컨디션이 떨어져 있어요.'} 하루 쉬고 해도 프로그램 순서는 그대로예요.</div>` : ''}</section>`;
+  }
+  if (R.own) {
+    const o = R.own, why = o.ms.map(m => `${mName(m)} ${R.info[m].days}일 쉼`).join(' · ');
+    return `<section class="card reccard"><div class="small muted">${when} 추천 · 내 순서대로</div>
+      <b style="font-size: 16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(o.l)}</b>
+      <div class="small muted" style="margin-top:2px">지난 순서: ${esc(o.cycle.join(' → '))} · ${esc(why)}</div>
+      ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '어제 컨디션이 낮거나 근육통이 심했어요.'} 하루 쉬어도 손해 없어요.</div>` : ''}
+      <button class="btn sm block" style="margin-top:8px" data-act="own-plan" data-t="${T}" data-k="${o.src}">${T === k ? `지난 ${esc(o.l)}날(${shortDate(o.src)}) 그대로 시작` : '내일 계획에 넣기'}</button></section>`;
   }
   const b = R.best;
   if (!b) return `<section class="card reccard"><div class="small muted">${when} 추천</div><b style="font-size: 16px">쉬는 날</b><div class="small muted" style="margin-top:2px">주요 부위가 모두 최근 이틀 안에 운동했어요. 같은 부위는 48시간 정도 쉬는 게 일반적이에요.</div></section>`;
@@ -2405,7 +2435,7 @@ function glanceHtml(R, prog) {
   if (C && !C.irregular) rows.push(['휴식', C.verdict.split(' — ')[0], C.lv]);
   // 5) next session
   const N = recommendNext(today());
-  if (N && !N.first) rows.push(['다음', N.best ? `${N.rest ? '쉬거나 ' : ''}${N.best.l}${N.addSh ? ' + 옆·뒤 어깨' : ''}` : '쉬는 날', 'info']);
+  if (N && !N.first) rows.push(['다음', N.own ? `${N.rest ? '쉬거나 ' : ''}${N.own.l} (내 순서)` : N.best ? `${N.rest ? '쉬거나 ' : ''}${N.best.l}${N.addSh ? ' + 옆·뒤 어깨' : ''}` : '쉬는 날', 'info']);
   return `<section class="card glance">${rows.map(([k, v, lv]) => `<div class="gl"><span class="k">${k}</span><span class="status ${lv}">${ICON[lv]}</span><b>${esc(v)}</b></div>`).join('')}</section>`;
 }
 function viewAnalysis() {
@@ -3448,7 +3478,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3605,6 +3635,12 @@ const ACT = {
   'fix-ok': () => { state.fix = null; render(); },
   'eq-expand': el => { state.openEq = el.classList.contains('compact') ? el.dataset.eq : '-'; render(); },
   'plan-open': () => { state.planOpen = true; render(); },
+  'own-plan': el => {
+    const T = el.dataset.t, src = pastSessions(addDays(T, 1), 60).find(x => x.k === el.dataset.k) || (() => { const ss = (dayRO(el.dataset.k).sets || []).filter(s => !isCardioSet(s)); const eqs = []; for (const s of ss) if (!eqs.includes(s.eq)) eqs.push(s.eq); return { k: el.dataset.k, eqs }; })();
+    if (!src || !src.eqs.length) return;
+    day(T).plan = { from: src.k, eqs: src.eqs.slice(), label: `${shortDate(src.k)} 운동 그대로` }; save(); render();
+    toast(T === state.date ? `${dateLabel(src.k)} 운동 ${src.eqs.length}종목을 불러왔어요` : `내일 계획: ${src.eqs.length}종목`);
+  },
   'rec-plan': el => {
     const [kk, plus] = el.dataset.k.split('+'), T = el.dataset.t;
     const base = kk === 'full' ? { k: 'full', l: '전신' } : SPLITS.find(x => x.k === kk);
