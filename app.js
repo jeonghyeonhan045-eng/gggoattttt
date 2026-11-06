@@ -714,7 +714,8 @@ function sessionReport(k) {
     const row = { eq, name, list, prev, next, u };
     if (!pb || !best) return { ...row, st: 'new' };
     const pct = (best - pb) / pb;
-    return { ...row, st: pct >= 0.01 ? 'up' : pct <= -0.03 ? 'down' : 'same', pct };
+    const st = pct >= 0.01 ? 'up' : pct <= -0.03 ? 'down' : 'same', order = st === 'down' ? orderShift(eq, k, prev.date) : null;
+    return { ...row, st: order ? 'order' : st, pct, order };
   });
   // rest between sets of the same exercise, from the log times (only when logged live)
   const gaps = [];
@@ -780,7 +781,7 @@ function finishHtml(k) {
       ${fb.map(([lv, t, dd, src]) => `<div class="mixtip"><b><span class="status ${lv}">${ICON[lv]}</span> ${esc(t)}</b><div class="d">${esc(dd)}</div>${src ? `<div class="src">근거: ${esc(src)}</div>` : ''}</div>`).join('')}` : ''}
     ${R.cmp.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size: 15px">종목별</h2><span class="aside">오늘 · 지난번 · 다음번</span></div>
       ${R.cmp.map(x => { const txt = l => { const w = l.map(s => fmtSetW(s)), same = w.every(v => v === w[0]); return same ? `${w[0]} × ${l.map(s => s.r).join('·')}` : l.map(s => fmtSetFull(s)).join(' / '); };
-        const tag = x.st === 'up' ? `<span class="status good">↑ +${Math.round(x.pct * 100) || 1}%</span>` : x.st === 'down' ? `<span class="status warn">↓ ${Math.round(x.pct * 100)}%</span>` : x.st === 'same' ? '<span class="status info">= 비슷</span>' : '<span class="status info">첫 기록</span>';
+        const tag = x.st === 'up' ? `<span class="status good">↑ +${Math.round(x.pct * 100) || 1}%</span>` : x.st === 'order' ? `<span class="status info">↓ ${Math.round(x.pct * 100)}% · 순서 ${x.order.from}→${x.order.to}번째</span>` : x.st === 'down' ? `<span class="status warn">↓ ${Math.round(x.pct * 100)}%</span>` : x.st === 'same' ? '<span class="status info">= 비슷</span>' : '<span class="status info">첫 기록</span>';
         return `<div class="fin-ex"><div class="nm">${esc(x.name)} ${tag}</div>
           <div class="d">오늘 ${esc(txt(x.list))}${x.prev ? `<br><span class="muted">지난번 ${esc(txt(x.prev.sets))} · ${esc(shortDate(x.prev.date))}</span>` : ''}</div>
           ${x.next ? `<div class="nx">다음번 <b class="num">${esc(sgTxt(x.next, x.u, eqById(x.eq) || x.list[0]))}</b> — ${esc(x.next.why.replace(/^지난번/, '오늘').replace('(지난번 ', '(오늘 '))}</div>` : ''}</div>`; }).join('')}` : ''}
@@ -1944,6 +1945,14 @@ function lightWeeks() {
     return ws.map((x, i) => peak > 0 && x.sessions >= 1 && x.sets <= 0.65 * peak && i > 0 && ws.slice(0, i).some(y => y.sets >= 0.7 * peak));
   });
 }
+/* where an exercise sat in that day's order (1 = first). Done later, the same lift reads lower from fatigue. */
+function eqPos(k, eq) {
+  const ss = (dayRO(k).sets || []).filter(s => !isCardioSet(s)).map((s, i) => [s, s.t || i]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
+  const order = []; for (const s of ss) if (!order.includes(s.eq)) order.push(s.eq);
+  const i = order.indexOf(eq); return i < 0 ? null : i + 1;
+}
+// a drop that comes with moving the lift 2+ places later in the session is read as order, not lost strength
+const orderShift = (eq, kNow, kThen) => { const a = eqPos(kNow, eq), b = eqPos(kThen, eq); return a && b && a - b >= 2 ? { from: b, to: a } : null; };
 function progression() {
   const weeks = 8, from = weekRange(weeks - 1)[0];
   const light = lightWeeks();
@@ -1954,12 +1963,13 @@ function progression() {
   for (const [eq, list] of Object.entries(byEq)) {
     const sessions = new Set(list.map(s => s.date));
     if (sessions.size < 3) continue;
-    const wk = [];
+    const wk = [], wkDay = [];
     for (let w = weeks - 1; w >= 0; w--) {
       const [a, b] = weekRange(w);
       const ws = list.filter(s => s.date >= a && s.date <= b);
       // deload weeks are lighter on purpose — leave them out of the trend
       wk.push(ws.length && !light[weeks - 1 - w] ? Math.max(...ws.map(setE1)) : null);
+      wkDay.push(ws.length ? ws.reduce((a, x) => setE1(x) > setE1(a) ? x : a).date : null);
     }
     // recent = best of the last 3 weeks, prior = best of the 5 weeks before (deload weeks excluded).
     // Two-week windows were too short: normal slow progress looked like a plateau.
@@ -1972,8 +1982,14 @@ function progression() {
       pct = (rec - prior) / prior;
       status = pct >= 0.01 ? 'up' : pct <= -0.03 ? 'down' : 'flat';
     } else if (rec <= 0) status = 'idle';
+    let order = null;
+    if (status === 'down') {
+      const ri = recIdx.reduce((a, i) => wk[i] > wk[a] ? i : a, recIdx[0]), pi = priorIdx.reduce((a, i) => wk[i] > wk[a] ? i : a, priorIdx[0]);
+      order = orderShift(eq, wkDay[ri], wkDay[pi]);
+      if (order) status = 'flat';
+    }
     const e = eqById(eq) || list[0];
-    rows.push({ eq, name: e.name, brand: e.brand, type: list[0].type, m: list[0].m, n: list.length, sessions: sessions.size, wk, rec, prior, pct, status });
+    rows.push({ eq, name: e.name, brand: e.brand, type: list[0].type, m: list[0].m, n: list.length, sessions: sessions.size, wk, rec, prior, pct, status, order });
   }
   rows.sort((x, y) => y.n - x.n);
   return rows.slice(0, 8);
@@ -2271,7 +2287,9 @@ function restCycle(R, prog) {
   // a rest run still going today counts only once it is as long as the usual one, or it's the only one
   const lastOpen = !runs[runs.length - 1].on;
   const closedOff = offR.slice(0, lastOpen ? -1 : undefined).map(r => r.n);
-  const on = med(onR.map(r => r.n)), off = closedOff.length ? med(closedOff) : offR[offR.length - 1].n;
+  // a training run still going (ends today or yesterday) isn't finished yet — leave it out of the usual length
+  const lastRun = runs[runs.length - 1], openOn = lastRun.on && onR.length > 1;
+  const on = med((openOn ? onR.slice(0, -1) : onR).map(r => r.n)), off = closedOff.length ? med(closedOff) : offR[offR.length - 1].n;
   if (on > 7 || off > 6) return { irregular: true, on, off };
   const cycle = on + off;
   // where each part sits inside the latest full training run
@@ -2292,6 +2310,60 @@ function restCycle(R, prog) {
   else if (off === 1 && slipping) { verdict = '무게가 떨어지는 종목이 늘었어요. 피곤하면 하루 더 쉬어보세요'; lv = 'warn'; }
   else { verdict = '지금 주기가 적당해요'; lv = 'good'; }
   return { on, off, cycle, parts, proj, scale, verdict, lv, slipping, cycles: onR.length };
+}
+/* ---------- routine check: exercise order, load per session, and the split itself ---------- */
+const COMPOUND = new Set(['벤치프레스', '인클라인 프레스', '체스트 프레스', '딥스', '숄더 프레스', '스쿼트', '레그 프레스', '데드리프트', '루마니안 데드리프트', '로우', '랫 풀다운', '풀업', '힙 쓰러스트', '런지']);
+function routineCheck(R) {
+  const t = today(), from = addDays(t, -13), out = { order: [], heavy: [], split: null };
+  // 1) an isolation move before a big move for the same part, on the same day
+  const seen = new Set();
+  for (let k = from; k <= t; k = addDays(k, 1)) {
+    const ss = (dayRO(k).sets || []).filter(s => !isCardioSet(s)); if (ss.length < 3) continue;
+    const first = {}; ss.map((s, i) => [s, s.t || i]).sort((a, b) => a[1] - b[1]).forEach(([s], i) => { if (first[s.eq] == null) first[s.eq] = { i, s }; });
+    const list = Object.values(first).sort((a, b) => a.i - b.i);
+    for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
+      const iso = list[a].s, big = list[b].s;
+      if (iso.m === big.m && !COMPOUND.has(iso.type) && COMPOUND.has(big.type)) { const key = iso.eq + big.eq; if (!seen.has(key)) { seen.add(key); out.order.push({ k, iso: iso.name, big: big.name }); } }
+    }
+    // 2) lots of direct sets for one part in one go
+    const n = {}; for (const s of ss) n[s.m] = (n[s.m] || 0) + 1;
+    for (const [m, c] of Object.entries(n)) if (c >= 13 && m !== '코어') out.heavy.push({ k, m, c });
+  }
+  // 3) the split: same weekly sets spread over other splits, same training days
+  const own = ownOrder(addDays(t, 1)), C = restCycle(R, progression());
+  if (own && C && !C.irregular) {
+    const perWeek = C.on * 7 / C.cycle, main = ['가슴', '등', '다리'];
+    const freqNow = m => { const p = C.parts.find(x => x.m === m); return p ? p.perCycle * 7 / C.cycle : 0; };
+    // now: what was actually done per session; the others: the same weekly sets spread over their frequency
+    const ss14 = setsBetween(from, t).filter(x => !isCardioSet(x));
+    const actual = m => { const per = {}; for (const x of ss14) if (x.m === m) per[x.date] = (per[x.date] || 0) + 1; const v = Object.values(per).filter(c => c >= 3); return v.length ? v.reduce((a, c) => a + c, 0) / v.length : null; };
+    const weekly = m => { const a = actual(m), f = freqNow(m); return a != null && f ? a * f : R.mv14.dW[m]; };
+    const opt = (l, f, now) => ({ l, f, per: main.map(m => ({ m, v: now ? actual(m) : f(m) ? weekly(m) / f(m) : null })) });
+    out.split = { perWeek, own: own.cycle, rows: [opt(`지금 · ${own.cycle.length}분할`, freqNow, true), opt('3분할 (밀기·당기기·하체)', () => perWeek / 3), opt('상하체 2분할', () => perWeek / 2)] };
+  }
+  return out;
+}
+function routineCheckHtml(R) {
+  const X = routineCheck(R), items = [];
+  if (X.order.length) items.push(['info', '작은 운동을 큰 운동보다 먼저 했어요', `${X.order.slice(0, 3).map(o => `${shortDate(o.k)} ${o.iso} → ${o.big}`).join(' · ')}. 큰 종목을 먼저 해야 무거운 무게를 쓸 수 있어요. 일부러 한 게 아니면 순서를 바꿔보세요.`]);
+  const hv = {}; for (const h of X.heavy) if (!hv[h.m] || hv[h.m].c < h.c) hv[h.m] = h;
+  const hl = Object.values(hv);
+  if (hl.length) items.push(['info', `한 번에 13세트 넘게 한 부위: ${hl.map(h => `${mName(h.m)} ${h.c}`).join(' · ')}`, '한 세션에 한 부위를 많이 하면 뒤쪽 세트는 무게·횟수가 떨어지기 쉬워요. 무게가 정체되면 아래 분할 비교를 참고하세요.']);
+  let tbl = '';
+  if (X.split) {
+    const S = X.split, cur = S.rows[0], over = cur.per.filter(p => p.v != null && p.v >= 13);
+    tbl = `<div class="rp-k">분할 비교 · 주간 세트와 운동일(주 ${r1(S.perWeek)}일)은 그대로 둘 때</div>
+      <div class="small muted" style="margin-bottom:4px">지금 순서: ${esc(S.own.join(' → '))}</div>
+      <div class="split-t"><div class="sh"><span>분할</span>${cur.per.map(p => `<span>${esc(mName(p.m))}</span>`).join('')}</div>
+      ${S.rows.map((r, i) => `<div class="${i ? '' : 'now'}"><span>${esc(r.l)}<em>부위당 주 ${r1(r.f(cur.per[0].m) || 0)}회</em></span>${r.per.map(p => `<b class="num">${p.v == null ? '–' : r1(p.v)}</b>`).join('')}</div>`).join('')}</div>
+      <div class="small muted" style="margin-top:4px">숫자 = 한 번 운동할 때 그 부위 세트 수</div>
+      <div class="verdict ${over.length ? 'info' : ''}" style="margin-top:8px"><div class="vt"><span class="status ${over.length ? 'info' : 'good'}">${ICON[over.length ? 'info' : 'good']} ${over.length ? `${esc(jo(over.map(p => mName(p.m)).join('·'), '을', '를'))} 한 번에 몰아서 해요` : '지금 분할 유지해도 돼요'}</span></div>
+        <div class="small" style="margin-top:4px">${over.length ? '주간 세트가 같으면 분할 방식에 따른 근육 차이는 작아요. 다만 한 번에 13세트 넘게 하면 뒤쪽 세트 질이 떨어지기 쉬워서, 무게가 정체될 때 3분할이나 상하체로 나누면 한 번 부담이 줄어요.' : '주간 세트가 같으면 분할 방식에 따른 근육 차이는 작아요. 일정과 운동 시간에 맞는 쪽을 고르면 돼요.'}</div>
+        <div class="grid2" style="margin-top:8px"><button class="btn sm" data-act="prog-open" data-p="ul4">상하체 루틴 보기</button><button class="btn sm" data-act="prog-open" data-p="ppl">3분할(PPL) 보기</button></div></div>`;
+  }
+  if (!items.length && !tbl) return '';
+  const body = `<section class="card">${items.map(([lv, t, d]) => `<div class="mixtip"><b><span class="status ${lv}">${ICON[lv]}</span> ${esc(t)}</b><div class="d">${esc(d)}</div></div>`).join('')}${tbl}</section>`;
+  return fold('routine', '루틴 점검', items.length ? `짚을 곳 ${items.length}개` : '분할 비교', body, false);
 }
 function restCycleHtml(C) {
   if (!C) return '';
@@ -2332,7 +2404,8 @@ function periodReport(a, b) {
     const f = Math.max(...list.filter(s => s.date === ds[0]).map(score)), l = Math.max(...list.filter(s => s.date === ds[ds.length - 1]).map(score));
     if (!f || !l) return null;
     const pct = (l - f) / f, e = eqById(eq) || list[0];
-    return { name: e.name, n: list.length, bw, f, l, pct, st: pct >= 0.02 ? 'up' : pct <= -0.03 ? 'down' : 'flat' };
+    const st = pct >= 0.02 ? 'up' : pct <= -0.03 ? 'down' : 'flat', order = st === 'down' ? orderShift(eq, ds[ds.length - 1], ds[0]) : null;
+    return { name: e.name, n: list.length, bw, f, l, pct, st: order ? 'flat' : st, order };
   }).filter(Boolean).sort((x, y) => y.n - x.n).slice(0, 6);
   const up = lifts.filter(x => x.st === 'up').length, down = lifts.filter(x => x.st === 'down').length;
   // body: InBody pair inside (or just around) the period, and the body-weight slope
@@ -2399,7 +2472,7 @@ function reportHtml(P) {
   } else if (P.wd != null) bodyH = `<div class="rp-k">몸 변화 · 아침 체중</div><div class="rp-grid"><div><span>주당 변화</span>${d(P.wd, 'kg')}</div><div><span>목표 속도</span><b class="num">${pctTxt(G.rate[0])} ~ ${pctTxt(G.rate[1])}</b></div></div>`;
   else bodyH = `<div class="rp-k">몸 변화</div><div class="small muted">이 기간엔 인바디 2회(2주 이상 간격)나 아침 체중 기록이 없어서 몸 쪽은 판단하지 못했어요.</div>`;
 
-  const liftH = P.lifts.length ? `<div class="rp-k">힘 변화 · 처음 → 마지막</div>${P.lifts.map(x => `<div class="rp-lift"><span>${esc(x.name)}</span><span class="num">${x.bw ? `${x.f}회 → ${x.l}회` : `${r1(x.f)} → ${r1(x.l)}kg`}</span><b class="num ${x.st === 'up' ? 'up' : x.st === 'down' ? 'dn' : 'muted'}">${x.pct > 0 ? '+' : ''}${Math.round(x.pct * 100)}%</b></div>`).join('')}<div class="note">무게는 추정 1RM(무게·횟수로 계산한 최대 무게)이에요.</div>` : '';
+  const liftH = P.lifts.length ? `<div class="rp-k">힘 변화 · 처음 → 마지막</div>${P.lifts.map(x => `<div class="rp-lift"><span>${esc(x.name)}${x.order ? ` <em class="was">순서 ${x.order.from}→${x.order.to}번째</em>` : ''}</span><span class="num">${x.bw ? `${x.f}회 → ${x.l}회` : `${r1(x.f)} → ${r1(x.l)}kg`}</span><b class="num ${x.st === 'up' ? 'up' : x.st === 'down' ? 'dn' : 'muted'}">${x.pct > 0 ? '+' : ''}${Math.round(x.pct * 100)}%</b></div>`).join('')}<div class="note">무게는 추정 1RM(무게·횟수로 계산한 최대 무게)이에요.</div>` : '';
   const partH = `<div class="rp-k">부위별 주평균 세트</div><div class="rp-parts">${P.parts.filter(p => p.st !== 'none' || ['가슴', '등', '어깨', '다리'].includes(p.m)).map(p => `<span class="${p.st}">${esc(mName(p.m))} <b class="num">${r1(p.tot)}</b></span>`).join('')}</div>`;
   const list = (k, arr, cls) => arr.length ? `<div class="rp-k">${k}</div><ul class="rp-list ${cls}">${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
   return `<div class="verdict ${lv === 'good' ? '' : lv}"><div class="vt"><span class="status ${lv}">${ICON[lv]} ${esc(head)}</span></div><div class="small" style="margin-top:4px">${esc(why)}</div></div>
@@ -2514,6 +2587,7 @@ function viewAnalysis() {
   </section>`;
 
   h += restCycleHtml(restCycle(R, prog));
+  h += routineCheckHtml(R);
   // exercise mix (optional notes)
   const tips = mixTips();
   h += fold('mix', '종목 구성 참고', tips.length ? `짚을 곳 ${tips.length}개` : '고르게 섞여 있어요', `<section class="card">
@@ -2546,7 +2620,7 @@ function viewAnalysis() {
   h += fold('prog', '점진적 과부하', prog.length ? ['up', 'flat', 'down'].map(st => [st, prog.filter(p => p.status === st).length]).filter(x => x[1]).map(([st, n]) => `${{ up: '상승', flat: '정체', down: '하락' }[st]} ${n}`).join(' · ') || '기록 쌓는 중' : '기록 쌓는 중', `<section class="card">
     ${prog.length ? prog.map(p => {
       const lv = p.status === 'up' ? 'good' : p.status === 'down' ? 'bad' : p.status === 'flat' ? 'warn' : 'info';
-      const lbl = p.status === 'up' ? `상승 +${Math.round(p.pct * 100)}%` : p.status === 'down' ? `하락 ${Math.round(p.pct * 100)}%` : p.status === 'flat' ? '정체' : p.status === 'idle' ? '최근 한 달 기록 없음' : '기록 쌓는 중';
+      const lbl = p.order ? `순서 영향 (${p.order.from}→${p.order.to}번째)` : p.status === 'up' ? `상승 +${Math.round(p.pct * 100)}%` : p.status === 'down' ? `하락 ${Math.round(p.pct * 100)}%` : p.status === 'flat' ? '정체' : p.status === 'idle' ? '최근 한 달 기록 없음' : '기록 쌓는 중';
       return `<div class="prog-row"><div><div class="nm">${esc(p.name)}</div><div class="sub">${esc(p.brand || '')} · ${esc(p.type)} · ${p.sessions}회</div></div>
         <div>${sparkline(p.wk, { color: `var(--m-${MKEY[p.m] || 'full'})` })}</div>
         <div class="st"><span class="status ${lv}">${ICON[lv]} ${lbl}</span><div class="small muted num">${p.rec > 0 ? r1(p.rec) + 'kg' : ''}</div></div></div>`;
@@ -3478,7 +3552,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
