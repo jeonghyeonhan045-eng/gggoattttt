@@ -3107,8 +3107,8 @@ function solveInbody(Z, base) {
   if (best.sum) [r.water, r.protein, r.mineral] = best.sum;
   else {
     // without the sum, body water is ~73% of fat-free mass and protein ~20%: a number outside that is another row's (81.6 = weight)
-    const lean = w != null && f != null ? w - f : ffs.length ? ffs[0][0] : null, fits = (v, lo, hi) => lean == null ? (w == null || v < w * 0.8) : v >= lean * lo && v <= lean * hi;
-    r.water = (was.find(([v]) => fits(v, 0.66, 0.8)) || [])[0]; r.protein = (prs.find(([v]) => fits(v, 0.15, 0.25)) || [])[0]; r.mineral = (mis[0] || [])[0];
+    const lean = w != null && f != null ? w - f : ffs.length ? ffs[0][0] : null, fits = (v, lo, hi) => lean != null && v >= lean * lo && v <= lean * hi;
+    r.water = (was.find(([v]) => fits(v, 0.66, 0.8)) || [])[0]; r.protein = lean == null ? (prs[0] || [])[0] : (prs.find(([v]) => fits(v, 0.15, 0.25)) || [])[0]; r.mineral = (mis[0] || [])[0];
   }
   // skeletal muscle: inside 45–66% of fat-free mass, the reading seen most often (history row as a tie-breaker)
   const ffm = w != null && f != null ? w - f : ffs.length ? ffs[0][0] : null;
@@ -3118,7 +3118,8 @@ function solveInbody(Z, base) {
   let mus = top(cnt([...smm, ...(base.muscle != null ? [base.muscle] : [])]), 8, 80).filter(([v]) => inR(v)), muGuess = false;
   // the first digit sits against the bar and gets lost (40.8 → 10.8): if exactly one first digit fits the fat-free mass, use it
   if (!mus.length && ffm) { const alt = new Set(); for (const v of smm) { const t = v.toFixed(1); for (let d = 1; d <= 9; d++) { const x = +(d + t.slice(1)); if (inR(x)) alt.add(x); } } if (alt.size === 1) { mus = [[[...alt][0], 1]]; muGuess = true; } }
-  r.muscle = mus.length ? mus[0][0] : null;
+  // nothing to check it against (weight and fat unread): leave it empty rather than guess
+  r.muscle = mus.length && ffm ? mus[0][0] : null;
   if (!ok) { if (w != null) r.unsure.push('weight'); if (f != null) r.unsure.push('fatKg'); if (r.fatPct != null) r.unsure.push('fatPct'); }
   if (r.muscle != null && (mus[0][1] < 2 || !ok || muGuess)) r.unsure.push('muscle');
   for (const k of ['water', 'protein', 'mineral']) if (r[k] == null) delete r[k];
@@ -3200,6 +3201,8 @@ function ocrCanvas(img, target) {
 async function ocrInbody(file) {
   const st = $('#ib-ocr'); const say = (t, cls) => { if (st) { st.className = 'ocrstat ' + (cls || ''); st.innerHTML = t; } };
   let ocrDone = false, zooming = false;
+  // a new photo starts clean: numbers an earlier reading filled in would look like this one's
+  document.querySelectorAll('.ocrfill').forEach(el => { if (el.id !== 'ib-date') el.value = ''; el.classList.remove('ocrfill', 'ocrunsure'); });
   say('사진에서 숫자를 읽는 중… <span class="muted">처음 한 번은 글자 인식 데이터(약 8MB)를 받느라 30초쯤 걸려요</span>', 'busy');
   try {
     await loadTess();
@@ -3771,7 +3774,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
