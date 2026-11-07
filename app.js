@@ -2990,6 +2990,113 @@ function parseInbody(text) {
   if (r.date && r.date > today()) delete r.date;
   return r;
 }
+
+/* ---------- InBody: read each field by its row, then choose numbers that agree ---------- */
+const IB_FIELDS = {
+  weight: { re: /체\s*중/, skip: /조절|변화|history/i, notAfter: /정$/ },
+  water: { re: /체\s*수\s*분/, skip: /세포|비/ },
+  protein: { re: /단\s*백\s*질/ },
+  mineral: { re: /[무루]\s*기\s*질/ },
+  fatT: { re: /체\s*지\s*방(?![량랑향률율를클레])/, skip: /분석|레벨|부위|조절|률|율/ },
+  fatB: { re: /체\s*지\s*[방바]\s*[량랑향]/ },
+  pbf: { re: /체\s*지\s*방\s*[률율를클]/, skip: /복부/ },
+  smm: { re: /[골글끌]?\s*[격걱]\s*[근군]\s*[량람랑]/, skip: /분석/ },
+  ffm: { re: /제\s*지\s*방\s*량/ },
+};
+async function readFields(worker, canvas, data) {
+  const out = {};
+  try {
+    const lines = (data.blocks || []).flatMap(b => (b.paragraphs || []).flatMap(p => p.lines || []));
+    const hist = lines.find(l => /신체변화|history/i.test((l.text || '').replace(/\s/g, ''))), histY = hist ? hist.bbox.y0 : Infinity;
+    await worker.setParameters({ tessedit_char_whitelist: '0123456789.', tessedit_pageseg_mode: '7' });
+    for (const ln of lines) {
+      if (ln.bbox.y0 >= histY) continue;
+      const ws = (ln.words || []).slice().sort((a, b) => a.bbox.x0 - b.bbox.x0);
+      // compact text with a map back to words (Korean comes back one syllable per word)
+      let txt = '', at = []; ws.forEach((w, wi) => { const t = (w.text || '').replace(/\s/g, ''); for (const ch of t) { txt += ch; at.push(wi); } });
+      for (const [key, F] of Object.entries(IB_FIELDS)) {
+        if (F.skip && F.skip.test(txt)) continue;
+        const re = new RegExp(F.re.source.replace(/\\s\*/g, ''), 'g'); let m;
+        while ((m = re.exec(txt))) {
+          if (F.notAfter && F.notAfter.test(txt.slice(0, m.index))) continue;
+          const w0 = ws[at[m.index]], w1 = ws[at[m.index + m[0].length - 1]];
+          const h = Math.max(...ws.slice(at[m.index], at[m.index + m[0].length - 1] + 1).map(w => w.bbox.y1 - w.bbox.y0)), y0 = Math.min(w0.bbox.y0, w1.bbox.y0);
+          // the number the first reading saw after the label ("40." "5", "81.6") — crop just that, widened a little to the
+          // left where a digit touching the bar gets lost; the bar itself confuses a digits-only read
+          const li = at[m.index + m[0].length - 1];
+          // the number must come before any other Korean word ("체수분, 단백질, 무기질 … 합하면 체중 81.6" is a sentence, not a row)
+          let k0 = -1; for (let q = li + 1; q < ws.length && ws[q].bbox.x0 - w1.bbox.x1 < h * 30; q++) { if (/[가-힣]/.test(ws[q].text)) break; if (/\d/.test(ws[q].text) && !/^\(/.test(ws[q].text)) { k0 = q; break; } }
+          let cx0, cx1, cy0, cy1;
+          if (k0 >= 0) {
+            let k1 = k0; while (k1 + 1 < ws.length && /^[\d.,]+$/.test(ws[k1 + 1].text) && ws[k1 + 1].bbox.x0 - ws[k1].bbox.x1 < h * 1.2) k1++;
+            const b = ws.slice(k0, k1 + 1), nh = Math.max(...b.map(w => w.bbox.y1 - w.bbox.y0));
+            var first = (b.map(w => w.text).join('').replace(/,/g, '.').match(key === 'mineral' ? /\d{1,2}\.\d{1,2}/ : /\d{1,3}\.\d/) || [])[0];
+            if (first) (out[key] = out[key] || []).push(+first);
+            cx0 = Math.max(0, b[0].bbox.x0 - nh * 0.9); cx1 = Math.min(canvas.width, b[b.length - 1].bbox.x1 + nh * 0.4);
+            cy0 = Math.max(0, Math.min(...b.map(w => w.bbox.y0)) - nh * 0.35); cy1 = Math.min(canvas.height, Math.max(...b.map(w => w.bbox.y1)) + nh * 0.35);
+          } else continue;
+          const S = 3, c = document.createElement('canvas'); c.width = Math.round((cx1 - cx0) * S); c.height = Math.round((cy1 - cy0) * S);
+          if (c.width < 30 || c.height < 12) continue;
+          c.getContext('2d').drawImage(canvas, cx0, cy0, cx1 - cx0, cy1 - cy0, 0, 0, c.width, c.height);
+          for (const img of [c, binarize(c)]) {
+            const { data: d } = await worker.recognize(img);
+            // the value is the first decimal after the label (the range in brackets and the bar come after it)
+            // minerals print two decimals (4.85), everything else one (81.6)
+            const n = (d.text.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2').match(key === 'mineral' ? /\d{1,2}\.\d{1,2}(?!\d)/ : /\d{1,3}\.\d(?!\d)/) || [])[0];
+            // a stray mark left of the number reads as an extra digit (181.6 for 81.6): trust the first reading's digits then
+            if (n) (out[key] = out[key] || []).push(first && n !== first && n.endsWith(first) ? +first : +n);
+          }
+        }
+      }
+    }
+    await worker.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: '3' });
+  } catch (e) {}
+  return out;
+}
+function solveInbody(Z, base) {
+  const cnt = arr => { const c = new Map(); for (const v of arr || []) c.set(v, (c.get(v) || 0) + 1); return c; };
+  const add = (arr, v) => v != null ? [...(arr || []), v] : arr || [];
+  const W = cnt(add(Z.weight, base.wPrinted ? base.weight : null)), F = cnt([...(Z.fatT || []), ...(Z.fatB || []), ...(base.fatKg != null && !base.unsure.includes('fatKg') ? [base.fatKg] : [])]);
+  const P = cnt(add(Z.pbf, base.fpPrinted ? base.fatPct : null)), Wa = cnt(add(Z.water, base.water)), Pr = cnt(add(Z.protein, base.protein)), Mi = cnt(add(Z.mineral, base.mineral)), FF = cnt(Z.ffm);
+  const top = (m, lo, hi) => [...m.entries()].filter(([v]) => v >= lo && v <= hi).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  let best = { score: -1 };
+  const ws = top(W, 25, 250), fs = top(F, 1, 120), ps = top(P, 2, 65), was = top(Wa, 10, 100), prs = top(Pr, 3, 30), mis = top(Mi, 1.5, 8), ffs = top(FF, 15, 150);
+  // a fat reading under 10 may have lost its first digit (1.3 for 11.3): offer 11.3 / 21.3 as well
+  for (const [v, c] of fs.slice()) if (v < 10) for (const add of [10, 20, 30]) if (!fs.some(([x]) => x === Math.round((v + add) * 10) / 10)) fs.push([Math.round((v + add) * 10) / 10, c]);
+  const firm = was.length && prs.length && mis.length && was[0][1] >= 2 && prs[0][1] >= 2 && mis[0][1] >= 2;
+  for (const [w, cw] of ws.length ? ws : [[null, 0]]) {
+    const fl = fs.slice();
+    // fat from the sum, only with a read weight and water / protein / minerals each read at least twice;
+    // it counts as read if a fat reading is the same number missing its first digit (1.3 for 11.3)
+    if (w != null && firm) { const fd = Math.round((w - was[0][0] - prs[0][0] - mis[0][0]) * 10) / 10; if (fd > 1 && fd < w * 0.6 && !fl.some(([v]) => v === fd)) fl.push([fd, fs.some(([v]) => String(fd).endsWith(String(v))) ? 1 : 0, true]); }
+    for (const [f, cf, derived] of fl.length ? fl : [[null, 0]]) {
+      if (w != null && f != null && (f >= w * 0.7 || f < w * 0.03)) continue; // body fat under 3% isn't a real reading
+      let s = cw + cf, pct = null, sum = false, ffmOk = false;
+      if (w != null && f != null) {
+        const p = ps.find(([v]) => Math.abs(v - f / w * 100) <= 0.3); if (p) { s += 6 + p[1]; pct = p[0]; }
+        let bs = -1; for (const [a, ca] of was) for (const [b, cb] of prs) for (const [c, cc] of mis) if (Math.abs(w - (a + b + c + f)) <= 0.25 && ca + cb + cc > bs) { bs = ca + cb + cc; sum = [a, b, c]; }
+        if (sum) s += (derived ? 3 : 6) + bs;
+        if (ffs.some(([v]) => Math.abs(w - f - v) <= 0.25)) { ffmOk = true; s += 3; }
+      }
+      if (s > best.score) best = { score: s, w, f, pct, sum, ffmOk, derived };
+    }
+  }
+  const { w, f } = best, ok = w != null && f != null && (best.pct != null || best.ffmOk || (best.sum && !best.derived));
+  const r = { weight: w, fatKg: f, unsure: [], ok, fit: best.score };
+  r.fatPct = best.pct != null ? best.pct : w && f ? Math.round(f / w * 1000) / 10 : (ps[0] || [])[0] ?? null;
+  if (best.sum) [r.water, r.protein, r.mineral] = best.sum; else { r.water = (was[0] || [])[0]; r.protein = (prs[0] || [])[0]; r.mineral = (mis[0] || [])[0]; }
+  // skeletal muscle: inside 45–66% of fat-free mass, the reading seen most often (history row as a tie-breaker)
+  const ffm = w != null && f != null ? w - f : ffs.length ? ffs[0][0] : null;
+  const inR = v => !ffm || (v >= ffm * 0.45 && v <= ffm * 0.66);
+  let mus = top(cnt([...(Z.smm || []), ...(base.muscle != null ? [base.muscle] : [])]), 8, 80).filter(([v]) => inR(v)), muGuess = false;
+  // the first digit sits against the bar and gets lost (40.8 → 10.8): if exactly one first digit fits the fat-free mass, use it
+  if (!mus.length && ffm) { const alt = new Set(); for (const v of Z.smm || []) { const t = v.toFixed(1); for (let d = 1; d <= 9; d++) { const x = +(d + t.slice(1)); if (inR(x)) alt.add(x); } } if (alt.size === 1) { mus = [[[...alt][0], 1]]; muGuess = true; } }
+  r.muscle = mus.length ? mus[0][0] : null;
+  if (!ok) { if (w != null) r.unsure.push('weight'); if (f != null) r.unsure.push('fatKg'); if (r.fatPct != null) r.unsure.push('fatPct'); }
+  if (r.muscle != null && (mus[0][1] < 2 || !ok || muGuess)) r.unsure.push('muscle');
+  for (const k of ['water', 'protein', 'mineral']) if (r[k] == null) delete r[k];
+  return r;
+}
 let tessLoading = null;
 function loadTess() {
   if (window.Tesseract) return Promise.resolve();
@@ -3077,54 +3184,24 @@ async function ocrInbody(file) {
       workerPath: 'tess/worker.min.js', corePath: 'tess/', langPath: 'tess', gzip: true,
       logger: m => { if (!ocrDone && !zooming && m.status === 'recognizing text') say(`사진에서 숫자를 읽는 중… ${Math.round(m.progress * 100)}%`, 'busy'); },
     });
-    // always read twice (colour-stretched + black-and-white) and compare; a value is trusted only if
-    // both readings agree or an independent printed number (weight, % body fat) confirms it
-    const KEYS = ['weight', 'muscle', 'fatKg', 'fatPct'];
-    const readAt = async (cv, note) => {
-      const { data } = await worker.recognize(cv, {}, { text: true, blocks: true });
-      say(`검증을 위해 한 번 더 읽는 중…${note || ''} <span class="muted">흑백으로 다시 읽어 두 결과를 비교해요</span>`, 'busy');
-      const { data: d2 } = await worker.recognize(binarize(cv));
-      const text = data.text + '\n' + d2.text;
-      const r1 = parseInbody(data.text), r2 = parseInbody(d2.text), r = parseInbody(text);
-      const mathOk = r.weight != null && r.fatKg != null && r.water != null && r.protein != null && r.mineral != null && Math.abs(r.weight - (r.water + r.protein + r.mineral + r.fatKg)) <= 1;
-      r.verify = {};
-      for (const k of KEYS) {
-        if (r[k] == null) continue;
-        const agree = r1[k] != null && r2[k] != null && Math.abs(r1[k] - r2[k]) <= 0.15 && Math.abs(r1[k] - r[k]) <= 0.15;
-        const indep = k === 'weight' ? r.wPrinted : k === 'fatKg' ? r.wPrinted || r.fpPrinted : k === 'fatPct' ? r.fpPrinted : true;
-        const byMath = (mathOk || (r.wPrinted && r.fpPrinted)) && indep && !r.unsure.includes(k) && (k !== 'muscle' || agree || [r1.muscle, r2.muscle].includes(r.muscle));
-        r.verify[k] = agree && byMath ? 'both' : agree ? 'twice' : byMath ? 'math' : 'none';
-        if (r.verify[k] === 'none' && !r.unsure.includes(k)) r.unsure.push(k);
-      }
-      const score = KEYS.filter(k => r[k] != null && r.verify[k] !== 'none').length * 2 + KEYS.filter(k => r[k] != null).length;
-      return { data, text, r, score };
-    };
-    // OCR on phone photos swings with image size: if the main numbers didn't check out, read again at other sizes
-    let R = await readAt(canvas);
-    for (const wd of [1600, 2500]) {
-      if (R.r.verify.weight && R.r.verify.weight !== 'none' && R.r.verify.fatKg && R.r.verify.fatKg !== 'none') break;
-      say(`숫자가 서로 안 맞아서 크기를 바꿔 다시 읽는 중…`, 'busy');
-      const cv = ocrCanvas(img, wd), T2 = await readAt(cv, ' (다른 크기)');
-      if (T2.score > R.score) { R = T2; canvas = cv; }
+    // 1) read the whole sheet once to find where each label sits
+    const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true });
+    const text = data.text, base = parseInbody(text);
+    // 2) for every number on the sheet, cut out its row next to the label and read digits only (much more accurate)
+    zooming = true; say('숫자 줄을 하나씩 확대해서 읽는 중…', 'busy');
+    let Z = await readFields(worker, canvas, data);
+    // 3) pick the set of numbers that agrees with itself (weight = water + protein + minerals + fat, % fat = fat ÷ weight)
+    let r = solveInbody(Z, base);
+    if (!r.ok) {
+      // phone photos read differently at another size — one more pass, keep whichever agrees better
+      say('한 번 더 다른 크기로 읽는 중…', 'busy');
+      const cv = ocrCanvas(img, img.width > 2000 ? 1600 : 2600), { data: d2 } = await worker.recognize(cv, {}, { text: true, blocks: true });
+      const Z2 = await readFields(worker, cv, d2), merged = {}; for (const k of new Set([...Object.keys(Z), ...Object.keys(Z2)])) merged[k] = [...(Z[k] || []), ...(Z2[k] || [])];
+      const r2 = solveInbody(merged, parseInbody(d2.text));
+      if (r2.fit > r.fit) r = r2;
     }
-    const { data, text, r } = R;
-    // skeletal muscle still missing or guessed: zoom into its row and read digits only
-    if (r.muscle == null || r.muFixed || r.unsure.includes('muscle')) {
-      say('골격근량 줄을 확대해서 다시 읽는 중…', 'busy'); zooming = true;
-      const MRE = /[골글끌]?[격걱][근군][량람랑]|격근|skeletal/i;
-      const ffm = r.weight != null && r.fatKg != null ? r.weight - r.fatKg : null;
-      const ok = v => ffm ? v >= ffm * 0.45 && v <= ffm * 0.66 : v >= 10 && v <= 70;
-      // 1) the muscle row enlarged, 2) the latest point of the body-composition-history row
-      const z1 = (await zoomRow(worker, canvas, data, MRE)).filter(ok);
-      const z2 = (await zoomRow(worker, canvas, data, MRE, true)).filter(ok);
-      const both = z1.find(v => z2.includes(v)), same = [...z1, ...z2].find(v => v === r.muscle);
-      const pick = same ?? both ?? (r.muscle == null ? z1[0] ?? z2[0] : null);
-      if (pick != null) {
-        const confirmed = z1.includes(pick) + z2.includes(pick) + (pick === r.muscle) >= 2;
-        r.muscle = pick; r.muFixed = !confirmed;
-        if (confirmed) { r.unsure = r.unsure.filter(k => k !== 'muscle'); r.verify.muscle = 'zoom'; }
-      }
-    }
+    for (const k of ['bmr', 'vfl', 'date', 'whr', 'ecw', 'pa']) if (base[k] != null && r[k] == null) r[k] = base[k];
+    window.__ocrZ = Z; window.__ocrLines = (data.blocks || []).flatMap(b => (b.paragraphs || []).flatMap(p => p.lines || [])).map(l => (l.words || []).map(w => w.text).join('|'));
     window.__ocrText = text; // kept for troubleshooting a misread sheet
     ocrDone = true;
     await worker.terminate();
@@ -3136,9 +3213,8 @@ async function ocrInbody(file) {
     const got = ['weight', 'muscle', 'fatKg', 'fatPct'].filter(k => r[k] != null).length + extra;
     if (!got) say('숫자를 찾지 못했어요. 결과지 전체가 밝고 반듯하게 나오게 다시 찍거나, 직접 입력해 주세요.', 'bad');
     else {
-      const NAME = { weight: '체중', muscle: '골격근량', fatKg: '체지방량', fatPct: '체지방률' }, V = r.verify || {};
-      const how = Object.entries(V).filter(([, v]) => v !== 'none').map(([k, v]) => `${NAME[k]} ${v === 'both' ? '✓✓' : v === 'zoom' ? '✓(확대)' : '✓'}`).join(' · ');
-      say(`<b>${got}개 항목을 읽었어요.</b> ${how ? `검증: ${how} <span class="muted">(✓✓ = 두 번 읽어 같고 합계도 맞음, ✓ = 둘 중 하나로 확인)</span>. ` : ''}주황색 칸이 사진에서 읽은 값이에요.${r.muFixed ? ` <b class="warnc">골격근량은 앞자리가 그래프와 겹쳐 흐리게 읽혀서, 제지방량과 맞는 값(${r.muscle}kg)으로 추정했어요. 결과지와 같은지 꼭 확인하세요.</b>` : ''}${r.unsure.filter(k => !(k === 'muscle' && r.muFixed)).length ? ` <b class="warnc">빨간 칸(${r.unsure.filter(k => !(k === 'muscle' && r.muFixed)).map(k => NAME[k]).join(', ')})은 다른 숫자와 맞춰보지 못했으니 결과지와 꼭 비교하세요.</b>` : r.muFixed ? '' : ' 저장 전에 한 번만 결과지와 비교해 주세요.'}${r.muscle == null || r.weight == null || r.fatKg == null ? ' 못 읽은 칸은 직접 넣어주세요.' : ''}`, r.unsure.length ? 'warn' : 'ok');
+      const NAME = { weight: '체중', muscle: '골격근량', fatKg: '체지방량', fatPct: '체지방률' }, un = r.unsure.filter(k => r[k] != null), miss = ['weight', 'muscle', 'fatKg', 'fatPct'].filter(k => r[k] == null);
+      say(un.length || miss.length ? `읽었어요.${un.length ? ` <b class="warnc">${un.map(k => NAME[k]).join('·')}은 확실하지 않아요 — 결과지와 비교해 주세요.</b>` : ''}${miss.length ? ` ${miss.map(k => NAME[k]).join('·')}은 직접 넣어주세요.` : ''}` : '읽었어요. 숫자가 서로 맞아서 맞게 읽은 것 같아요.', un.length || miss.length ? 'warn' : 'ok');
     }
   } catch (e) {
     say('글자 인식을 불러오지 못했어요(인터넷 연결 확인). 숫자는 직접 입력해 주세요.', 'bad');
@@ -3668,7 +3744,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
