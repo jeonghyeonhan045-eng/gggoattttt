@@ -3049,6 +3049,26 @@ async function readFields(worker, canvas, data) {
         }
       }
     }
+    // skeletal muscle: the label reads as noise ("고 겨 그 량") and its number sits at the end of the black bar, so the first
+    // reading never sees it. Find the bar's scale instead (70 80 90 100 110 120 …, only the muscle row counts by tens)
+    // and read the strip under it, down to the next row's scale.
+    const ints = l => (l.words || []).map(w => +w.text).filter(n => Number.isInteger(n) && n >= 40 && n <= 600);
+    const mi = lines.findIndex(l => l.bbox.y0 < histY && [80, 90, 110, 120, 130, 140, 150, 160, 170].filter(n => ints(l).includes(n)).length >= 3 && !ints(l).some(n => [85, 115, 145, 220, 280, 340].includes(n)));
+    if (mi >= 0) {
+      // crop by the scale's own numbers, not the line box (that box often spans the weight and fat rows too):
+      // the bar and its number sit just under the scale, between its first and last tick
+      const tk = (lines[mi].words || []).filter(w => /^\d{2,3}$/.test(w.text) && +w.text >= 60 && +w.text <= 180), th = Math.max(...tk.map(w => w.bbox.y1 - w.bbox.y0));
+      const ty = tk.map(w => w.bbox.y1).sort((x, y) => x - y)[tk.length >> 1];
+      const cy0 = Math.max(0, ty - th * 0.2), cy1 = Math.min(canvas.height, ty + th * 3.2), cx0 = Math.max(0, Math.min(...tk.map(w => w.bbox.x0)) - th), cx1 = Math.min(canvas.width, Math.max(...tk.map(w => w.bbox.x1)) + th * 2);
+      const S = Math.min(4, 2400 / (cx1 - cx0)), c = document.createElement('canvas'); c.width = Math.round((cx1 - cx0) * S); c.height = Math.round((cy1 - cy0) * S);
+      c.getContext('2d').drawImage(canvas, cx0, cy0, cx1 - cx0, cy1 - cy0, 0, 0, c.width, c.height);
+      await worker.setParameters({ tessedit_char_whitelist: '0123456789.', tessedit_pageseg_mode: '7' });
+      for (const img of [c, binarize(c)]) {
+        const { data: d } = await worker.recognize(img);
+        // the scale is whole numbers; the reading is the one number with a decimal
+        for (const n of d.text.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2').match(/\d+\.\d(?!\d)/g) || []) { const v = +n.slice(-4); if (v >= 8 && v <= 80) (out.smm = out.smm || []).push(v); } // the bar reads as extra digits in front
+      }
+    }
     await worker.setParameters({ tessedit_char_whitelist: '', tessedit_pageseg_mode: '3' });
   } catch (e) {}
   return out;
@@ -3060,7 +3080,7 @@ function solveInbody(Z, base) {
   const P = cnt(add(Z.pbf, base.fpPrinted ? base.fatPct : null)), Wa = cnt(add(Z.water, base.water)), Pr = cnt(add(Z.protein, base.protein)), Mi = cnt(add(Z.mineral, base.mineral)), FF = cnt(Z.ffm);
   const top = (m, lo, hi) => [...m.entries()].filter(([v]) => v >= lo && v <= hi).sort((a, b) => b[1] - a[1]).slice(0, 6);
   let best = { score: -1 };
-  const ws = top(W, 25, 250), fs = top(F, 1, 120), ps = top(P, 2, 65), was = top(Wa, 10, 100), prs = top(Pr, 3, 30), mis = top(Mi, 1.5, 8), ffs = top(FF, 15, 150);
+  const ws = top(W, 25, 250), fs = top(F, 1, 120), ps = top(P, 2, 65), was = top(Wa, 10, 100), prs = top(Pr, 3, 30), mis = top(Mi, 2.3, 8), ffs = top(FF, 15, 150);
   // a fat reading under 10 may have lost its first digit (1.3 for 11.3): offer 11.3 / 21.3 as well
   for (const [v, c] of fs.slice()) if (v < 10) for (const add of [10, 20, 30]) if (!fs.some(([x]) => x === Math.round((v + add) * 10) / 10)) fs.push([Math.round((v + add) * 10) / 10, c]);
   const firm = was.length && prs.length && mis.length && was[0][1] >= 2 && prs[0][1] >= 2 && mis[0][1] >= 2;
@@ -3084,13 +3104,20 @@ function solveInbody(Z, base) {
   const { w, f } = best, ok = w != null && f != null && (best.pct != null || best.ffmOk || (best.sum && !best.derived));
   const r = { weight: w, fatKg: f, unsure: [], ok, fit: best.score };
   r.fatPct = best.pct != null ? best.pct : w && f ? Math.round(f / w * 1000) / 10 : (ps[0] || [])[0] ?? null;
-  if (best.sum) [r.water, r.protein, r.mineral] = best.sum; else { r.water = (was[0] || [])[0]; r.protein = (prs[0] || [])[0]; r.mineral = (mis[0] || [])[0]; }
+  if (best.sum) [r.water, r.protein, r.mineral] = best.sum;
+  else {
+    // without the sum, body water is ~73% of fat-free mass and protein ~20%: a number outside that is another row's (81.6 = weight)
+    const lean = w != null && f != null ? w - f : ffs.length ? ffs[0][0] : null, fits = (v, lo, hi) => lean == null ? (w == null || v < w * 0.8) : v >= lean * lo && v <= lean * hi;
+    r.water = (was.find(([v]) => fits(v, 0.66, 0.8)) || [])[0]; r.protein = (prs.find(([v]) => fits(v, 0.15, 0.25)) || [])[0]; r.mineral = (mis[0] || [])[0];
+  }
   // skeletal muscle: inside 45–66% of fat-free mass, the reading seen most often (history row as a tie-breaker)
   const ffm = w != null && f != null ? w - f : ffs.length ? ffs[0][0] : null;
   const inR = v => !ffm || (v >= ffm * 0.45 && v <= ffm * 0.66);
-  let mus = top(cnt([...(Z.smm || []), ...(base.muscle != null ? [base.muscle] : [])]), 8, 80).filter(([v]) => inR(v)), muGuess = false;
+  // the muscle strip can run into the fat row below: a number that is a fat reading isn't the muscle
+  const fatSeen = new Set([...F.keys(), f]), smm = (Z.smm || []).filter(v => !fatSeen.has(v));
+  let mus = top(cnt([...smm, ...(base.muscle != null ? [base.muscle] : [])]), 8, 80).filter(([v]) => inR(v)), muGuess = false;
   // the first digit sits against the bar and gets lost (40.8 → 10.8): if exactly one first digit fits the fat-free mass, use it
-  if (!mus.length && ffm) { const alt = new Set(); for (const v of Z.smm || []) { const t = v.toFixed(1); for (let d = 1; d <= 9; d++) { const x = +(d + t.slice(1)); if (inR(x)) alt.add(x); } } if (alt.size === 1) { mus = [[[...alt][0], 1]]; muGuess = true; } }
+  if (!mus.length && ffm) { const alt = new Set(); for (const v of smm) { const t = v.toFixed(1); for (let d = 1; d <= 9; d++) { const x = +(d + t.slice(1)); if (inR(x)) alt.add(x); } } if (alt.size === 1) { mus = [[[...alt][0], 1]]; muGuess = true; } }
   r.muscle = mus.length ? mus[0][0] : null;
   if (!ok) { if (w != null) r.unsure.push('weight'); if (f != null) r.unsure.push('fatKg'); if (r.fatPct != null) r.unsure.push('fatPct'); }
   if (r.muscle != null && (mus[0][1] < 2 || !ok || muGuess)) r.unsure.push('muscle');
@@ -3744,7 +3771,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
