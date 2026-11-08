@@ -946,7 +946,7 @@ function focusHtml() {
   const F = state.fx, L = fxList(), id = L[F.i]; if (!id) return '<div class="empty">운동이 없어요</div>';
   const e = eqById(id) || eqOrRecord(id), u = unitFor(id), bw = e.bw || BW_NEXT[id], { tg, n, prev } = fxTarget(id);
   const did = (dayRO(state.date).sets || []).filter(s => s.eq === id);
-  const step = u === 'lb' ? 5 : 2.5, rem = timerRemain();
+  const steps = u === 'lb' ? [2.5, 5, 10] : [1, 2.5, 5], step = (DB.eqStep || {})[id + u] || (u === 'lb' ? 5 : 2.5), rem = timerRemain();
   const lastTxt = prev ? `${fmtSetW(prev.sets[0])} × ${prev.sets.map(s => s.r).join('·')}` : '첫 기록';
   return `<div class="fx">
     <div class="fx-top"><span class="small muted">${F.i + 1} / ${L.length} 종목</span><button class="linkbtn" data-act="open-set" data-eq="${esc(id)}">자세히 기록 ›</button></div>
@@ -955,7 +955,9 @@ function focusHtml() {
     <div class="fx-dots">${Array.from({ length: Math.max(n, did.length) }, (_, k) => `<span class="${k < did.length ? 'on' : ''}">${k < did.length ? esc(`${did[k].w > 0 ? trimNum(did[k].w) : ''}${did[k].w > 0 ? '×' : ''}${did[k].r}`) : k + 1}</span>`).join('')}</div>
     ${rem != null ? `<div class="fx-rest" id="fx-rest"><span class="small">휴식</span><b class="num" id="fx-rest-t">${fmtSec(Math.ceil(rem))}</b>
         <div class="row" style="gap:6px"><button class="btn sm" data-act="fx-add15">+15초</button><button class="btn sm" data-act="fx-skip">건너뛰기</button></div></div>` : ''}
-    ${bw ? '' : `<div class="fx-step"><span class="lb">무게 ${u}</span><button class="btn" data-act="fx-w" data-d="${-step}" aria-label="무게 줄이기">−</button><b class="num">${trimNum(F.w)}</b><button class="btn" data-act="fx-w" data-d="${step}" aria-label="무게 늘리기">+</button></div>`}
+    ${bw ? '' : `<div class="fx-opts"><div class="unitseg"><button class="${u === 'kg' ? 'on' : ''}" data-act="fx-unit" data-u="kg">kg</button><button class="${u === 'lb' ? 'on' : ''}" data-act="fx-unit" data-u="lb">lb</button></div>
+      <div class="fx-inc"><span class="small muted">한 번에</span>${steps.map(v => `<button class="${v === step ? 'on' : ''}" data-act="fx-inc" data-v="${v}">${v}</button>`).join('')}</div></div>
+      <div class="fx-step"><span class="lb">무게 ${u}</span><button class="btn" data-act="fx-w" data-d="${-step}" aria-label="무게 줄이기">−</button><input class="num fx-wi" type="number" inputmode="decimal" step="any" min="0" value="${trimNum(F.w)}" data-on="fx-wi" aria-label="무게 직접 입력"><button class="btn" data-act="fx-w" data-d="${step}" aria-label="무게 늘리기">+</button></div>`}
     <div class="fx-step"><span class="lb">횟수</span><button class="btn" data-act="fx-r" data-d="-1" aria-label="횟수 줄이기">−</button><b class="num">${F.r}</b><button class="btn" data-act="fx-r" data-d="1" aria-label="횟수 늘리기">+</button></div>
     ${F.sg && !did.length ? `<div class="small muted" style="text-align:center">${esc(F.sg.why)}</div>` : ''}
     <button class="btn primary block fx-go" data-act="fx-done">✓ ${did.length + 1}세트 완료</button>
@@ -3774,7 +3776,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.4 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4036,6 +4038,12 @@ const ACT = {
   'gym-toggle': el => { const G = DB.settings.gym = DB.settings.gym || [], id = el.dataset.eq, i = G.indexOf(id); if (i >= 0) G.splice(i, 1); else G.push(id); save(); const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },
   'focus-open': () => openFocus(),
   'fx-w': el => { state.fx.w = Math.max(0, r1(state.fx.w + +el.dataset.d)); fxRender(); },
+  'fx-unit': el => {
+    const F = state.fx, id = fxList()[F.i], u = unitFor(id), nu = el.dataset.u; if (!id || u === nu) return;
+    const conv = fromKg(toKg(F.w, u), nu); F.w = F.w > 0 ? (nu === 'lb' ? Math.round(conv / 2.5) * 2.5 : Math.round(conv * 2) / 2) : 0;
+    DB.eqUnit[id] = nu; save(); fxRender();
+  },
+  'fx-inc': el => { const id = fxList()[state.fx.i]; if (!id) return; DB.eqStep = DB.eqStep || {}; DB.eqStep[id + unitFor(id)] = +el.dataset.v; save(); fxRender(); },
   'fx-r': el => { state.fx.r = Math.max(1, state.fx.r + +el.dataset.d); fxRender(); },
   'fx-move': el => { const L = fxList(); state.fx.i = Math.min(L.length - 1, Math.max(0, state.fx.i + +el.dataset.d)); fxPrefill(); fxRender(); },
   'fx-add15': () => { timerAdd(15); fxRender(); },
@@ -4194,6 +4202,7 @@ const ACT = {
 };
 
 const ON = {
+  'fx-wi': (el, ev) => { if (!state.fx) return; const v = parseFloat(el.value); if (v >= 0) state.fx.w = r1(v); }, // no re-render here: it fires on blur, mid-tap on another button
   'gym-q': (el, ev) => { if (ev.type !== 'input') return; state.gymQ = el.value; const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },
   'eq-q': (el, ev) => { if (ev.type !== 'input') return; state.eqQ = el.value; renderEqList(); },
   'row-w': el => { const S = state.sheet; if (!S || !S.rows) return; const r = S.rows[+el.dataset.i]; if (!r) return; r.w = el.value; r.touched = true; if (+el.dataset.i === 0) { const p = $('#ss-prev'); if (p) p.innerHTML = nextPreview(); } },

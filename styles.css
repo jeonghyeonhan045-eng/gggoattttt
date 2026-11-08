@@ -995,5 +995,11 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 .fx-step { display: grid; grid-template-columns: 64px 64px 1fr 64px; align-items: center; gap: 8px; margin: 10px 0; }
 .fx-step .lb { font-size: 13px; color: var(--ink3); font-weight: 700; }
 .fx-step .btn { height: 64px; font-size: 28px; font-weight: 700; }
-.fx-step b { text-align: center; font-size: 40px; font-family: var(--mono); }
+.fx-step b, .fx-step .fx-wi { text-align: center; font-size: 40px; font-family: var(--mono); font-weight: 700; }
+.fx-step .fx-wi { width: 100%; min-width: 0; height: 64px; border: 0; border-bottom: 2px dashed var(--line); background: transparent; color: var(--ink); padding: 0; -moz-appearance: textfield; }
+.fx-step .fx-wi::-webkit-outer-spin-button, .fx-step .fx-wi::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.fx-opts { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.fx-inc { display: flex; align-items: center; gap: 6px; }
+.fx-inc button { min-width: 44px; height: 34px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); font-family: var(--mono); font-weight: 700; }
+.fx-inc button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .fx-go { height: 64px; font-size: 18px; margin-top: 8px; }
