@@ -1888,8 +1888,11 @@ const SPLITS = [
   { k: 'shoulder', l: '어깨 · 팔', ms: ['어깨'], acc: '팔' },
 ];
 function lastTrained(m, before) {
-  let last = null;
-  for (const s of allSets()) if (s.m === m && !isCardioSet(s) && s.date < before && (!last || s.date > last)) last = s.date;
+  // a day counts only with 3+ real sets for that part: shrugs (upper traps) or a couple of finishing sets
+  // after a shoulder day don't tire the back the way a back day does, so they don't push the back day out
+  const n = {};
+  for (const s of allSets()) if (s.m === m && !isCardioSet(s) && s.date < before && typeOfEq(eqOrRecord(s.eq) || { name: '' }) !== '슈러그') n[s.date] = (n[s.date] || 0) + 1;
+  let last = null; for (const d in n) if (n[d] >= 3 && (!last || d > last)) last = d;
   return last;
 }
 /* the person's own rotation: find the last time they trained what they trained most recently,
@@ -3776,7 +3779,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.5 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.6 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
