@@ -775,7 +775,7 @@ function finishHtml(k) {
   const tiles = R.str.length ? [[R.mins ? `${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [fmtInt(R.ex.total), 'kcal 소모']]
     : [[`${trimNum(carMin)}분`, '유산소'], [`${R.car.length}`, '종목'], [fmtInt(R.ex.carK), 'kcal 소모'], [fmtInt(R.ex.total), '총 소모']];
   return `<div class="tiles fin-tiles">${tiles.map(([v, l]) => `<div class="tile"><div class="k">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
-    ${R.str.length ? `<button class="btn block" style="margin-top:10px" data-act="share-img" data-k="${k}">오늘 운동 이미지로 공유</button>` : ''}
+    ${R.str.length ? `<div class="grid2" style="margin-top:10px"><button class="btn primary" data-act="share-img" data-k="${k}" data-story="1">인스타 스토리로</button><button class="btn" data-act="share-img" data-k="${k}">이미지로 공유</button></div>` : ''}
     ${ranked.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size: 15px">오늘 쓴 부위</h2><span class="aside">진할수록 많이</span></div>
       <div class="bodymaps fin-maps">${bodySvg('front', R.reg, max, '앞')}${bodySvg('back', R.reg, max, '뒤')}</div>
       <div class="fin-rank">${ranked.slice(0, 6).map(([r, v], i) => `<span><b>${i + 1}</b> ${REGIONS[r]} <i>${r1(v)}</i></span>`).join('')}</div>` : ''}
@@ -796,14 +796,29 @@ function finishHtml(k) {
       return !isNative && due ? `<div class="infobox" style="margin-top:12px"><div class="k">백업</div>기록이 ${days}일치 쌓였어요${lb ? ` (마지막 백업 ${since}일 전)` : ''}. ${ios ? 'Safari에서 쓰고 있어서 7일 동안 안 열면 기록이 지워질 수 있어요. 홈 화면에 추가해서 쓰고, 백업 코드도 저장해 두세요.' : '기록은 이 브라우저에만 있어서 폰을 바꾸거나 인터넷 기록을 지우면 사라질 수 있어요.'}<button class="btn sm block" style="margin-top:8px" data-act="export">백업 코드 저장하기</button></div>` : ''; })()}
     ${k === state.date && d.fin ? `<div class="grid2" style="margin-top:14px"><button class="btn" data-act="day-resume">이어서 하기</button><button class="btn primary" data-act="sheet-close">완료</button></div>` : `<button class="btn primary block" style="margin-top:14px" data-act="sheet-close">닫기</button>`}`;
 }
+/* the body heat map drawn straight onto a canvas (same shapes as the on-screen map) */
+function drawBody(g, view, vals, max, x, y, sc, col) {
+  g.save(); g.translate(x, y); g.scale(sc, sc); g.translate(-30, 0);
+  g.lineJoin = 'round';
+  const sil = new Path2D(SIL); g.fillStyle = col('--bg2'); g.strokeStyle = col('--line2'); g.lineWidth = 1; g.fill(sil); g.stroke(sil);
+  const poly = (pts, key) => { const v = vals[key] || 0, f = heatColor(max ? v / max : 0); g.beginPath(); for (let i = 0; i < pts.length; i += 2) i ? g.lineTo(pts[i], pts[i + 1]) : g.moveTo(pts[i], pts[i + 1]); g.closePath(); g.fillStyle = f || col('--card2'); g.fill(); g.lineWidth = 0.8; g.strokeStyle = f ? 'rgba(80,10,10,.35)' : col('--line2'); g.stroke(); };
+  const parts = view === 'front' ? BODY_FRONT : BODY_BACK;
+  for (const [k, list] of Object.entries(parts)) for (const pts of list) poly(pts, k);
+  g.save(); g.translate(200, 0); g.scale(-1, 1); for (const [k, list] of Object.entries(parts)) for (const pts of list) poly(pts, k); g.restore();
+  if (view === 'front') for (const [k, list] of Object.entries(BODY_FRONT_CENTER)) for (const pts of list) poly(pts, k);
+  g.beginPath(); g.ellipse(100, 29, 14, 18, 0, 0, Math.PI * 2); g.fillStyle = col('--card2'); g.fill(); g.strokeStyle = col('--line2'); g.lineWidth = 1; g.stroke();
+  g.restore();
+}
 /* a picture of the day's workout to send to friends (Hevy/Strong-style share card) */
-async function shareImage(k) {
-  const R = sessionReport(k), W = 1080, pad = 72, rows = R.cmp.slice(0, 9), H = 520 + rows.length * 96 + 120;
+function shareImage(k, story) {
+  // story = 1080×1920 (Instagram story size): the share sheet's Instagram → 스토리 takes it full-screen
+  const R = sessionReport(k), W = 1080, pad = story ? 96 : 72, mapH = story && Object.keys(R.reg).length ? 560 : 0, rows = R.cmp.slice(0, story ? (mapH ? 6 : 8) : 9), body = 520 + mapH + rows.length * 96 + 40, H = story ? 1920 : body + 80;
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim() || '#111';
   const bg = col('--bg'), ink = col('--ink'), ink3 = col('--ink3'), hi = col('--hi'), mark = col('--mark'), line = col('--line');
   const F = (w, sz) => `${w} ${sz}px Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  if (story) { g.translate(0, Math.max(160, (H - body) / 2 - 60)); }
   g.fillStyle = ink; g.font = F(800, 56); g.fillText('오운', pad, 120); const ow = g.measureText('오운').width; g.fillStyle = mark; g.fillText('완', pad + ow, 120);
   g.fillStyle = ink3; g.font = F(600, 34); g.textAlign = 'right'; g.fillText(`${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일 (${'일월화수목금토'[new Date(k + 'T00:00').getDay()]})`, W - pad, 116); g.textAlign = 'left';
   const kind = R.groups.map(mName).join(' · ');
@@ -812,7 +827,8 @@ async function shareImage(k) {
   const tw = (W - pad * 2) / 4;
   tiles.forEach(([v, l], i) => { const x = pad + tw * i; g.fillStyle = ink3; g.font = F(600, 28); g.fillText(l, x, 310); g.fillStyle = ink; g.font = F(800, 56); g.fillText(v, x, 380); });
   g.strokeStyle = line; g.lineWidth = 3; g.beginPath(); g.moveTo(pad, 430); g.lineTo(W - pad, 430); g.stroke();
-  let y = 500;
+  if (mapH) { const mx = Math.max(0, ...Object.values(R.reg)), sc = 1.45, bw = 140 * sc, gap = 70, x0 = (W - bw * 2 - gap) / 2; drawBody(g, 'front', R.reg, mx, x0, 470, sc, col); drawBody(g, 'back', R.reg, mx, x0 + bw + gap, 470, sc, col); }
+  let y = 500 + mapH;
   for (const x of rows) {
     const w = x.list.map(s => fmtSetW(s)), same = w.every(v => v === w[0]);
     const txt = same ? `${w[0]} × ${x.list.map(s => s.r).join('·')}` : x.list.map(s => fmtSetFull(s)).join(' / ');
@@ -822,12 +838,15 @@ async function shareImage(k) {
     y += 96;
   }
   if (R.cmp.length > rows.length) { g.fillStyle = ink3; g.font = F(500, 30); g.fillText(`외 ${R.cmp.length - rows.length}종목`, pad, y); }
-  g.fillStyle = ink3; g.font = F(500, 26); g.textAlign = 'right'; g.fillText('ounwan-log.vercel.app', W - pad, H - 48); g.textAlign = 'left';
-  const blob = await new Promise(r => c.toBlob(r, 'image/png')), name = `오운완_${k}.png`;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = ink3; g.font = F(500, story ? 30 : 26); g.textAlign = story ? 'center' : 'right'; g.fillText('ounwan-log.vercel.app', story ? W / 2 : W - pad, H - (story ? 140 : 48)); g.textAlign = 'left';
+  // made synchronously (toDataURL, not toBlob) so the share still counts as part of the tap — iPhone Safari refuses it otherwise
+  const bin = atob(c.toDataURL('image/png').split(',')[1]), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const blob = new Blob([u8], { type: 'image/png' }), name = `오운완_${k}${story ? '_story' : ''}.png`;
   try {
     const file = new File([blob], name, { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: '오운완' }); return; }
-  } catch (e) { if (e && e.name === 'AbortError') return; }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(() => {}); if (story) toast('공유 창에서 Instagram → 스토리를 고르세요'); return; }
+  } catch (e) {}
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('이미지를 저장했어요');
 }
@@ -3873,7 +3892,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.8.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.8.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4136,7 +4155,7 @@ const ACT = {
   'gym-toggle': el => { const G = DB.settings.gym = DB.settings.gym || [], id = el.dataset.eq, i = G.indexOf(id); if (i >= 0) G.splice(i, 1); else G.push(id); save(); const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },
   'focus-open': () => openFocus(),
   'fx-w': el => { state.fx.w = Math.max(0, r1(state.fx.w + +el.dataset.d)); fxRender(); },
-  'share-img': el => { shareImage(el.dataset.k); },
+  'share-img': el => { shareImage(el.dataset.k, !!el.dataset.story); },
   'fx-rs': el => { const id = fxList()[state.fx.i]; if (!id) return; DB.eqRest = DB.eqRest || {}; DB.eqRest[id] = +el.dataset.v; save(); fxRender(); },
   'pre-wk': el => { DB.settings.preWeeks = +el.dataset.v; save(); bump(); render(); },
   'fx-unit': el => {
