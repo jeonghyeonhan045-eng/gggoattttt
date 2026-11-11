@@ -2108,16 +2108,24 @@ function deloadAnalysis() {
   const loading = x => x.sessions >= 2 && peak > 0 && x.sets >= 0.7 * peak;
   let streak = 0;
   for (let i = weeks.length - 1; i >= 0; i--) { if (loading(weeks[i])) streak++; else break; }
+  // training before the app: if the run reaches back to the first recorded week, add the weeks they say they'd
+  // already been training without a break (the first app week counts even if logging was patchy)
+  const firsts = allSets().filter(s => !isCardioSet(s)).map(s => s.date).sort(), first = firsts[0];
+  const appWeeks = first ? Math.floor(daysBetween(first, today()) / 7) + 1 : 0;
+  const pre = DB.settings.preWeeks, preSet = pre != null;
+  let preAdd = 0;
+  if (preSet && pre > 0 && appWeeks <= weeks.length && streak >= appWeeks - 1 && !lightWeeks().some(Boolean)) { preAdd = pre; streak = appWeeks + pre; }
   const prog = progression().filter(p => p.status === 'up' || p.status === 'flat' || p.status === 'down');
   const stalled = prog.filter(p => p.status === 'flat' || p.status === 'down');
   const down = prog.filter(p => p.status === 'down');
   const cur = weeks[weeks.length - 1];
   const reasons = [], okNotes = [];
   let pts = 0;
-  if (streak >= 8) { pts += 3; reasons.push(`고볼륨 주가 ${streak}주 연속 — 코치들이 보통 4–8주마다 디로딩을 넣는 범위를 넘었어요 (Bell 2022).`); }
-  else if (streak >= 6) { pts += 2; reasons.push(`고볼륨 주가 ${streak}주 연속 이어지고 있어요 (일반적 주기 4–8주).`); }
-  else if (streak >= 4) { pts += 1; reasons.push(`고볼륨 주 ${streak}주째 — 슬슬 디로딩 계획을 세울 시점이에요.`); }
-  else okNotes.push(`고볼륨 주 연속 ${streak}주 (4주 미만)`);
+  const preTxt = preAdd ? ` (앱 쓰기 전 ${preAdd}주 포함)` : '';
+  if (streak >= 8) { pts += 3; reasons.push(`쉬지 않고 ${streak}주째 운동 중${preTxt} — 보통 4–8주마다 한 번 가볍게 가는 주를 넣어요.`); }
+  else if (streak >= 6) { pts += 2; reasons.push(`쉬지 않고 ${streak}주째 운동 중${preTxt} (보통 4–8주마다 한 번).`); }
+  else if (streak >= 4) { pts += 1; reasons.push(`쉬지 않고 ${streak}주째${preTxt} — 슬슬 가볍게 가는 주를 계획할 때예요.`); }
+  else okNotes.push(`쉬지 않고 ${streak}주째${preTxt} (4주 미만)`);
   if (prog.length >= 3 && stalled.length / prog.length >= 0.5) { pts += 2; reasons.push(`주요 운동 ${prog.length}개 중 ${stalled.length}개가 최근 3주간 추정 1RM 정체/하락.`); }
   else if (stalled.length >= 1 && prog.length >= 1) { pts += stalled.length >= 2 ? 1 : 0; if (stalled.length >= 2) reasons.push(`정체 중인 운동 ${stalled.length}개.`); }
   if (down.length >= 2) { pts += 1; reasons.push(`추정 1RM이 3% 이상 떨어진 운동 ${down.length}개 — 누적 피로 신호일 수 있어요.`); }
@@ -2153,7 +2161,15 @@ function deloadAnalysis() {
   if (justDeloaded && !inDeload) okNotes.unshift('지난주 디로딩을 했어요 — 고볼륨 연속 카운트를 새로 시작했어요.');
 
   const base = cur.sets || Math.round(weeks.slice(-4).reduce((a, x) => a + x.sets, 0) / 4) || 0;
-  return { weeks, peak, streak, active, level, title, reasons, okNotes, pts, base, cur, prog, stalled, inDeload: inDeload && !lowVol, justDeloaded, recovering, lowVol };
+  // how to deload: a lighter week by default; full rest when the body is asking for it (pain, very low condition,
+  // poor sleep) — a lighter week keeps strength better, a full week off is fine when recovery itself is the problem
+  const restWhy = [];
+  if (cur.sore != null && cur.sore >= 4) restWhy.push('근육통이 심해요');
+  if (cur.condN >= 3 && cur.cond <= 2) restWhy.push('컨디션이 계속 낮아요');
+  if (cur.sleepN >= 3 && cur.sleep < 5.5) restWhy.push('잠이 많이 부족해요');
+  if (down.length >= 3 && cur.sore != null && cur.sore >= 3.5) restWhy.push('여러 운동에서 무게가 떨어지고 있어요');
+  const mode = restWhy.length >= 2 || (cur.sore != null && cur.sore >= 4.5) ? 'rest' : 'light';
+  return { mode, restWhy, preSet, preAdd, appWeeks, weeks, peak, streak, active, level, title, reasons, okNotes, pts, base, cur, prog, stalled, inDeload: inDeload && !lowVol, justDeloaded, recovering, lowVol };
 }
 
 /* weekly set range per muscle: legs combine quads, hamstrings, glutes and calves, so their range is wider */
@@ -2236,7 +2252,7 @@ function buildReport() {
 
   if (totalAll < 5) add('info', 0, '기록이 쌓이면 분석이 시작돼요', '세트를 일주일 정도 기록하면 부위별 볼륨, 정체, 디로딩 시점을 분석해 드려요.', '운동 탭에서 기구를 골라 세트를 기록하세요.', '');
 
-  if (dl.level === 'bad') add('bad', 10, '이번 주는 디로딩 주간으로', dl.reasons.join(' '), `세트 수를 30–50% 줄이고(이번 주 ${dl.base}세트 → ${Math.round(dl.base * .5)}–${Math.round(dl.base * .7)}세트), 무게는 유지하되 RIR 1–3을 더 남기세요. 5–7일 후 원래 볼륨으로 복귀.`, 'Bell 2022 · Coleman 2024');
+  if (dl.level === 'bad') add('bad', 10, dl.mode === 'rest' ? '이번 주는 3–5일 쉬세요' : '이번 주는 가볍게', dl.reasons.join(' '), dl.mode === 'rest' ? `${dl.restWhy.join(' · ')} — 가볍게 하는 것보다 쉬는 게 나아요. 복귀 첫 주는 무게 90%, 세트 70%로.` : `세트를 절반 정도로(${dl.base}세트 → ${Math.round(dl.base * .5)}–${Math.round(dl.base * .6)}세트), 무게는 유지하고 세트마다 2–3회 남기기. 다음 주 원래대로.`, 'Bell 2022 · Coleman 2024');
   else if (dl.level === 'warn') add('warn', 7, '디로딩을 미리 계획하세요', dl.reasons.join(' '), '다음 1–2주 중 일정이 바쁜 주를 디로딩 주간으로 잡으면 손해가 적어요.', 'Bell 2022');
 
   if (dl.inDeload) add('good', 9, '디로딩 주간 — 계획대로 가고 있어요', '이번 주는 일부러 가볍게 하는 주라 볼륨 부족·정체 경고를 띄우지 않아요.', '무게는 유지하고 세트만 줄인 상태로 마무리한 뒤, 다음 주 원래 루틴으로 복귀하세요.', 'Bell 2022');
@@ -2713,12 +2729,18 @@ function viewAnalysis() {
       ${dl.lowVol && dl.active >= 3 ? `<ul>${dl.okNotes.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : dl.level === 'info' ? `<ul><li>운동한 주가 ${dl.active}주예요. 3주 이상 쌓이면 판단을 시작해요.</li><li>컨디션 체크(운동 탭)를 같이 기록하면 더 정확해져요.</li></ul>`
         : `<ul>${dl.reasons.length ? dl.reasons.map(r => `<li>${esc(r)}</li>`).join('') : '<li>누적 피로 신호가 뚜렷하지 않아요.</li>'}${dl.okNotes.map(r => `<li class="muted">${esc(r)}</li>`).join('')}</ul>`}
     </div>
-    ${dl.level === 'bad' || dl.level === 'warn' ? `<div class="rx"><div class="k">디로딩 처방 (5–7일)</div><table>
-      <tr><td>세트 수</td><td>30–50% 줄이기 → 약 <b>${Math.round(dl.base * .5)}–${Math.round(dl.base * .7)}세트</b> (평소 ${dl.base}세트)</td></tr>
-      <tr><td>강도</td><td>무게는 유지하고 RIR 1–3 더 남기기, 또는 무게 약 10% 낮추기</td></tr>
-      <tr><td>빈도</td><td>평소 운동 요일 유지 — 완전 휴식보다 가볍게 계속하는 쪽이 근력 유지에 유리</td></tr>
-      <tr><td>복귀</td><td>다음 주 원래 볼륨으로, 1–2주에 걸쳐 단계적으로</td></tr></table>
-      <div class="note">근거: Bell 외 2022(코치 실무 조사), Coleman 외 2024(1주 완전 휴식은 근비대 이득 없음·하체 근력 다소 불리). 고정 처방이 아니라 출발점이에요.</div></div>` : ''}
+    ${dl.level === 'bad' || dl.level === 'warn' ? `<div class="rx"><div class="k">${dl.mode === 'rest' ? '추천: 3–5일 완전히 쉬기' : '추천: 운동은 하되 가볍게 (5–7일)'}</div>
+      ${dl.mode === 'rest' ? `<div class="small" style="margin:4px 0 6px">${esc(dl.restWhy.join(' · '))} — 이럴 땐 가볍게라도 계속하는 것보다 쉬는 게 회복이 빨라요. 걷기·스트레칭 정도는 괜찮아요.</div>
+      <table><tr><td>쉬는 기간</td><td>3–5일, 근육통·컨디션이 돌아오면 끝</td></tr>
+      <tr><td>복귀 첫 주</td><td>평소 무게의 약 90%, 세트는 평소의 70%로 시작해서 다음 주 원래대로</td></tr></table>`
+      : `<table><tr><td>세트 수</td><td>절반 정도로 → 약 <b>${Math.round(dl.base * .5)}–${Math.round(dl.base * .6)}세트</b> (평소 ${dl.base}세트)</td></tr>
+      <tr><td>무게</td><td>평소 무게 유지, 대신 세트마다 2–3회 남기고 끝내기. 관절이 불편하면 10% 낮추기</td></tr>
+      <tr><td>요일</td><td>평소처럼 — 운동 습관과 근력 유지에 유리해요</td></tr>
+      <tr><td>복귀</td><td>다음 주 원래 볼륨으로</td></tr></table>
+      <div class="note">완전히 쉬는 게 나은 경우: 근육통이 심하고 컨디션·잠까지 나쁠 때. 컨디션 체크를 기록하면 앱이 둘 중 하나를 골라줘요.</div>`}</div>` : ''}
+    <div class="rx" style="margin-top:10px"><div class="k">앱 쓰기 전에 쉬지 않고 운동한 기간</div>
+      <div class="chips" style="margin-top:6px">${[[0, '없음·처음'], [4, '1달'], [8, '2달'], [12, '3달 이상']].map(([v, l]) => `<button class="chip ${dl.preSet && DB.settings.preWeeks === v ? 'on' : ''}" data-act="pre-wk" data-v="${v}">${l}</button>`).join('')}</div>
+      <div class="note">마지막으로 일주일 넘게 쉬거나 가볍게 한 뒤로 얼마나 됐는지예요. 앱 기록이 처음부터 쉬지 않고 이어질 때만 더해서 봐요.${dl.preAdd ? ` 지금 ${dl.preAdd}주를 더해서 판단했어요.` : ''}</div></div>
   </section>`, vlv === 'bad' || vlv === 'warn');
 
   // progression
@@ -3797,7 +3819,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.8 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4059,6 +4081,7 @@ const ACT = {
   'gym-toggle': el => { const G = DB.settings.gym = DB.settings.gym || [], id = el.dataset.eq, i = G.indexOf(id); if (i >= 0) G.splice(i, 1); else G.push(id); save(); const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },
   'focus-open': () => openFocus(),
   'fx-w': el => { state.fx.w = Math.max(0, r1(state.fx.w + +el.dataset.d)); fxRender(); },
+  'pre-wk': el => { DB.settings.preWeeks = +el.dataset.v; save(); bump(); render(); },
   'fx-unit': el => {
     const F = state.fx, id = fxList()[F.i], u = unitFor(id), nu = el.dataset.u; if (!id || u === nu) return;
     const conv = fromKg(toKg(F.w, u), nu); F.w = F.w > 0 ? (nu === 'lb' ? Math.round(conv / 2.5) * 2.5 : Math.round(conv * 2) / 2) : 0;
