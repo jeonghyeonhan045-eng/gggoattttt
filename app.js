@@ -1911,7 +1911,14 @@ function ownOrder(T) {
   const last = days[days.length - 1];
   let j = -1; for (let i = days.length - 2; i >= 0; i--) if (days[i].sig === last.sig) { j = i; break; }
   if (j < 0 || j + 1 >= days.length - 1) return null;
-  const nx = days[j + 1];
+  let nx = days[j + 1];
+  // order broken this round (가슴 then 등 instead of 등 then 가슴): skip parts already done since the round's last part
+  const order = []; for (const d of days.slice(j, days.length - 1)) if (!order.includes(d.sig)) order.push(d.sig);
+  let e = -1; for (let i = days.length - 1; i > j; i--) if (days[i].sig === order[order.length - 1]) { e = i; break; }
+  if (e > j) {
+    const done = new Set(days.slice(e + 1).map(d => d.sig)), left = order.filter(m => !done.has(m));
+    if (left.length && left[0] !== nx.sig) { const src = days.slice(0, e + 1).reverse().find(d => d.sig === left[0]); if (src) nx = src; }
+  }
   const cycle = days.slice(j, days.length - 1).map(d => d.ms.map(mName).join('·'));
   return { src: nx.k, ms: nx.ms, l: nx.ms.map(mName).join('·'), cycle };
 }
@@ -3779,7 +3786,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.6 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.7 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
