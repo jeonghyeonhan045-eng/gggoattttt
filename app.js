@@ -1906,21 +1906,29 @@ function dayLabelMs(k) {
   return ms;
 }
 function ownOrder(T) {
-  const days = []; for (let k = addDays(T, -35); k < T; k = addDays(k, 1)) { const ms = dayLabelMs(k); if (ms && ms.length) days.push({ k, ms, sig: ms.main }); } // match days by their main part (등 vs 등·팔 is the same back day)
-  if (days.length < 3) return null;
-  const last = days[days.length - 1];
-  let j = -1; for (let i = days.length - 2; i >= 0; i--) if (days[i].sig === last.sig) { j = i; break; }
-  if (j < 0 || j + 1 >= days.length - 1) return null;
-  let nx = days[j + 1];
-  // order broken this round (가슴 then 등 instead of 등 then 가슴): skip parts already done since the round's last part
-  const order = []; for (const d of days.slice(j, days.length - 1)) if (!order.includes(d.sig)) order.push(d.sig);
-  let e = -1; for (let i = days.length - 1; i > j; i--) if (days[i].sig === order[order.length - 1]) { e = i; break; }
-  if (e > j) {
-    const done = new Set(days.slice(e + 1).map(d => d.sig)), left = order.filter(m => !done.has(m));
-    if (left.length && left[0] !== nx.sig) { const src = days.slice(0, e + 1).reverse().find(d => d.sig === left[0]); if (src) nx = src; }
+  let days = []; for (let k = addDays(T, -35); k < T; k = addDays(k, 1)) { const ms = dayLabelMs(k); if (ms && ms.length) days.push({ k, ms, sig: ms.main }); } // a day goes by its main part (등 vs 등·팔 is the same back day)
+  // the parts this person rotates through: main parts seen at least twice (a one-off arm day isn't part of the order)
+  const cnt = {}; for (const d of days) cnt[d.sig] = (cnt[d.sig] || 0) + 1;
+  days = days.filter(d => cnt[d.sig] >= 2);
+  const P = [...new Set(days.map(d => d.sig))];
+  if (P.length < 2 || days.length < P.length + 1) return null;
+  // their order, from what usually follows what (one swapped week doesn't rewrite it)
+  const tr = {}; for (let i = 1; i < days.length; i++) if (days[i].sig !== days[i - 1].sig) { const key = days[i - 1].sig + '>' + days[i].sig; tr[key] = (tr[key] || 0) + 1 + i / days.length; }
+  const order = [days[0].sig];
+  while (order.length < P.length) {
+    const cur = order[order.length - 1], rest = P.filter(m => !order.includes(m));
+    order.push(rest.reduce((a, m) => (tr[cur + '>' + m] || 0) > (tr[cur + '>' + a] || 0) ? m : a, rest[0]));
   }
-  const cycle = days.slice(j, days.length - 1).map(d => d.ms.map(mName).join('·'));
-  return { src: nx.k, ms: nx.ms, l: nx.ms.map(mName).join('·'), cycle };
+  // this round so far: the latest days, back to where a part repeats (at most one short of a full round)
+  const done = []; for (let i = days.length - 1; i >= 0 && done.length < P.length - 1; i--) { if (done.includes(days[i].sig)) break; done.push(days[i].sig); }
+  const last = days[days.length - 1].sig, at = order.indexOf(last);
+  const next = [...order.slice(at + 1), ...order.slice(0, at)].filter(m => !done.includes(m));
+  const cand = next.map(m => { const d = days.slice().reverse().find(x => x.sig === m); return { sig: m, src: d.k, ms: d.ms, l: d.ms.map(mName).join('·') }; });
+  if (!cand.length) return null;
+  const from = order.indexOf(cand[0].sig);
+  // mention the round only when it changed the pick (the plain next part needs no explaining)
+  const rot = [...order.slice(at + 1), ...order.slice(0, at)], skip = rot.slice(0, rot.indexOf(cand[0].sig)).filter(m => done.includes(m));
+  return { cand, order: [...order.slice(from), ...order.slice(0, from)].map(mName), done: skip.map(mName) };
 }
 function recommendNext(T) {
   if (!allSets().some(s => !isCardioSet(s))) return { T, first: true };
@@ -1942,7 +1950,9 @@ function recommendNext(T) {
   // few direct shoulder sets this week → add two shoulder moves to whatever day comes next
   const addSh = !!best && !best.ms.includes('어깨') && info['어깨'].dir < 8 && info['어깨'].days >= 2;
   // the person's own order wins when those parts have had their two days
-  const own = ownOrder(T), ownReady = own && own.ms.every(m => info[m].days >= 2) ? own : null;
+  // only the day's main part needs its two days (arms on a chest day don't hold up the back day)
+  const O = ownOrder(T), pick = O && O.cand.find(c => info[c.sig].days >= 2);
+  const ownReady = pick ? Object.assign({}, pick, { order: O.order, done: O.done, skipped: O.cand[0] !== pick ? O.cand[0] : null }) : null;
   return { T, best, info, streak, tired, rest, addSh: ownReady ? false : addSh, own: ownReady };
 }
 /* a balanced session for each split: the user's own equipment first, then staples */
@@ -1999,10 +2009,11 @@ function recCardHtml(k) {
       ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '컨디션이 떨어져 있어요.'} 하루 쉬고 해도 프로그램 순서는 그대로예요.</div>` : ''}</section>`;
   }
   if (R.own) {
-    const o = R.own, why = o.ms.map(m => `${mName(m)} ${R.info[m].days}일 쉼`).join(' · ');
+    const o = R.own, why = `${mName(o.sig)} ${R.info[o.sig].days >= 99 ? '처음' : R.info[o.sig].days + '일 쉼'}`;
     return `<section class="card reccard"><div class="small muted">${when} 추천 · 내 순서대로</div>
       <b style="font-size: 16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(o.l)}</b>
-      <div class="small muted" style="margin-top:2px">지난 순서: ${esc(o.cycle.join(' → '))} · ${esc(why)}</div>
+      <div class="small muted" style="margin-top:2px">내 순서: ${esc(o.order.join(' → '))}${o.done.length ? ` · ${esc(jo(o.done.join('·'), '은', '는'))} 이번에 이미 해서 건너뜀` : ''}</div>
+      <div class="small muted">${esc(why)}${o.skipped ? ` · ${esc(o.skipped.l)}은 아직 회복 중이라 다음으로` : ''}</div>
       ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '어제 컨디션이 낮거나 근육통이 심했어요.'} 하루 쉬어도 손해 없어요.</div>` : ''}
       <button class="btn sm block" style="margin-top:8px" data-act="own-plan" data-t="${T}" data-k="${o.src}">${T === k ? `지난 ${esc(o.l)}날(${shortDate(o.src)}) 그대로 시작` : '내일 계획에 넣기'}</button></section>`;
   }
@@ -2433,7 +2444,7 @@ function routineCheck(R) {
     const actual = m => { const per = {}; for (const x of ss14) if (x.m === m) per[x.date] = (per[x.date] || 0) + 1; const v = Object.values(per).filter(c => c >= 3); return v.length ? v.reduce((a, c) => a + c, 0) / v.length : null; };
     const weekly = m => { const a = actual(m), f = freqNow(m); return a != null && f ? a * f : R.mv14.dW[m]; };
     const opt = (l, f, now) => ({ l, f, per: main.map(m => ({ m, v: now ? actual(m) : f(m) ? weekly(m) / f(m) : null })) });
-    out.split = { perWeek, own: own.cycle, rows: [opt(`지금 · ${own.cycle.length}분할`, freqNow, true), opt('3분할 (밀기·당기기·하체)', () => perWeek / 3), opt('상하체 2분할', () => perWeek / 2)] };
+    out.split = { perWeek, own: own.order, rows: [opt(`지금 · ${own.order.length}분할`, freqNow, true), opt('3분할 (밀기·당기기·하체)', () => perWeek / 3), opt('상하체 2분할', () => perWeek / 2)] };
   }
   return out;
 }
@@ -2601,7 +2612,7 @@ function glanceHtml(R, prog) {
   const C = restCycle(R, prog);
   if (C && !C.irregular) rows.push(['휴식', C.verdict.split(' — ')[0], C.lv]);
   // 5) next session
-  const N = recommendNext(today());
+  const N = recommendNext((dayRO(today()).sets || []).length ? addDays(today(), 1) : today()); // trained today → it's about tomorrow, like the card
   if (N && !N.first) rows.push(['다음', N.own ? `${N.rest ? '쉬거나 ' : ''}${N.own.l} (내 순서)` : N.best ? `${N.rest ? '쉬거나 ' : ''}${N.best.l}${N.addSh ? ' + 옆·뒤 어깨' : ''}` : '쉬는 날', 'info']);
   return `<section class="card glance">${rows.map(([k, v, lv]) => `<div class="gl"><span class="k">${k}</span><span class="status ${lv}">${ICON[lv]}</span><b>${esc(v)}</b></div>`).join('')}</section>`;
 }
@@ -3786,7 +3797,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.7 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.8 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
