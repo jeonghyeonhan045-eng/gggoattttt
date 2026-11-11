@@ -747,7 +747,7 @@ function finishHtml(k) {
   if (up.length + dn.length + same.length) {
     const lv = dn.length > up.length ? 'warn' : up.length ? 'good' : 'info';
     fb.push([lv, `지난번보다 ↑${up.length} · =${same.length} · ↓${dn.length}`, dn.length > up.length
-      ? `${jo(dn.slice(0, 2).map(x => x.name).join(', '), '이', '가')} 지난번보다 낮았어요(추정 1RM 기준). 하루 이틀은 흔한 일이에요. 2주 넘게 이어지면 잠·식사·볼륨을 점검하세요. 종목별 숫자는 아래에 있어요.`
+      ? `${jo(dn.slice(0, 2).map(x => x.name).join(', '), '이', '가')} 지난번보다 낮았어요(추정 최대 기준). 하루 이틀은 흔한 일이에요. 2주 넘게 이어지면 잠·식사·볼륨을 점검하세요. 종목별 숫자는 아래에 있어요.`
       : up.length ? `${jo(up.slice(0, 2).map(x => x.name).join(', '), '이', '가')} 지난번보다 올랐어요. 근육이 늘고 있다는 가장 확실한 신호예요. 종목별 숫자는 아래에 있어요.`
       : '지난번과 비슷하게 했어요. 아래 종목별 "다음번"대로 한 칸씩 올려보세요.']);
   }
@@ -855,7 +855,7 @@ function viewWorkout() {
         ${g.map((s, i) => `<div class="setrow" ${cardio ? '' : `data-act="set-edit" data-eq="${esc(id)}" data-id="${esc(s.id)}"`}>
             <span class="n">${i + 1}</span>
             <span class="w">${esc(fmtSetFull(s))}${flags.has(s.id) ? '<span class="prb">PR</span>' : ''}${s.rir != null ? ` <span class="small muted">RIR ${s.rir === 4 ? '4+' : s.rir}</span>` : ''}</span>
-            <span class="e">${!cardio && setE1(s) ? `1RM≈${r1(setE1(s))}kg` : ''}</span>
+            <span class="e"></span>
             <button class="x" data-act="set-del" data-id="${esc(s.id)}" aria-label="세트 삭제">×</button>
           </div>${fix && fix.id === s.id ? fixStrip(s) : ''}`).join('')}
         ${cardio ? `<button class="btn sm block addmore" data-act="open-set" data-eq="${esc(id)}">+ 기록 추가</button>`
@@ -1419,7 +1419,7 @@ function setSheetHtml(e) {
 
   let more = '';
   if (sg && prev) more += `<div class="infobox"><div class="k">지난번 · ${esc(dateLabel(prev.date))}</div>${prev.sets.map(s => esc(fmtSetFull(s))).join(' · ')}</div>`;
-  if (pr) more += `<div class="infobox"><div class="k">이 기구 최고 기록</div>${esc(fmtSetFull(pr))}${setE1(pr) ? ` · 추정 1RM ${r1(setE1(pr))}kg` : ''} <span class="small muted">(${shortDate(pr.date)})</span></div>`;
+  if (pr) more += `<div class="infobox"><div class="k">이 기구 최고 기록</div>${esc(fmtSetFull(pr))}${setE1(pr) ? ` · 추정 최대 ${r1(setE1(pr))}kg` : ''} <span class="small muted">(${shortDate(pr.date)})</span></div>`;
   if (tpr && tpr.eq !== e.id) {
     const te = eqById(tpr.eq) || { brand: tpr.brand, name: tpr.name };
     more += `<div class="infobox"><div class="k">같은 동작(${esc(type)}) 다른 기구 최고</div>${esc(te.brand)} ${esc(te.name)} — ${esc(fmtSetFull(tpr))}
@@ -1465,7 +1465,7 @@ function nextPreview() {
   const w = parseFloat(S.rows[0].w), r = parseInt(S.rows[0].r, 10);
   const plates = BARBELL.has(S.eq) && w > 0 ? plateText(w, S.u) : '';
   const kg = toKg(w || 0, S.u);
-  return (r > 0 && kg > 0 ? `다음 세트 ${trimNum(w)}${S.u} × ${r}${S.u === 'lb' ? ` = ${r1(kg)}kg` : ''} · 추정 1RM ${r1(e1rm(kg, r))}kg` : '') + plates;
+  return (r > 0 && kg > 0 ? `다음 세트 ${trimNum(w)}${S.u} × ${r}${S.u === 'lb' ? ` = ${r1(kg)}kg` : ''} · 추정 최대 ${r1(e1rm(kg, r))}kg` : '') + plates;
 }
 /* barbell plate math (per side) */
 const BARBELL = new Set(['fw-bench', 'fw-incline-bb', 'fw-squat', 'fw-front', 'fw-deadlift', 'fw-sumo', 'fw-rdl', 'fw-hipthrust', 'fw-goodmorning', 'fw-ohp', 'fw-bbrow',
@@ -1548,7 +1548,7 @@ const navIcon = t => { const b = document.querySelector(`nav button[data-tab="${
 const GUIDE = [
   ['운동 기록', ['운동 탭 + 운동 추가 → 부위·이름으로 기구 찾기. 자주·최근에 쓴 기구와 직접 추가한 기구가 맨 위에 와요.', '세트 표: 세트 수(3–6)를 고르고, 한 세트 끝날 때마다 ✓. 무게·횟수는 앞 세트 값이 자동으로 채워지고, 다르게 했으면 숫자만 고쳐서 ✓.', '✓를 누르면 휴식 타이머가 돌아요(화면 오른쪽 위 시계). 마지막 세트를 체크하면 다음 운동 고르기 화면으로 넘어가요.', '지난번 기록과 "오늘 추천"(무게를 올릴 때인지)이 같이 보여요. kg/lb는 기구에 적힌 대로 고르면 분석은 kg로 환산돼요.', '등 운동·벤치·컬은 세트 표 위에서 그립(와이드·클로즈·V바·언더핸드 등)을 고를 수 있어요. 기구마다 마지막 그립을 기억하고, 그립에 따라 해부도·부위별 세트에 쓰는 부위가 다르게 들어가요.', '목록에 없는 기구는 "직접 추가" — 이름·브랜드를 보고 어느 부위를 쓰는지 앱이 판단해서 그림으로 보여주고 분석에 넣어요.', '운동이 끝나면 위쪽 "운동 마무리하기" — 오늘 쓴 부위를 해부도로 보여주고, 지난번 대비 기록·이번 주 볼륨·목표에 맞춘 피드백을 줘요. 더 하려면 "이어서 하기"로 취소하면 돼요.', '뒤로가기는 지금 열린 화면만 닫아요. 앱을 끄려면 첫 화면에서 두 번 누르세요.']],
   ['루틴', ['루틴: 맨 위 "추천"은 성별·목표에 맞춘 프로그램이에요. 아래에서 다른 프로그램도 전부 볼 수 있어요.', '프로그램을 시작하면 오늘 할 종목·세트가 계획으로 깔리고, 다음 날은 순서대로 다음 날짜 루틴이 나와요.', '"부위로 고르기"는 여러 프로그램에서 그 부위를 주로 하는 날만 모아서 보여줘요(예: 엉덩이).', '각 프로그램에 목표, 지킬 점, 참고 영상(유튜브 검색) 링크가 있어요. 오늘 한 운동은 이름을 붙여 내 루틴으로 저장할 수 있어요.']],
-  ['기록을 넣으면 생기는 것 (분석 탭)', ['운동한 부위: 해부도에 이번 주(또는 4주) 많이 한 부위일수록 빨갛게. 주로 쓴 근육은 1세트, 같이 쓴 근육은 0.25–0.5세트로 계산해요.', '부위별 주간 세트: 최근 2주 평균. 연구가 효과적이라고 보는 근육당 주 10–20세트와 비교해요. 막대를 누르면 윗가슴·광배·햄스트링 같은 세부 부위가 나와요(세부는 참고용).', '목표에 맞춘 운동: 고른 목표(살 빼기·증량 등)에 따라 볼륨·무게 유지·유산소에 대한 조언이 달라져요.', '종목 구성 참고: 4주 기록에서 빠진 각도(인클라인, 레그 컬 등)를 짚어줘요. 강요가 아니라 참고예요.', '디로딩 판단: 8주 볼륨·컨디션 흐름을 보고 쉬어갈 때인지 알려줘요. 점진적 과부하: 기구별 추정 1RM이 오르는지 봐요.', '칼로리 소모: 운동 시간과 종류로 계산해요. 인바디가 있으면 제지방 기준, 없으면 키·나이·체중, 그것도 없으면 평균값을 써요.']],
+  ['기록을 넣으면 생기는 것 (분석 탭)', ['운동한 부위: 해부도에 이번 주(또는 4주) 많이 한 부위일수록 빨갛게. 주로 쓴 근육은 1세트, 같이 쓴 근육은 0.25–0.5세트로 계산해요.', '부위별 주간 세트: 최근 2주 평균. 연구가 효과적이라고 보는 근육당 주 10–20세트와 비교해요. 막대를 누르면 윗가슴·광배·햄스트링 같은 세부 부위가 나와요(세부는 참고용).', '목표에 맞춘 운동: 고른 목표(살 빼기·증량 등)에 따라 볼륨·무게 유지·유산소에 대한 조언이 달라져요.', '종목 구성 참고: 4주 기록에서 빠진 각도(인클라인, 레그 컬 등)를 짚어줘요. 강요가 아니라 참고예요.', '디로딩 판단: 8주 볼륨·컨디션 흐름을 보고 쉬어갈 때인지 알려줘요. 점진적 과부하: 기구별 추정 최대 무게가 오르는지 봐요.', '칼로리 소모: 운동 시간과 종류로 계산해요. 인바디가 있으면 제지방 기준, 없으면 키·나이·체중, 그것도 없으면 평균값을 써요.']],
   ['인바디', ['바디 탭에서 결과지 사진을 올리면 숫자를 읽어서 칸에 채워줘요. 잘못 읽힌 칸은 고치면 돼요(사진은 기기 안에서만 처리).', '체중·골격근량·체지방만 넣어도 되고, 내장지방·부위별 근육·위상각 등 추가 항목을 넣으면 그만큼 분석이 늘어요.', '체지방률·제지방지수·내장지방·복부지방률·근감소 지표 등을 논문 기준과 비교해서 풀어서 알려줘요. 성별·나이·키가 있어야 정확해요.', '목표를 고르면 하루 칼로리와 탄·단·지 목표가 계산돼요(살 빼기는 단백질을 더 높게). 2–3주 체중 추세를 보고 맞는 속도인지도 알려줘요.']],
   ['기록 탭 · 기타', ['기록 탭: 날짜별로 한 운동을 달력으로 보고, 지난 날짜를 눌러 수정할 수 있어요. 위쪽 ‹ › 로 날짜를 옮겨 지난 운동을 나중에 입력해도 돼요.', 'PR 보드(분석 탭 아래쪽): 같은 동작이면 브랜드가 달라도 같이 비교해요.', '기록은 이 기기(브라우저)에 저장돼요. 브라우저 데이터를 지우면 사라지니 주의하세요.']],
 ];
@@ -2126,9 +2126,9 @@ function deloadAnalysis() {
   else if (streak >= 6) { pts += 2; reasons.push(`쉬지 않고 ${streak}주째 운동 중${preTxt} (보통 4–8주마다 한 번).`); }
   else if (streak >= 4) { pts += 1; reasons.push(`쉬지 않고 ${streak}주째${preTxt} — 슬슬 가볍게 가는 주를 계획할 때예요.`); }
   else okNotes.push(`쉬지 않고 ${streak}주째${preTxt} (4주 미만)`);
-  if (prog.length >= 3 && stalled.length / prog.length >= 0.5) { pts += 2; reasons.push(`주요 운동 ${prog.length}개 중 ${stalled.length}개가 최근 3주간 추정 1RM 정체/하락.`); }
+  if (prog.length >= 3 && stalled.length / prog.length >= 0.5) { pts += 2; reasons.push(`주요 운동 ${prog.length}개 중 ${stalled.length}개가 최근 3주간 추정 최대 정체/하락.`); }
   else if (stalled.length >= 1 && prog.length >= 1) { pts += stalled.length >= 2 ? 1 : 0; if (stalled.length >= 2) reasons.push(`정체 중인 운동 ${stalled.length}개.`); }
-  if (down.length >= 2) { pts += 1; reasons.push(`추정 1RM이 3% 이상 떨어진 운동 ${down.length}개 — 누적 피로 신호일 수 있어요.`); }
+  if (down.length >= 2) { pts += 1; reasons.push(`추정 최대 무게가 3% 이상 떨어진 운동 ${down.length}개 — 누적 피로 신호일 수 있어요.`); }
   if (cur.condN >= 3 && cur.cond <= 2.5) { pts += 2; reasons.push(`최근 7일 평균 컨디션 ${r1(cur.cond)}/5로 낮아요.`); }
   if (cur.sore != null && cur.sore >= 3.5) { pts += 1; reasons.push(`근육통 평균 ${r1(cur.sore)}/5 — 회복이 따라오지 못하고 있어요.`); }
   if (cur.sleepN >= 3 && cur.sleep < 6) { pts += 1; reasons.push(`평균 수면 ${r1(cur.sleep)}시간 — 잠이 부족하면 회복 여유가 줄어요.`); }
@@ -2293,8 +2293,8 @@ function buildReport() {
     const names = [...new Set(prs7.map(x => x.name))];
     add('good', 6, `이번 주 PR ${prs7.length}개`, `${names.slice(0, 4).join(', ')}${names.length > 4 ? ` 외 ${names.length - 4}개` : ''}에서 기록을 넘었어요.`, '', '');
   }
-  if (!dl.inDeload && !dl.recovering) for (const p of dl.prog.filter(x => x.status === 'flat').slice(0, 2)) add('info', 3, `${p.name} 정체`, `${p.brand ? p.brand + ' · ' : ''}최근 운동한 2주 최고 추정 1RM ${r1(p.rec)}kg, 그 전 최고 ${r1(p.prior)}kg.`, '반복 범위를 바꾸거나(예: 8–10 → 12–15회), 마지막 세트를 RIR 0–1까지 밀거나, 1.25–2.5kg 단위로 증량해보세요.', '');
-  for (const p of dl.prog.filter(x => x.status === 'up').slice(0, 2)) add('good', 1, `${p.name} 상승 중 +${Math.round(p.pct * 100)}%`, `추정 1RM ${r1(p.prior)} → ${r1(p.rec)}kg.`, '지금 방식을 유지하세요.', '');
+  if (!dl.inDeload && !dl.recovering) for (const p of dl.prog.filter(x => x.status === 'flat').slice(0, 2)) add('info', 3, `${p.name} 정체`, `${p.brand ? p.brand + ' · ' : ''}최근 운동한 2주 최고 추정 최대 ${r1(p.rec)}kg, 그 전 최고 ${r1(p.prior)}kg.`, '반복 범위를 바꾸거나(예: 8–10 → 12–15회), 마지막 세트를 RIR 0–1까지 밀거나, 1.25–2.5kg 단위로 증량해보세요.', '');
+  for (const p of dl.prog.filter(x => x.status === 'up').slice(0, 2)) add('good', 1, `${p.name} 상승 중 +${Math.round(p.pct * 100)}%`, `추정 최대 ${r1(p.prior)} → ${r1(p.rec)}kg.`, '지금 방식을 유지하세요.', '');
 
   if (SHOW_DIET) nutritionRecs(nu, add, totalAll);
 
@@ -2353,11 +2353,11 @@ function goalTrainHtml(R, RW, ES) {
     .map(k => ({ k, v: RW[k] || 0, lo: REG_RANGE[k][0] })).filter(x => x.v < x.lo).sort((a, b) => (a.v / a.lo) - (b.v / b.lo));
   const regTxt = l => l.slice(0, 2).map(x => `${REGIONS[x.k]} ${r1(x.v)}세트`).join(', ');
   const progItem = need => down.length >= 2
-    ? ['warn', `추정 1RM이 떨어진 종목 ${down.length}개`, `${down.slice(0, 2).map(r => r.name).join(', ')}. ${need}`]
+    ? ['warn', `추정 최대 무게가 떨어진 종목 ${down.length}개`, `${down.slice(0, 2).map(r => r.name).join(', ')}. ${need}`]
     : prog.length ? ['good', `무게 유지·상승 중 (${prog.length}종목 중 오름 ${up.length})`, '기록이 떨어지지 않고 있어요.'] : null;
   if (wkSets < 0.5) items.push(['info', '최근 2주 근력운동 기록이 없어요', base === 'cut' ? '감량 중 근육을 지키려면 주 2회 이상 근력운동이 권장돼요. 유산소만 하면 빠지는 체중 중 근육 비율이 커져요.' : key === 'strength' ? '힘을 키우려면 근력운동이 기본이에요. 주 2–3회, 스쿼트·벤치·데드 같은 큰 동작부터 시작해보세요.' : key === 'leanbulk' || key === 'bulk' ? '증량은 근력운동이 있어야 늘어난 체중이 근육으로 가요. 주 2회 이상, 근육별 주 10세트 정도부터 시작해보세요.' : '주 2회 이상 근력운동이 권장돼요.', 'WHO 2020']);
   if (key === 'strength') {
-    const p = progItem('힘 목표에선 추정 1RM이 오르는 게 제일 중요한 지표예요. 떨어지면 잠도·회복부터 점검하세요.'); if (p) items.push(p);
+    const p = progItem('힘 목표에선 추정 최대 무게가 오르는 게 제일 중요한 지표예요. 떨어지면 잠도·회복부터 점검하세요.'); if (p) items.push(p);
     items.push(['info', `최근 4주 주 ${r1(days28)}회`, '같은 볼륨이면 근육 크기는 빈도 영향이 작지만, 근력은 같은 동작을 주 2–3회 나눠 할수록 더 올랐어요. 메인 종목은 1–6회 무겁게, 보조 종목은 8–12회로.', 'Pelland 2024']);
   } else if (key === 'health') {
     items.push([carMin >= 150 ? 'good' : 'info', `유산소 최근 7일 ${carMin}분`, carMin >= 150 ? '권장량(주 150–300분) 안이에요.' : '권장량은 주 150–300분이에요. 빠르게 걷기, 자전거도 포함돼요.', 'WHO 2020']);
@@ -2423,12 +2423,13 @@ function restCycle(R, prog) {
   // weekly sets now and with one rest day fewer
   const scale = off > 1 ? cycle / (cycle - 1) : 1;
   const proj = STRENGTH_MUSCLES.filter(m => R.mv14.dW[m] >= 0.5).map(m => { const [lo, hi] = volRange(m); return { m, now: R.mv14.dW[m], next: R.mv14.dW[m] * scale, totNow: R.mv14.vol[m], hi }; });
-  const c = st => prog.filter(p => p.status === st).length, slipping = c('down') > c('up') || R.dl.level === 'bad' || R.dl.level === 'warn';
+  const c = st => prog.filter(p => p.status === st).length, dropping = c('down') > c('up'), slipping = dropping || R.dl.level === 'bad' || R.dl.level === 'warn';
+  const tiredWhy = dropping ? '무게가 떨어지는 종목이 늘었어요' : `쉬지 않고 ${R.dl.streak}주째예요`; // say the real reason: weights or the long run
   let verdict, lv;
   if (tooClose.length) { verdict = `${jo(tooClose.map(p => mName(p.m)).join('·'), '을', '를')} 하루 만에 다시 해요. 같은 부위는 이틀 이상 띄우세요`; lv = 'warn'; }
-  else if (off >= 2 && slipping) { verdict = `무게가 떨어지는 종목이 있어서 지금처럼 ${off}일 쉬는 게 나아요`; lv = 'info'; }
+  else if (off >= 2 && slipping) { verdict = `${dropping ? '무게가 떨어지는 종목이 있어서' : `쉬지 않고 ${R.dl.streak}주째라서`} 지금처럼 ${off}일 쉬는 게 나아요`; lv = 'info'; }
   else if (off >= 2 && parts.every(p => p.gapLess == null || p.gapLess >= 2)) { verdict = `${off - 1 === 1 ? '하루' : off - 1 === 2 ? '이틀' : `${off - 1}일`}만 쉬어도 돼요 — 주간 세트 약 +${Math.round((scale - 1) * 100)}%`; lv = 'good'; }
-  else if (off === 1 && slipping) { verdict = '무게가 떨어지는 종목이 늘었어요. 피곤하면 하루 더 쉬어보세요'; lv = 'warn'; }
+  else if (off === 1 && slipping) { verdict = `${tiredWhy}. 피곤하면 하루 더 쉬어보세요`; lv = 'warn'; }
   else { verdict = '지금 주기가 적당해요'; lv = 'good'; }
   return { on, off, cycle, parts, proj, scale, verdict, lv, slipping, cycles: onR.length };
 }
@@ -2593,7 +2594,7 @@ function reportHtml(P) {
   } else if (P.wd != null) bodyH = `<div class="rp-k">몸 변화 · 아침 체중</div><div class="rp-grid"><div><span>주당 변화</span>${d(P.wd, 'kg')}</div><div><span>목표 속도</span><b class="num">${pctTxt(G.rate[0])} ~ ${pctTxt(G.rate[1])}</b></div></div>`;
   else bodyH = `<div class="rp-k">몸 변화</div><div class="small muted">이 기간엔 인바디 2회(2주 이상 간격)나 아침 체중 기록이 없어서 몸 쪽은 판단하지 못했어요.</div>`;
 
-  const liftH = P.lifts.length ? `<div class="rp-k">힘 변화 · 처음 → 마지막</div>${P.lifts.map(x => `<div class="rp-lift"><span>${esc(x.name)}${x.order ? ` <em class="was">순서 ${x.order.from}→${x.order.to}번째</em>` : ''}</span><span class="num">${x.bw ? `${x.f}회 → ${x.l}회` : `${r1(x.f)} → ${r1(x.l)}kg`}</span><b class="num ${x.st === 'up' ? 'up' : x.st === 'down' ? 'dn' : 'muted'}">${x.pct > 0 ? '+' : ''}${Math.round(x.pct * 100)}%</b></div>`).join('')}<div class="note">무게는 추정 1RM(무게·횟수로 계산한 최대 무게)이에요.</div>` : '';
+  const liftH = P.lifts.length ? `<div class="rp-k">힘 변화 · 처음 → 마지막</div>${P.lifts.map(x => `<div class="rp-lift"><span>${esc(x.name)}${x.order ? ` <em class="was">순서 ${x.order.from}→${x.order.to}번째</em>` : ''}</span><span class="num">${x.bw ? `${x.f}회 → ${x.l}회` : `${r1(x.f)} → ${r1(x.l)}kg`}</span><b class="num ${x.st === 'up' ? 'up' : x.st === 'down' ? 'dn' : 'muted'}">${x.pct > 0 ? '+' : ''}${Math.round(x.pct * 100)}%</b></div>`).join('')}<div class="note">무게는 추정 최대 무게(무게·횟수로 계산한 최대 무게)이에요.</div>` : '';
   const partH = `<div class="rp-k">부위별 주평균 세트</div><div class="rp-parts">${P.parts.filter(p => p.st !== 'none' || ['가슴', '등', '어깨', '다리'].includes(p.m)).map(p => `<span class="${p.st}">${esc(mName(p.m))} <b class="num">${r1(p.tot)}</b></span>`).join('')}</div>`;
   const list = (k, arr, cls) => arr.length ? `<div class="rp-k">${k}</div><ul class="rp-list ${cls}">${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
   return `<div class="verdict ${lv === 'good' ? '' : lv}"><div class="vt"><span class="status ${lv}">${ICON[lv]} ${esc(head)}</span></div><div class="small" style="margin-top:4px">${esc(why)}</div></div>
@@ -2630,7 +2631,7 @@ function glanceHtml(R, prog) {
   // 5) next session
   const N = recommendNext((dayRO(today()).sets || []).length ? addDays(today(), 1) : today()); // trained today → it's about tomorrow, like the card
   if (N && !N.first) rows.push(['다음', N.own ? `${N.rest ? '쉬거나 ' : ''}${N.own.l} (내 순서)` : N.best ? `${N.rest ? '쉬거나 ' : ''}${N.best.l}${N.addSh ? ' + 옆·뒤 어깨' : ''}` : '쉬는 날', 'info']);
-  return `<section class="card glance">${rows.map(([k, v, lv]) => `<div class="gl"><span class="k">${k}</span><span class="status ${lv}">${ICON[lv]}</span><b>${esc(v)}</b></div>`).join('')}</section>`;
+  return `<section class="card glance">${rows.map(([k, v, lv]) => `<div class="gl"><span class="k">${k}</span><span class="status ${lv}">${ICON[lv]}</span><b class="${lv}">${esc(v)}</b></div>`).join('')}</section>`;
 }
 function viewAnalysis() {
   const R = buildReport(), dl = R.dl, ws = dl.cur, ES = energySummary(7);
@@ -2797,7 +2798,7 @@ function viewAnalysis() {
       const others = x.eqs.filter(id => id !== x.best.eq).map(id => { const p = prOfEq(id), e = eqById(id) || p; return p ? `${e.brand && e.brand !== '프리웨이트' ? e.brand + ' ' : ''}${e.name} ${fmtSetFull(p)}` : ''; }).filter(Boolean);
       return `<div class="prrow"><div class="main"><div class="nm">${esc(x.t)}</div><div class="sub">최고: ${esc(be.brand && be.brand !== '프리웨이트' ? be.brand + ' ' : '')}${esc(be.name)} · ${shortDate(x.best.date)}</div>
         ${others.length ? `<div class="sub">같은 패턴: ${esc(others.join(' / '))}</div>` : ''}</div>
-        <div class="v">${esc(fmtSetFull(x.best))}${setE1(x.best) ? `<small>1RM≈${r1(setE1(x.best))}kg</small>` : ''}</div></div>`;
+        <div class="v">${esc(fmtSetFull(x.best))}${setE1(x.best) ? `<small>최대 추정 ${r1(setE1(x.best))}kg</small>` : ''}</div></div>`;
     }).join('') : '<div class="small muted">세트를 기록하면 패턴별 최고 기록이 모여요.</div>'}
   </section>`, false);
 
@@ -2832,6 +2833,7 @@ function goalMacros(key, bw) {
 const pctTxt = v => `${v > 0 ? '+' : ''}${trimNum(v)}%`;
 function weightVerdict(pct) {
   if (pct == null) return null;
+  pct = r1(pct); // judge the number on screen: "+0.1%" shouldn't be called short of a +0.1% target
   const key = goalBase(), [lo, hi] = GOALS[goalKey()].rate;
   const range = `목표 속도 주 ${pctTxt(lo)} ~ ${pctTxt(hi)}`;
   if (pct >= lo && pct <= hi) return { lv: 'good', t: `목표 속도 안 · 주 ${pctTxt(r1(pct))}`, a: `${range}. 지금처럼 유지하세요.` };
@@ -3806,6 +3808,8 @@ function openSettings(focus) {
       <div class="note">체중 기준 대략적인 시작값이에요. 칼로리는 체중×30(유지)에 목표별 배수(살 빼기 80% · 체형 바꾸기 95% · 천천히 증량 107% · 빠르게 증량 115%), 단백질은 살 빼기·체형 바꾸기 1.8g/kg, 바프 컷팅 2.0g/kg, 나머지 1.6g/kg, 지방 0.9g/kg, 나머지는 탄수화물. 2–3주 체중 변화를 보고 조정하세요.</div></div>
     <button class="btn primary block" style="margin-top:12px" data-act="st-save-goals">목표 저장</button>` : ''}
 
+    <div class="sec-h"><h2 style="font-size: 15px">내 헬스장</h2><span class="aside">${(DB.settings.gym || []).length}개 체크</span></div>
+    <button class="btn block" data-act="gym-open">헬스장 머신 등록·수정</button>
     <div class="sec-h"><h2 style="font-size: 15px">기능 설명</h2><span class="aside">누르면 펼쳐져요</span></div>
     ${guideHtml()}
     <div class="sec-h"><h2 style="font-size: 15px">참고 논문</h2><span class="aside">${REFS.length}편</span></div>
@@ -3813,13 +3817,11 @@ function openSettings(focus) {
       <ol class="reflist" style="padding-left:18px;margin:6px 0 0">${REFS.map(r => `<li>${esc(r.text)} <a href="${esc(r.url)}" target="_blank" rel="noopener">링크</a><span class="use">→ ${esc(r.use)}</span></li>`).join('')}</ol>
       <div class="note">연구의 평균적인 결과를 규칙으로 옮긴 참고용이에요. 개인차가 크고, 통증·부상은 전문가와 상담하세요.</div></details>
 
-    <div class="sec-h"><h2 style="font-size: 15px">내 헬스장</h2><span class="aside">${(DB.settings.gym || []).length}개 체크</span></div>
-    <button class="btn block" data-act="gym-open">헬스장 머신 등록·수정</button>
     <div class="sec-h"><h2 style="font-size: 15px">데이터</h2></div>
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.6.9 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.7.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 

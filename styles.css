@@ -1003,3 +1003,7 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 .fx-inc button { min-width: 44px; height: 34px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); font-family: var(--mono); font-weight: 700; }
 .fx-inc button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .fx-go { height: 64px; font-size: 18px; margin-top: 8px; }
+
+/* glance: a warning reads as a warning, not in the same green as good news */
+.glance .gl b.warn, .glance .gl b.bad { color: var(--mark); }
+.glance .gl b.info { color: var(--ink); }
