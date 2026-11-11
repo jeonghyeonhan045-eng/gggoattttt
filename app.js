@@ -775,6 +775,7 @@ function finishHtml(k) {
   const tiles = R.str.length ? [[R.mins ? `${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [fmtInt(R.ex.total), 'kcal 소모']]
     : [[`${trimNum(carMin)}분`, '유산소'], [`${R.car.length}`, '종목'], [fmtInt(R.ex.carK), 'kcal 소모'], [fmtInt(R.ex.total), '총 소모']];
   return `<div class="tiles fin-tiles">${tiles.map(([v, l]) => `<div class="tile"><div class="k">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
+    ${R.str.length ? `<button class="btn block" style="margin-top:10px" data-act="share-img" data-k="${k}">오늘 운동 이미지로 공유</button>` : ''}
     ${ranked.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size: 15px">오늘 쓴 부위</h2><span class="aside">진할수록 많이</span></div>
       <div class="bodymaps fin-maps">${bodySvg('front', R.reg, max, '앞')}${bodySvg('back', R.reg, max, '뒤')}</div>
       <div class="fin-rank">${ranked.slice(0, 6).map(([r, v], i) => `<span><b>${i + 1}</b> ${REGIONS[r]} <i>${r1(v)}</i></span>`).join('')}</div>` : ''}
@@ -794,6 +795,41 @@ function finishHtml(k) {
       const ios = iosBrowser(), due = ios ? days >= 3 && (since == null || since >= 7) : days >= 12 && (since == null || since >= 30);
       return !isNative && due ? `<div class="infobox" style="margin-top:12px"><div class="k">백업</div>기록이 ${days}일치 쌓였어요${lb ? ` (마지막 백업 ${since}일 전)` : ''}. ${ios ? 'Safari에서 쓰고 있어서 7일 동안 안 열면 기록이 지워질 수 있어요. 홈 화면에 추가해서 쓰고, 백업 코드도 저장해 두세요.' : '기록은 이 브라우저에만 있어서 폰을 바꾸거나 인터넷 기록을 지우면 사라질 수 있어요.'}<button class="btn sm block" style="margin-top:8px" data-act="export">백업 코드 저장하기</button></div>` : ''; })()}
     ${k === state.date && d.fin ? `<div class="grid2" style="margin-top:14px"><button class="btn" data-act="day-resume">이어서 하기</button><button class="btn primary" data-act="sheet-close">완료</button></div>` : `<button class="btn primary block" style="margin-top:14px" data-act="sheet-close">닫기</button>`}`;
+}
+/* a picture of the day's workout to send to friends (Hevy/Strong-style share card) */
+async function shareImage(k) {
+  const R = sessionReport(k), W = 1080, pad = 72, rows = R.cmp.slice(0, 9), H = 520 + rows.length * 96 + 120;
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim() || '#111';
+  const bg = col('--bg'), ink = col('--ink'), ink3 = col('--ink3'), hi = col('--hi'), mark = col('--mark'), line = col('--line');
+  const F = (w, sz) => `${w} ${sz}px Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.fillStyle = ink; g.font = F(800, 56); g.fillText('오운', pad, 120); const ow = g.measureText('오운').width; g.fillStyle = mark; g.fillText('완', pad + ow, 120);
+  g.fillStyle = ink3; g.font = F(600, 34); g.textAlign = 'right'; g.fillText(`${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일 (${'일월화수목금토'[new Date(k + 'T00:00').getDay()]})`, W - pad, 116); g.textAlign = 'left';
+  const kind = R.groups.map(mName).join(' · ');
+  g.fillStyle = hi; g.font = F(800, 64); g.fillText(kind || '오늘의 운동', pad, 230);
+  const tiles = [[R.mins ? `${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [`${R.prs.length}`, '최고 기록']];
+  const tw = (W - pad * 2) / 4;
+  tiles.forEach(([v, l], i) => { const x = pad + tw * i; g.fillStyle = ink3; g.font = F(600, 28); g.fillText(l, x, 310); g.fillStyle = ink; g.font = F(800, 56); g.fillText(v, x, 380); });
+  g.strokeStyle = line; g.lineWidth = 3; g.beginPath(); g.moveTo(pad, 430); g.lineTo(W - pad, 430); g.stroke();
+  let y = 500;
+  for (const x of rows) {
+    const w = x.list.map(s => fmtSetW(s)), same = w.every(v => v === w[0]);
+    const txt = same ? `${w[0]} × ${x.list.map(s => s.r).join('·')}` : x.list.map(s => fmtSetFull(s)).join(' / ');
+    g.fillStyle = ink; g.font = F(700, 38); let nm = x.name; while (g.measureText(nm).width > W - pad * 2 - 140 && nm.length > 4) nm = nm.slice(0, -2) + '…'; g.fillText(nm, pad, y);
+    if (x.st === 'up') { g.fillStyle = hi; g.font = F(800, 32); g.textAlign = 'right'; g.fillText(`↑ ${Math.round(x.pct * 100) || 1}%`, W - pad, y); g.textAlign = 'left'; }
+    g.fillStyle = ink3; g.font = F(500, 32); let t = txt; while (g.measureText(t).width > W - pad * 2 && t.length > 6) t = t.slice(0, -2) + '…'; g.fillText(t, pad, y + 44);
+    y += 96;
+  }
+  if (R.cmp.length > rows.length) { g.fillStyle = ink3; g.font = F(500, 30); g.fillText(`외 ${R.cmp.length - rows.length}종목`, pad, y); }
+  g.fillStyle = ink3; g.font = F(500, 26); g.textAlign = 'right'; g.fillText('ounwan-log.vercel.app', W - pad, H - 48); g.textAlign = 'left';
+  const blob = await new Promise(r => c.toBlob(r, 'image/png')), name = `오운완_${k}.png`;
+  try {
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: '오운완' }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('이미지를 저장했어요');
 }
 function openFinish(k) { state.sheet = { kind: 'finish', k }; openSheet(k === today() ? '오늘 운동 마무리' : dateLabel(k), '수고했어요', finishHtml(k), state.sheet); }
 function viewWorkout() {
@@ -952,6 +988,7 @@ function focusHtml() {
     <div class="fx-top"><span class="small muted">${F.i + 1} / ${L.length} 종목</span><button class="linkbtn" data-act="open-set" data-eq="${esc(id)}">자세히 기록 ›</button></div>
     <div class="fx-name">${esc(e.name)}</div>
     <div class="small muted">${tg ? `목표 ${esc(tg)} · ` : ''}지난번 ${esc(lastTxt)}</div>
+    <input class="fx-note" type="text" maxlength="60" placeholder="메모 — 의자 4칸, 그립 넓게 등 (다음에도 보여요)" value="${esc((DB.eqNote || {})[id] || '')}" data-on="eq-note" data-eq="${esc(id)}">
     <div class="fx-dots">${Array.from({ length: Math.max(n, did.length) }, (_, k) => `<span class="${k < did.length ? 'on' : ''}">${k < did.length ? esc(`${did[k].w > 0 ? trimNum(did[k].w) : ''}${did[k].w > 0 ? '×' : ''}${did[k].r}`) : k + 1}</span>`).join('')}</div>
     ${rem != null ? `<div class="fx-rest" id="fx-rest"><span class="small">휴식</span><b class="num" id="fx-rest-t">${fmtSec(Math.ceil(rem))}</b>
         <div class="row" style="gap:6px"><button class="btn sm" data-act="fx-add15">+15초</button><button class="btn sm" data-act="fx-skip">건너뛰기</button></div></div>` : ''}
@@ -960,7 +997,10 @@ function focusHtml() {
       <div class="fx-step"><span class="lb">무게 ${u}</span><button class="btn" data-act="fx-w" data-d="${-step}" aria-label="무게 줄이기">−</button><input class="num fx-wi" type="number" inputmode="decimal" step="any" min="0" value="${trimNum(F.w)}" data-on="fx-wi" aria-label="무게 직접 입력"><button class="btn" data-act="fx-w" data-d="${step}" aria-label="무게 늘리기">+</button></div>`}
     <div class="fx-step"><span class="lb">횟수</span><button class="btn" data-act="fx-r" data-d="-1" aria-label="횟수 줄이기">−</button><b class="num">${F.r}</b><button class="btn" data-act="fx-r" data-d="1" aria-label="횟수 늘리기">+</button></div>
     ${F.sg && !did.length ? `<div class="small muted" style="text-align:center">${esc(F.sg.why)}</div>` : ''}
+    ${!bw && BARBELL.has(id) && F.w > 0 ? plateText(F.w, u) : ''}
+    ${!bw && !did.length && warmupTxt(id, F.w, u) ? `<div class="fx-wu"><b>웜업</b> ${esc(warmupTxt(id, F.w, u))}</div>` : ''}
     <button class="btn primary block fx-go" data-act="fx-done">✓ ${did.length + 1}세트 완료</button>
+    <div class="fx-rs"><span class="small muted">이 운동 쉬는 시간</span>${[60, 90, 120, 180].map(v => `<button class="${restFor(id) === v ? 'on' : ''}" data-act="fx-rs" data-v="${v}">${fmtSec(v)}</button>`).join('')}</div>
     <div class="grid2" style="margin-top:8px"><button class="btn" data-act="fx-move" data-d="-1" ${F.i ? '' : 'disabled'}>← 이전 종목</button><button class="btn" data-act="fx-move" data-d="1" ${F.i < L.length - 1 ? '' : 'disabled'}>다음 종목 →</button></div>
   </div>`;
 }
@@ -1411,7 +1451,7 @@ function setSheetHtml(e) {
   const sg = progressionHint(e, prev, S.u);
   const prevTxt = i => { if (!prev) return '–'; const p = prev.sets[i]; return !p ? '–' : +p.w > 0 ? `${trimNum(p.u === S.u ? p.w : r1(fromKg(setKg(p), S.u)))}×${p.r}` : `${p.r}${isTimed(e) ? '초' : '회'}`; };
   const wPh = e.bw || BW_NEXT[e.id] ? '맨몸' : '0';
-  let top = '';
+  let top = `<input class="fx-note" style="margin:0 0 10px" type="text" maxlength="60" placeholder="메모 — 의자 4칸, 그립 넓게 등 (다음에도 보여요)" value="${esc((DB.eqNote || {})[e.id] || '')}" data-on="eq-note" data-eq="${esc(e.id)}">`;
   if (sg) top += `<div class="infobox sugg ${sg.kind}"><div class="row between" style="gap:8px">
       <div><div class="k">오늘 추천</div><b class="num">${esc(sgTxt(sg, S.u, e))}</b><div class="small muted" style="margin-top:2px">${esc(sg.why)}</div></div>
       ${sg.next ? `<button class="btn sm primary" data-act="open-set" data-eq="${esc(sg.next)}">바꾸기</button>` : `<button class="btn sm primary" data-act="apply-sugg" data-w="${sg.w > 0 ? sg.w : ''}" data-r="${sg.r}">적용</button>`}</div></div>`;
@@ -1466,6 +1506,18 @@ function nextPreview() {
   const plates = BARBELL.has(S.eq) && w > 0 ? plateText(w, S.u) : '';
   const kg = toKg(w || 0, S.u);
   return (r > 0 && kg > 0 ? `다음 세트 ${trimNum(w)}${S.u} × ${r}${S.u === 'lb' ? ` = ${r1(kg)}kg` : ''} · 추정 최대 ${r1(e1rm(kg, r))}kg` : '') + plates;
+}
+/* per-exercise rest and notes (Strong/Hevy-style): big lifts usually want longer rest than curls */
+const restFor = id => (DB.eqRest || {})[id] || DB.settings.rest;
+/* warm-up ramp before the first working set of a big lift (shown, not logged — it isn't training volume) */
+function warmupTxt(id, w, u) {
+  const e = eqById(id) || eqOrRecord(id); if (!e || !(w > 0)) return '';
+  const kg = toKg(w, u), big = BARBELL.has(id) || COMPOUND.has(typeOfEq(e));
+  if (!big || kg < 30) return '';
+  const bar = BARBELL.has(id) ? (u === 'lb' ? 45 : 20) : 0, st = u === 'lb' ? 5 : 2.5, rd = v => Math.round(v / st) * st;
+  const steps = []; if (bar) steps.push([bar, 10]);
+  for (const [p, r] of kg >= 60 ? [[0.5, 8], [0.7, 5], [0.85, 2]] : [[0.5, 10], [0.75, 4]]) { const v = rd(w * p); if (v > (steps.length ? steps[steps.length - 1][0] : 0) && v < w) steps.push([v, r]); }
+  return steps.length ? steps.map(([v, r]) => `${trimNum(v)}×${r}`).join(' → ') : '';
 }
 /* barbell plate math (per side) */
 const BARBELL = new Set(['fw-bench', 'fw-incline-bb', 'fw-squat', 'fw-front', 'fw-deadlift', 'fw-sumo', 'fw-rdl', 'fw-hipthrust', 'fw-goodmorning', 'fw-ohp', 'fw-bbrow',
@@ -3821,7 +3873,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.7.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.8.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -3882,8 +3934,9 @@ function addStrengthSet(e, w, u, r, rir) {
   // sets entered seconds apart = logging after the workout, so no rest timer
   const batch = Date.now() - (state.lastSetAt || 0) < 30000; state.lastSetAt = Date.now();
   const rest = DB.settings.autoRest && state.date === today() && !batch;
-  if (rest) timerStart(DB.settings.rest); else if (batch && DB.timer.endAt) timerStop();
-  toast(isPR ? `새 PR · ${fmtSetFull(set)}` : `${n}세트 기록${rest ? ` · 휴식 ${fmtSec(DB.settings.rest)}` : ''}`);
+  const rs = restFor(e.id);
+  if (rest) timerStart(rs); else if (batch && DB.timer.endAt) timerStop();
+  toast(isPR ? `새 최고 기록 · ${fmtSetFull(set)}` : `${n}세트 기록${rest ? ` · 휴식 ${fmtSec(rs)}` : ''}`);
   if (isPR) haptic(120);
   return set;
 }
@@ -4083,6 +4136,8 @@ const ACT = {
   'gym-toggle': el => { const G = DB.settings.gym = DB.settings.gym || [], id = el.dataset.eq, i = G.indexOf(id); if (i >= 0) G.splice(i, 1); else G.push(id); save(); const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },
   'focus-open': () => openFocus(),
   'fx-w': el => { state.fx.w = Math.max(0, r1(state.fx.w + +el.dataset.d)); fxRender(); },
+  'share-img': el => { shareImage(el.dataset.k); },
+  'fx-rs': el => { const id = fxList()[state.fx.i]; if (!id) return; DB.eqRest = DB.eqRest || {}; DB.eqRest[id] = +el.dataset.v; save(); fxRender(); },
   'pre-wk': el => { DB.settings.preWeeks = +el.dataset.v; save(); bump(); render(); },
   'fx-unit': el => {
     const F = state.fx, id = fxList()[F.i], u = unitFor(id), nu = el.dataset.u; if (!id || u === nu) return;
@@ -4248,6 +4303,7 @@ const ACT = {
 };
 
 const ON = {
+  'eq-note': el => { DB.eqNote = DB.eqNote || {}; const v = el.value.trim(); if (v) DB.eqNote[el.dataset.eq] = v; else delete DB.eqNote[el.dataset.eq]; save(); }, // no re-render: typing
   'fx-wi': (el, ev) => { if (!state.fx) return; const v = parseFloat(el.value); if (v >= 0) state.fx.w = r1(v); }, // no re-render here: it fires on blur, mid-tap on another button
   'gym-q': (el, ev) => { if (ev.type !== 'input') return; state.gymQ = el.value; const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },
   'eq-q': (el, ev) => { if (ev.type !== 'input') return; state.eqQ = el.value; renderEqList(); },

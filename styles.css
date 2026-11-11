@@ -1007,3 +1007,13 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 /* glance: a warning reads as a warning, not in the same green as good news */
 .glance .gl b.warn, .glance .gl b.bad { color: var(--mark); }
 .glance .gl b.info { color: var(--ink); }
+
+/* workout mode: note, warm-up, per-exercise rest */
+.fx-note { width: 100%; margin-top: 8px; height: 38px; border: 1px dashed var(--line); border-radius: 10px; background: transparent; color: var(--ink); padding: 0 10px; font-size: 14px; }
+.fx-note:not(:placeholder-shown) { border-style: solid; background: var(--card2, var(--card)); font-weight: 600; }
+.fx-wu { font-size: 13px; margin: 6px 0; text-align: center; color: var(--ink2); }
+.fx-wu b { color: var(--ink); margin-right: 4px; }
+.fx .plates { text-align: center; margin: 4px 0; }
+.fx-rs { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+.fx-rs button { min-width: 48px; height: 32px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.fx-rs button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
