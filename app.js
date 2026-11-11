@@ -812,7 +812,7 @@ function drawBody(g, view, vals, max, x, y, sc, col) {
 /* a picture of the day's workout to send to friends (Hevy/Strong-style share card) */
 function shareImage(k, story) {
   // story = 1080×1920 (Instagram story size): the share sheet's Instagram → 스토리 takes it full-screen
-  const R = sessionReport(k), W = 1080, pad = story ? 96 : 72, mapH = story && Object.keys(R.reg).length ? 560 : 0, rows = R.cmp.slice(0, story ? (mapH ? 6 : 8) : 9), body = 520 + mapH + rows.length * 96 + 40, H = story ? 1920 : body + 80;
+  const R = sessionReport(k), W = 1080, pad = story ? 96 : 72, mapH = Object.keys(R.reg).length ? 560 : 0, rows = R.cmp.slice(0, story ? (mapH ? 6 : 8) : 9), body = 520 + mapH + rows.length * 96 + 40, H = story ? 1920 : body + 80;
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim() || '#111';
   const bg = col('--bg'), ink = col('--ink'), ink3 = col('--ink3'), hi = col('--hi'), mark = col('--mark'), line = col('--line');
@@ -3892,7 +3892,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.8.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.8.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
