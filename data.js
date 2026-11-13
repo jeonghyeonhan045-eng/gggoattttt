@@ -56,7 +56,6 @@ const TYPE_INFO = {
   '월볼':              { m: '다리', sec: { '어깨': .5 }, tag: 'quad' },
   '박스 점프':         { m: '다리', sec: {}, tag: 'quad' },
   '버피':              { m: '전신', sec: { '가슴': .5, '다리': .5 }, tag: null },
-  '줄넘기':            { m: '전신', sec: { '다리': .5 }, tag: null },
   '토투바':            { m: '코어', sec: { '등': .5 }, tag: null },
   '머슬업':            { m: '등', sec: { '가슴': .5, '팔': .5 }, tag: 'pull' },
   '핸드스탠드 푸시업': { m: '어깨', sec: { '팔': .5 }, tag: 'push' },
@@ -66,6 +65,9 @@ const TYPE_INFO = {
   '일립티컬':          { m: '유산소', sec: {}, cardio: true },
   '계단':              { m: '유산소', sec: {}, cardio: true },
   '로잉':              { m: '유산소', sec: {}, cardio: true },
+  '수영':              { m: '유산소', sec: {}, cardio: true },
+  '등산':              { m: '유산소', sec: {}, cardio: true },
+  '줄넘기':            { m: '유산소', sec: {}, cardio: true },
 };
 const TYPE_NAMES = Object.keys(TYPE_INFO);
 
@@ -124,7 +126,7 @@ const TYPE_KEYWORDS = [
   ['스윙', '케틀벨 스윙'], ['파머', '캐리'], ['캐리', '캐리'],
   ['트레드밀', '러닝/걷기'], ['러닝', '러닝/걷기'], ['걷기', '러닝/걷기'],
   ['바이크', '사이클'], ['사이클', '사이클'], ['일립티컬', '일립티컬'], ['스텝밀', '계단'], ['천국의 계단', '계단'],
-  ['로잉', '로잉'], ['스키에르그', '로잉'],
+  ['로잉', '로잉'], ['스키에르그', '로잉'], ['수영', '수영'], ['등산', '등산'], ['하이킹', '등산'], ['줄넘기', '줄넘기'],
 ];
 
 function inferType(name, m) {
@@ -363,6 +365,49 @@ const FREE_RAW = [
   ['fw-hangleg', '행잉 레그 레이즈', '코어', '레그 레이즈', 'core'],
   ['fw-rollout', '앱 롤아웃', '코어', '복근 크런치', 'core'],
   ['fw-roman', '45° 백 익스텐션', '코어', '백 익스텐션', 'core'],
+  // 가슴
+  ['fw-decline-bb', '디클라인 바벨 벤치프레스', '가슴', '벤치프레스', 'press'],
+  ['fw-smith-incline', '스미스 머신 인클라인 프레스', '가슴', '인클라인 프레스', 'press'],
+  ['fw-incline-fly', '인클라인 덤벨 플라이', '가슴', '펙 플라이', 'press'],
+  // 등
+  ['fw-pendlay', '펜들레이 로우', '등', '로우', 'pull'],
+  ['fw-csrow', '체스트 서포티드 덤벨 로우', '등', '로우', 'pull'],
+  ['fw-meadows', '메도우스 로우', '등', '로우', 'pull'],
+  ['fw-db-pullover', '덤벨 풀오버', '등', '풀오버', 'pull'],
+  ['fw-rackpull', '랙 풀', '등', '데드리프트', 'hinge'],
+  ['fw-bbshrug', '바벨 슈러그', '등', '슈러그', 'ohp'],
+  // 어깨
+  ['fw-arnold', '아놀드 프레스', '어깨', '숄더 프레스', 'ohp'],
+  ['fw-landmine-press', '랜드마인 프레스', '어깨', '숄더 프레스', 'ohp'],
+  ['fw-upright', '업라이트 로우', '어깨', '레터럴 레이즈', 'ohp'],
+  ['fw-frontraise', '덤벨 프론트 레이즈', '어깨', '레터럴 레이즈', 'ohp'],
+  ['fw-inclinerear', '인클라인 벤치 리어 델트 레이즈', '어깨', '리어 델트', 'ohp'],
+  // 팔
+  ['fw-ezcurl', 'EZ바 컬', '팔', '바이셉 컬', 'arm'],
+  ['fw-preacher', '프리처 컬', '팔', '바이셉 컬', 'arm'],
+  ['fw-inclinecurl', '인클라인 덤벨 컬', '팔', '바이셉 컬', 'arm'],
+  ['fw-concentration', '컨센트레이션 컬', '팔', '바이셉 컬', 'arm'],
+  ['fw-spider', '스파이더 컬', '팔', '바이셉 컬', 'arm'],
+  ['fw-revcurl', '리버스 컬', '팔', '바이셉 컬', 'arm'],
+  ['fw-wristcurl', '리스트 컬 (전완)', '팔', '바이셉 컬', 'arm'],
+  ['fw-closegrip', '클로즈그립 벤치프레스', '팔', '벤치프레스', 'press'],
+  ['fw-kickback', '덤벨 킥백 (삼두)', '팔', '트라이셉 익스텐션', 'arm'],
+  ['fw-cb-ohext', '케이블 오버헤드 익스텐션', '팔', '트라이셉 익스텐션', 'arm'],
+  // 하체
+  ['fw-smith-squat', '스미스 머신 스쿼트', '다리', '스쿼트', 'squat'],
+  ['fw-db-rdl', '덤벨 루마니안 데드리프트', '다리', '루마니안 데드리프트', 'hinge'],
+  ['fw-walklunge', '워킹 런지', '다리', '런지', 'squat'],
+  ['fw-sumosq', '덤벨 스모 스쿼트', '다리', '스쿼트', 'squat'],
+  ['fw-sissy', '시시 스쿼트', '다리', '레그 익스텐션', 'squat'],
+  ['fw-cb-kickback', '케이블 글루트 킥백', '다리', '힙 익스텐션', 'hinge'],
+  ['fw-db-calf', '덤벨 카프 레이즈', '다리', '카프 레이즈', 'squat'],
+  // 코어
+  ['fw-deadbug', '데드버그', '코어', '복근 크런치', 'core'],
+  ['fw-russian', '러시안 트위스트', '코어', '코어 로테이션', 'core'],
+  ['fw-bicycle', '바이시클 크런치', '코어', '코어 로테이션', 'core'],
+  ['fw-hangknee', '행잉 니 레이즈', '코어', '레그 레이즈', 'core'],
+  ['fw-pallof', '팔로프 프레스 (케이블)', '코어', '코어 로테이션', 'core'],
+  ['fw-vup', 'V업', '코어', '레그 레이즈', 'core'],
 ];
 
 const CARDIO_RAW = [
@@ -378,24 +423,13 @@ const CARDIO_RAW = [
   ['wb-bike', 'Wattbike', '스마트 사이클', '사이클'],
   ['ks-m3', 'Keiser', 'M3 실내 사이클', '사이클'],
   ['out-run', '야외', '러닝 / 걷기', '러닝/걷기'],
+  ['out-bike', '야외', '자전거', '사이클'],
+  ['out-swim', '야외', '수영', '수영'],
+  ['out-hike', '야외', '등산', '등산'],
+  ['out-rope', '야외', '줄넘기', '줄넘기'],
 ];
 
-/* CrossFit: [id, name, muscle, pattern, sector] */
-// CrossFit: a short list of the most common box movements, shown as one group under 프리
-const CF_RAW = [
-  ['cf-powerclean', '파워 클린', '다리', '클린'],
-  ['cf-powersnatch', '파워 스내치', '다리', '스내치'],
-  ['cf-cnj', '클린 앤 저크', '다리', '클린 앤 저크'],
-  ['cf-thruster', '쓰러스터', '다리', '쓰러스터'],
-  ['cf-pullup', '풀업 (키핑·버터플라이)', '등', '풀업'],
-  ['cf-t2b', '토투바', '코어', '토투바'],
-  ['cf-barmu', '머슬업', '등', '머슬업'],
-  ['cf-hspu', '핸드스탠드 푸시업', '어깨', '핸드스탠드 푸시업'],
-  ['cf-wallball', '월볼', '다리', '월볼'],
-  ['cf-boxjump', '박스 점프', '다리', '박스 점프'],
-  ['cf-burpee', '버피', '전신', '버피'],
-  ['cf-du', '더블 언더', '전신', '줄넘기'],
-];
+
 
 /* bodyweight: no equipment, or a bar / table / chair. Weight stays empty (or extra load from a vest). */
 const BW_RAW = [
@@ -420,16 +454,22 @@ const BW_RAW = [
   ['bw-legraise', '라잉 레그 레이즈', '코어', '레그 레이즈'],
   ['bw-mtclimb', '마운틴 클라이머 (회 = 초)', '전신', '기능성 전신'],
   ['bw-superman', '슈퍼맨 (엎드려 등 들기)', '코어', '백 익스텐션'],
+  ['bw-muscleup', '머슬업', '등', '머슬업'],
+  ['bw-archer', '아처 푸시업', '가슴', '푸시업'],
+  ['bw-burpee', '버피', '전신', '버피'],
+  ['bw-boxjump', '박스 점프', '다리', '박스 점프'],
+  ['bw-wallsit', '월 싯 (회 = 초)', '다리', '스쿼트'],
+  ['bw-lsit', 'L-싯 (회 = 초)', '코어', '레그 레이즈'],
+  ['bw-jumpingjack', '점핑잭', '전신', '기능성 전신'],
 ];
 
 // free-weight entries that are done with bodyweight
-const BW_FREE = new Set(['fw-pushup', 'fw-dips', 'fw-pullup', 'fw-chinup', 'fw-invrow', 'fw-plank', 'fw-sideplank', 'fw-crunch', 'fw-hangleg', 'fw-glutebridge', 'fw-slbridge']);
+const BW_FREE = new Set(['fw-deadbug', 'fw-russian', 'fw-bicycle', 'fw-hangknee', 'fw-vup', 'fw-sissy', 'fw-pushup', 'fw-dips', 'fw-pullup', 'fw-chinup', 'fw-invrow', 'fw-plank', 'fw-sideplank', 'fw-crunch', 'fw-hangleg', 'fw-glutebridge', 'fw-slbridge']);
 const BUILTIN_EQ = [
   ...EQ_RAW.map(([id, brand, name, m, type]) => ({ id, brand, name, m, type, kind: 'machine' })),
   ...FREE_RAW.map(([id, name, m, type, sector]) => ({ id, brand: '프리웨이트', name, m, type, kind: 'free', sector, ...(BW_FREE.has(id) ? { bw: 1 } : {}) })),
   ...BW_RAW.map(([id, name, m, type]) => ({ id, brand: '맨몸', name, m, type, kind: 'free', sector: 'bw', bw: 1 })),
   ...CARDIO_RAW.map(([id, brand, name, type]) => ({ id, brand, name, m: '유산소', type, kind: 'cardio' })),
-  ...CF_RAW.map(([id, name, m, type]) => ({ id, brand: '크로스핏', name, m, type, kind: 'crossfit' })),
 ];
 
 /* ---------- foods ----------
@@ -982,7 +1022,7 @@ const PROGRAMS = [
     desc: '헬스장 없이 집에서 하는 전신 3일. A·B·C를 돌아가며 주 3회. 필요한 건 바닥, 튼튼한 식탁(인버티드 로우), 의자, 있으면 문틀 철봉 정도예요.',
     note: '맨몸은 무게 대신 횟수와 동작 난이도로 올려요. 모든 세트에서 범위 위쪽 횟수를 채우면 한 단계 어려운 동작으로 넘어가요(예: 인클라인 푸시업 → 푸시업 → 발 올린 푸시업). 기록하면 앱이 다음 단계를 알려줘요. 세트는 실패 1–3회 전까지 하는 게 핵심이에요.' },
   { id: 'bwdiet3', name: '맨몸 다이어트 서킷 3일', who: '기구 없이 · 근력+심박 서킷', lv: '초급', tier: 1, why: '짧은 휴식으로 이어서 · 30–35분', uni: 1, fem: 1, bw: 1, per: '주 3일', days: [
-      { l: 'A', t: '맨몸 서킷 A', ex: [['bw-jumpsquat', '3×12'], ['fw-pushup', '3×8–12'], ['bw-revlunge', '3×10'], ['bw-mtclimb', '3×30초'], ['fw-glutebridge', '3×15'], ['cf-burpee', '3×8']] },
+      { l: 'A', t: '맨몸 서킷 A', ex: [['bw-jumpsquat', '3×12'], ['fw-pushup', '3×8–12'], ['bw-revlunge', '3×10'], ['bw-mtclimb', '3×30초'], ['fw-glutebridge', '3×15'], ['bw-burpee', '3×8']] },
       { l: 'B', t: '맨몸 서킷 B', ex: [['bw-squat', '3×20'], ['bw-inclinepush', '3×12'], ['fw-invrow', '3×10'], ['bw-mtclimb', '3×30초'], ['bw-superman', '3×12'], ['bw-hollow', '3×20초']] }],
     desc: '한 종목씩 쉬지 않고 이어서 한 바퀴 → 1–2분 쉬고 → 3바퀴. 근육을 지키면서 심박을 올리는 감량용 구성이에요. A·B를 번갈아 주 3회, 다른 날엔 걷기 30분.',
     note: '점프가 무릎에 부담되면 점프 스쿼트는 맨몸 스쿼트로, 버피는 팔굽혀펴기 없이 일어서기만 해도 돼요. 감량은 식사가 결정하고, 이 루틴은 근육을 지키고 소모를 조금 늘리는 역할이에요.' },
@@ -996,7 +1036,7 @@ const PROGRAMS = [
   { id: 'bwadv3', name: '맨몸 스킬·근력 3일', who: '앱 구성 · 상급 맨몸', lv: '상급', tier: 3, why: '풀업 12개·딥스 15개 이상 되는 사람', uni: 1, bw: 1, per: '주 3일', days: [
       { l: 'A', t: '밀기 · 물구나무', ex: [['bw-wallhspu', '5×3–6'], ['fw-dips', '4×8–15'], ['bw-declinepush', '3×12–20'], ['bw-diamond', '3×10–15'], ['fw-hangleg', '3×8–12']] },
       { l: 'B', t: '다리 · 한 다리', ex: [['bw-pistol', '5×5–8'], ['bw-nordic', '4×4–8'], ['bw-bss', '3×12–15'], ['fw-slhipthrust', '3×15–20'], ['bw-calf', '3×20']] },
-      { l: 'C', t: '당기기 · 머슬업', ex: [['fw-pullup', '5×6–12'], ['cf-barmu', '4×2–5'], ['fw-chinup', '3×8–12'], ['fw-invrow', '3×12–15'], ['bw-ytw', '3×12'], ['bw-hollow', '3×45초']] }],
+      { l: 'C', t: '당기기 · 머슬업', ex: [['fw-pullup', '5×6–12'], ['bw-muscleup', '4×2–5'], ['fw-chinup', '3×8–12'], ['fw-invrow', '3×12–15'], ['bw-ytw', '3×12'], ['bw-hollow', '3×45초']] }],
     desc: '물구나무 푸시업·피스톨·머슬업 같은 기술 동작을 근력 운동으로 쓰는 3일. 맨몸으로 강도를 최대한 올리는 구성이에요.',
     note: '기술 동작은 힘이 남아 있을 때(세션 처음) 하고 실패까지 가지 마세요. 풀업·딥스가 범위 위쪽에서 쉬워지면 가중 조끼나 배낭으로 무게를 더해요(무게 칸에 추가 무게). 머슬업이 아직 안 되면 가슴까지 끌어올리는 풀업으로 대신해요.' },
   { id: 'sl5', name: '스트롱리프트 5×5', who: 'Mehdi · StrongLifts', lv: '초급', tier: 1, why: '매번 증량하는 초보 근력 프로그램', uni: 1, per: '주 3일', days: [

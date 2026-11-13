@@ -1332,7 +1332,6 @@ function renderEqList() {
       for (const m of STRENGTH_MUSCLES.concat(['전신'])) { const g = pool.filter(e => e.m === m); if (g.length) groups.push([m, g, m]); }
     } else if (v === 'free') {
       for (const [sec, label] of FREE_SECTORS) { const g = rest.filter(e => e.kind === 'free' && e.sector === sec); if (g.length) groups.push([label, g]); }
-      const cf = rest.filter(e => e.kind === 'crossfit'); if (cf.length) groups.push(['크로스핏', cf]);
     } else if (v === 'cardio') {
       if (rest.length) groups.push([mine.length ? '다른 유산소' : '유산소', rest]);
     }
@@ -1700,7 +1699,7 @@ function openCustomEq(id) {
   const name = ex ? ex.name : '';
   const auto = inferType(name, m);
   const defU = ex ? unitFor(ex.id) : DB.settings.unit;
-  state.sheet = { kind: 'ceq', id: ex ? ex.id : null, typeTouched: !!ex };
+  state.sheet = { kind: 'ceq', id: ex ? ex.id : null, typeTouched: !!ex, reg: ex && ex.reg ? Object.assign({}, ex.reg) : null };
   const typeOpts = TYPE_NAMES.map(t => `<option value="${esc(t)}" ${(ex ? ex.type : auto) === t ? 'selected' : ''}>${esc(t)}</option>`).join('');
   openSheet(ex ? '내 기구 수정' : '내 기구 추가', ex ? ex.name : '새 기구', `
     <div class="field"><label>기구 / 운동 이름</label><input id="ce-name" placeholder="예: 익스텐션, 스미스 인클라인" value="${esc(name)}" data-on="ce-infer"></div>
@@ -1711,7 +1710,11 @@ function openCustomEq(id) {
     </div>
     <div class="field"><label>운동 패턴 (비교·분석 기준)</label><select id="ce-type" data-on="ce-type">${typeOpts}<option value="__self" ${ex && !TYPE_INFO[ex.type] ? 'selected' : ''}>독립 운동 (다른 기구와 비교 안 함)</option></select>
       <div class="note" id="ce-hint">${auto ? `이름과 부위로 <b>${esc(auto)}</b>(으)로 자동 분류했어요. ` : ''}같은 패턴의 기구끼리 PR·진행 상황을 함께 비교해요. 예) "뉴텍 익스텐션"(다리) ↔ Hammer Strength 레그 익스텐션.</div></div>
-    <div class="field"><label>쓰는 부위 (이름·브랜드·패턴으로 자동 판단)</label><div id="ce-musc">${musclePeekHtml(name, ex ? ex.type : auto, m) || '<div class="small muted">이름을 넣으면 어느 부위를 쓰는지 그림으로 보여드려요.</div>'}</div></div>
+    <div class="field"><label>쓰는 부위 (이름·브랜드·패턴으로 자동 판단)</label>
+      <button class="btn block" style="margin-bottom:8px" data-act="ce-photo">기구에 붙은 부위 스티커 찍어서 읽기</button>
+      <input type="file" id="ce-file" accept="image/*" capture="environment" class="hidden" data-on="ce-file">
+      <div class="small muted" id="ce-ocr" style="margin-bottom:6px"></div>
+      <div id="ce-musc">${musclePeekHtml(name, ex ? ex.type : auto, m, false, null, ex && ex.reg) || '<div class="small muted">이름을 넣으면 어느 부위를 쓰는지 그림으로 보여드려요.</div>'}</div></div>
     <button class="btn primary block" style="margin-top:14px;padding:13px" data-act="ce-save">${ex ? '저장' : '추가하기'}</button>
     ${ex ? `<button class="btn block danger ghost" style="margin-top:8px" data-act="ce-del" data-id="${esc(ex.id)}">이 기구 삭제 (기록은 유지)</button>` : ''}`, state.sheet);
 }
@@ -3661,7 +3664,7 @@ function bodyEnergy() {
   // averages: weight if known, otherwise a 70kg adult; ~22 kcal/kg/day is a typical resting rate
   return { bw, realBw, src: 'avg', rmr: bw * 22, how: realBw ? `체중 ${trimNum(bw)}kg × 평균 대사율 (인바디·키·나이를 넣으면 정확해져요)` : '평균 성인(70kg) 기준 — 체중이나 인바디를 넣으면 내 몸 기준으로 바뀌어요' };
 }
-const CARDIO_MET = { '러닝/걷기': null, '사이클': 7.0, '일립티컬': 5.0, '계단': 9.0, '로잉': 7.0 };
+const CARDIO_MET = { '러닝/걷기': null, '사이클': 7.0, '일립티컬': 5.0, '계단': 9.0, '로잉': 7.0, '수영': 6.0, '등산': 6.5, '줄넘기': 10.0 };
 function cardioMet(s) {
   if (s.type === '러닝/걷기' || /트레드밀|러닝|걷기/.test(s.name || '')) {
     const v = s.km && s.mins ? s.km / (s.mins / 60) : null; // km/h
@@ -3957,7 +3960,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.9.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.10.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4156,6 +4159,7 @@ const ACT = {
     render();
   },
   'custom-eq': el => openCustomEq(el.dataset.id),
+  'ce-photo': () => { const f = $('#ce-file'); if (f) f.click(); },
   'ce-save': () => {
     const S = state.sheet;
     const name = $('#ce-name').value.trim(); if (!name) { $('#ce-name').focus(); toast('이름을 입력하세요'); return; }
@@ -4163,12 +4167,12 @@ const ACT = {
     const type = tsel === '__self' ? name : tsel;
     if (S.id) {
       const ex = DB.customEq.find(e => e.id === S.id);
-      Object.assign(ex, { name, brand, m, type });
+      Object.assign(ex, { name, brand, m, type }); if (S.reg) ex.reg = S.reg;
       for (const k of Object.keys(DB.days)) for (const s of DB.days[k].sets || []) if (s.eq === S.id) Object.assign(s, { name, brand, m, type });
       DB.eqUnit[S.id] = $('#ce-u').value; save(); toast('수정했어요'); closeSheet(); render();
     } else {
       const id = 'c-' + uid();
-      DB.customEq.push({ id, name, brand, m, type, custom: true });
+      DB.customEq.push(Object.assign({ id, name, brand, m, type, custom: true }, S.reg ? { reg: S.reg } : {}));
       DB.eqUnit[id] = $('#ce-u').value; save(); render(); toast(`추가했어요 · 패턴 "${type}"`);
       openSetSheet(id);
     }
@@ -4412,9 +4416,30 @@ const ON = {
     // the name decides the body part too ("바이킹 프레스" → 어깨), unless the user picked one
     if (t && !S.mTouched && TYPE_INFO[t] && TYPE_INFO[t].m && $('#ce-m').value !== TYPE_INFO[t].m) { $('#ce-m').value = TYPE_INFO[t].m; t = inferType(nm, TYPE_INFO[t].m); }
     if (!S.typeTouched && t) $('#ce-type').value = t;
-    const ct = $('#ce-type').value, mp = musclePeekHtml(`${$('#ce-brand').value} ${$('#ce-name').value}`, ct === '__self' ? t : ct, $('#ce-m').value);
+    const ct = $('#ce-type').value, mp = musclePeekHtml(`${$('#ce-brand').value} ${$('#ce-name').value}`, ct === '__self' ? t : ct, $('#ce-m').value, false, null, S.reg);
     $('#ce-musc').innerHTML = mp || '<div class="small muted">이름을 넣으면 어느 부위를 쓰는지 그림으로 보여드려요.</div>';
     $('#ce-hint').innerHTML = (t ? `이름으로 <b>${esc(mName(TYPE_INFO[t] && TYPE_INFO[t].m || $('#ce-m').value))} · ${esc(t)}</b>(으)로 자동 분류했어요. ` : '자동 분류가 안 되면 직접 골라주세요. ') + '같은 패턴의 기구끼리 PR·진행 상황을 함께 비교해요.';
+  },
+  'ce-file': async el => {
+    const f = el.files && el.files[0]; el.value = ''; if (!f) return;
+    const S = state.sheet, msg = (t, busy) => { const o = $('#ce-ocr'); if (o) o.innerHTML = t; };
+    msg('스티커 글자를 읽는 중… <span class="muted">처음엔 10–20초</span>');
+    try {
+      await loadTess();
+      const url = URL.createObjectURL(f), img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; }); URL.revokeObjectURL(url);
+      const worker = await Tesseract.createWorker(['kor', 'eng'], 1, { workerPath: 'tess/worker.min.js', corePath: 'tess/', langPath: 'tess', gzip: true });
+      const { data } = await worker.recognize(ocrCanvas(img, 1800)); await worker.terminate();
+      const reg = regionsFromSticker(data.text), keys = Object.keys(reg);
+      if (!S || S.kind !== 'ceq') return;
+      if (!keys.length) { msg('근육 이름을 못 찾았어요. 글자가 크게 나오게 다시 찍거나, 그림만 있는 스티커면 이름·부위를 직접 골라주세요.'); return; }
+      S.reg = reg;
+      // the body part with the most main muscles becomes the machine's 주 부위
+      const score = {}; for (const [g, ks] of Object.entries(REG_GROUP)) score[g] = ks.reduce((a, k) => a + (reg[k] || 0), 0);
+      const top = Object.entries(score).sort((a, b) => b[1] - a[1])[0];
+      if (top && top[1] > 0 && MUSCLES.includes(top[0])) { $('#ce-m').value = top[0]; S.mTouched = true; }
+      ON['ce-infer']($('#ce-name'), { type: 'input' });
+      msg(`스티커에서 읽었어요: <b>${keys.filter(k => reg[k] >= 0.75).map(k => REGIONS[k]).join(' · ') || '–'}</b>${keys.some(k => reg[k] < 0.75) ? ` · 보조 ${keys.filter(k => reg[k] < 0.75).map(k => REGIONS[k]).join(' · ')}` : ''}. 틀리면 다시 찍거나 이름으로 고르세요.`);
+    } catch (e) { msg('사진을 읽지 못했어요. 다시 시도해 주세요.'); }
   },
   'ce-type': (el, ev) => { if (state.sheet) state.sheet.typeTouched = true; ON['ce-infer']($('#ce-name'), { type: 'input' }); },
   'pf-birth': (el, ev) => { if (ev.type !== 'change') return; const v = parseInt(el.value, 10); DB.settings.profile = Object.assign({}, DB.settings.profile, { birth: v >= 1930 && v <= 2015 ? v : null }); save(); render(); },

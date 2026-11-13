@@ -65,16 +65,16 @@ const TYPE_REG = {
 /* Fine-tune from the exercise's own name (works for exercises people add themselves).
    Each rule: [name pattern, regions to add or override]. */
 const NAME_REG = [
-  [/인클라인|incline|상부\s*가슴|윗\s*가슴/i, { chestU: 1, chestL: 0.25 }],
+  [/(인클라인|incline)(?!.*(컬|curl|리어|rear|로우|row))|상부\s*가슴|윗\s*가슴/i, { chestU: 1, chestL: 0.25 }],
   [/디클라인|decline/i, { chestL: 1, chestU: 0 }],
   [/클로즈\s*그립|close\s*grip|내로우\s*그립/i, { triceps: 1 }],
   [/해머\s*컬|hammer\s*curl|리버스\s*컬|reverse\s*curl/i, { forearm: 1, biceps: 0.5 }],
-  [/리스트|wrist|전완|forearm|그립/i, { forearm: 1 }],
+  [/리스트|wrist|전완|forearm|그립\s*(트레이너|강화)|grip\s*trainer/i, { forearm: 1, biceps: 0 }],
   [/하이\s*로우|high\s*row/i, { lats: 1, midback: 0.5, deltR: 0.5 }],
   [/로우\s*로우|low\s*row/i, { lats: 1, midback: 1 }],
   [/페이스\s*풀|face\s*pull/i, { deltR: 1, midback: 0.5, traps: 0.5 }],
   [/업라이트|upright/i, { deltS: 1, traps: 1 }],
-  [/프론트\s*레이즈|front\s*raise/i, { deltF: 1 }],
+  [/프론트\s*레이즈|front\s*raise/i, { deltF: 1, deltS: 0, traps: 0 }],
   [/아놀드\s*프레스|arnold/i, { deltF: 1, deltS: 0.5 }],
   [/오버헤드.*익스텐션|overhead.*ext|프렌치/i, { triceps: 1 }],
   [/불가리안|bulgarian|스플릿\s*스쿼트|스텝\s*업|step.?up/i, { quads: 1, glutes: 1, adduct: 0.25 }],
@@ -87,7 +87,7 @@ const NAME_REG = [
   [/플랭크|plank|롤\s*아웃|rollout|ab\s*wheel/i, { abs: 1, oblique: 0.5 }],
   [/굿\s*모닝|good\s*morning/i, { hams: 1, lowback: 1, glutes: 0.5 }],
   [/랙\s*풀|rack\s*pull/i, { lowback: 1, traps: 1, glutes: 0.5, hams: 0.5 }],
-  [/티\s*바|t.?bar|랜드마인/i, { midback: 1, lats: 1 }],
+  [/티\s*바|t.?bar|랜드마인\s*로우/i, { midback: 1, lats: 1 }],
   [/풀\s*다운|pull.?down/i, { lats: 1 }],
   [/스트레이트\s*암|straight.?arm/i, { lats: 1, triceps: 0.25, biceps: 0 }],
 ];
@@ -160,6 +160,9 @@ function refineRegions(out, name, type, grip) {
   return out;
 }
 function regionsOf(name, type, m, grip) {
+  // a machine added from its muscle sticker keeps exactly what the sticker said
+  const cu = typeof DB !== 'undefined' && DB.customEq && DB.customEq.find(c => c.reg && name && (c.name === name || `${c.brand} ${c.name}` === name));
+  if (cu) return Object.assign({}, cu.reg);
   const G = grip && GRIPS[gripGroup(type, name)], g = G && G.find(x => x[0] === grip);
   if (g && g[2]) {
     const out = Object.assign({}, g[2]);
@@ -169,8 +172,44 @@ function regionsOf(name, type, m, grip) {
   const out = Object.assign({}, TYPE_REG[type] || GROUP_REG[m] || {});
   for (const [re, add] of NAME_REG) if (re.test(name || '')) for (const [k, v] of Object.entries(add)) out[k] = v === 0 ? 0 : Math.max(out[k] || 0, v);
   // a curl named for arms (not legs) is a biceps curl
-  if (/컬|curl/i.test(name || '') && m === '팔' && !/트라이|tricep|익스텐션/i.test(name)) { out.biceps = Math.max(out.biceps || 0, 1); }
+  if (/컬|curl/i.test(name || '') && m === '팔' && !/트라이|tricep|익스텐션|리스트|wrist|리버스|reverse/i.test(name)) { out.biceps = Math.max(out.biceps || 0, 1); }
   return refineRegions(out, name, type, grip);
+}
+
+/* muscle names printed on machine stickers (Latin/English, Korean) → regions */
+const STICKER_WORDS = [
+  [/clavicular|upper\s*chest|upper\s*pec|상부\s*(대흉|가슴)|윗\s*가슴|쇄골/i, ['chestU']],
+  [/pectoralis|pecs?\b|chest|대흉근|가슴/i, ['chestL']],
+  [/latissimus|lats?\b|teres\s*major|광배|대원근/i, ['lats', 'latsL']],
+  [/rhomboid|middle\s*trap|mid(dle)?\s*back|능형|중부\s*승모/i, ['midback']],
+  [/trapezius|traps?\b|승모/i, ['traps']],
+  [/(anterior|front)\s*delt|전면\s*(삼각|어깨)|앞\s*어깨|전삼각/i, ['deltF']],
+  [/(posterior|rear)\s*delt|후면\s*(삼각|어깨)|뒤\s*어깨|후삼각/i, ['deltR']],
+  [/(lateral|medial|middle|side)\s*delt|측면\s*(삼각|어깨)|옆\s*어깨|측삼각/i, ['deltS']],
+  [/deltoid|delts?\b|shoulder|삼각근|어깨/i, ['deltS']],
+  [/biceps(?!\s*femoris)|(?<!대퇴)이두/i, ['biceps']],
+  [/triceps|삼두/i, ['triceps']],
+  [/brachioradialis|forearm|wrist\s*flexor|전완|팔뚝/i, ['forearm']],
+  [/serratus|전거근/i, ['serratus']],
+  [/rectus\s*abdominis|abdominals?|abs\b|복직근|(?<!비)복근/i, ['abs']],
+  [/obliques?|복사근|옆구리/i, ['oblique']],
+  [/erector|spinae|lower\s*back|기립근|척추|허리/i, ['lowback']],
+  [/gluteus\s*medius|glute\s*med|abductor|중둔근|외전근/i, ['gluteMed']],
+  [/gluteus|glutes?\b|대둔근|둔근|엉덩이/i, ['glutes']],
+  [/quadriceps|quads?\b|rectus\s*femoris|vastus|대퇴사두|허벅지\s*앞/i, ['quads']],
+  [/hamstrings?|biceps\s*femoris|semitend|햄스트링|대퇴이두|허벅지\s*뒤/i, ['hams']],
+  [/adductors?|내전근|허벅지\s*안/i, ['adduct']],
+  [/gastrocnemius|soleus|calf|calves|비복근|가자미근|종아리/i, ['calves']],
+];
+/* read a sticker's text: muscles after "secondary / 보조" count as helpers (0.5), the rest as main (1) */
+function regionsFromSticker(text) {
+  const t = (text || '').replace(/\n+/g, ' ');
+  const cut = t.search(/secondary|synergist|assist|보조\s*(근|근육)?|협력/i);
+  const main = cut >= 0 ? t.slice(0, cut) : t, sec = cut >= 0 ? t.slice(cut) : '';
+  const out = {};
+  const scan = (s, v) => { let rest = s; for (const [re, keys] of STICKER_WORDS) { const g = new RegExp(re.source, 'gi'); if (g.test(rest)) { for (const k of keys) out[k] = Math.max(out[k] || 0, k === 'latsL' && keys.length > 1 ? v * 0.75 : v); rest = rest.replace(g, ' '); } } };
+  scan(main, 1); scan(sec, 0.5);
+  return out;
 }
 
 /* ---------- drawing: original low-poly figure, front and back. Left half drawn, right half mirrored. ---------- */
@@ -258,8 +297,8 @@ function regionTotals(from, to) {
 /* which regions one exercise works, drawn like the muscle sticker on a gym machine */
 const FRONT_REG = new Set(Object.keys(BODY_FRONT).concat(Object.keys(BODY_FRONT_CENTER)));
 const BACK_REG = new Set(Object.keys(BODY_BACK));
-function musclePeekHtml(name, type, m, big, grip) {
-  const R = regionsOf(name, type, m, grip), keys = Object.keys(R);
+function musclePeekHtml(name, type, m, big, grip, reg) {
+  const R = reg || regionsOf(name, type, m, grip), keys = Object.keys(R);
   if (!keys.length) return '';
   const prim = keys.filter(k => R[k] >= 1), sec = keys.filter(k => R[k] < 1).sort((a, b) => R[b] - R[a]);
   const tip = (k, v) => `${REGIONS[k]} · ${v >= 1 ? '주로 씀' : v ? '같이 씀' : ''}`;
