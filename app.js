@@ -2704,6 +2704,69 @@ function glanceHtml(R, prog) {
   if (N && !N.first) rows.push(['다음', N.own ? `${N.rest ? '쉬거나 ' : ''}${N.own.l} (내 순서)` : N.best ? `${N.rest ? '쉬거나 ' : ''}${N.best.l}${N.addSh ? ' + 옆·뒤 어깨' : ''}` : '쉬는 날', 'info']);
   return `<section class="card glance">${rows.map(([k, v, lv]) => `<div class="gl"><span class="k">${k}</span><span class="status ${lv}">${ICON[lv]}</span><b class="${lv}">${esc(v)}</b></div>`).join('')}</section>`;
 }
+/* strength balance: the big free-weight lifts against each other and against bodyweight. Machines differ by brand,
+   so only barbell lifts are compared. Levels are rough bodyweight multiples for a 1-rep max (common strength standards). */
+const BAL_LIFTS = [
+  { id: 'fw-bench', l: '벤치프레스', m: [0.5, 0.75, 1.0, 1.5, 2.0], f: [0.25, 0.5, 0.75, 1.0, 1.5], fix: '덤벨 벤치프레스, 딥스' },
+  { id: 'fw-squat', l: '스쿼트', m: [0.75, 1.25, 1.5, 2.25, 2.75], f: [0.5, 0.75, 1.25, 1.5, 2.0], fix: '레그 프레스, 불가리안 스플릿 스쿼트' },
+  { id: 'fw-deadlift', l: '데드리프트', m: [1.0, 1.5, 2.0, 2.5, 3.0], f: [0.5, 1.0, 1.25, 1.75, 2.5], fix: '루마니안 데드리프트, 힙 쓰러스트' },
+  { id: 'fw-ohp', l: '오버헤드 프레스', m: [0.35, 0.55, 0.75, 1.0, 1.4], f: [0.2, 0.35, 0.5, 0.75, 1.0], fix: '덤벨 숄더 프레스, 레터럴 레이즈' },
+  { id: 'fw-bbrow', l: '바벨 로우', m: [0.5, 0.75, 1.0, 1.5, 1.75], f: [0.25, 0.4, 0.65, 0.9, 1.2], fix: '원암 덤벨 로우, 시티드 로우' },
+];
+const BAL_LV = ['입문', '초급', '중급', '상급', '엘리트'];
+// usual ratios between lifts (low / high): below low → the second lift is the weak one, above high → the first is
+const BAL_PAIRS = [
+  ['fw-squat', 'fw-bench', 1.0, 1.8, '스쿼트는 보통 벤치의 1.2–1.4배'],
+  ['fw-deadlift', 'fw-squat', 1.0, 1.6, '데드리프트는 보통 스쿼트의 1.1–1.3배'],
+  ['fw-ohp', 'fw-bench', 0.55, 0.85, '오버헤드 프레스는 보통 벤치의 0.6–0.7배'],
+  ['fw-bbrow', 'fw-bench', 0.65, 1.3, '바벨 로우는 보통 벤치의 0.7–1배'],
+];
+function strengthBalance() {
+  const from = addDays(today(), -84), bw = latestBodyweight(), sex = (DB.settings.profile || {}).sex === 'f' ? 'f' : 'm';
+  const best = {}, sets4 = {};
+  for (const s of allSets()) {
+    if (s.date < from || isCardioSet(s) || !(s.r > 0) || s.r > 12) continue; // 12+ rep sets give a poor max estimate
+    const e = setE1(s); if (e > (best[s.eq] || 0)) best[s.eq] = e;
+    if (s.date >= addDays(today(), -28)) sets4[s.eq] = (sets4[s.eq] || 0) + 1;
+  }
+  const lifts = BAL_LIFTS.map(L => {
+    const e1 = best[L.id] ? r1(best[L.id]) : null, th = L[sex];
+    let lv = null;
+    if (e1 && bw) { const x = e1 / bw; if (x < th[0]) lv = x / th[0] - 1; else { let k = 0; while (k < 4 && x >= th[k + 1]) k++; lv = k + (k < 4 ? (x - th[k]) / (th[k + 1] - th[k]) : 0); } }
+    return { ...L, e1, lv, x: e1 && bw ? e1 / bw : null, sets4: sets4[L.id] || 0 };
+  });
+  const has = lifts.filter(x => x.e1), byId = Object.fromEntries(lifts.map(x => [x.id, x]));
+  const weak = {};
+  for (const [a, b, lo, hi, why] of BAL_PAIRS) {
+    const A = byId[a], B = byId[b]; if (!A.e1 || !B.e1) continue;
+    const r = A.e1 / B.e1;
+    if (r < lo) (weak[a] = weak[a] || []).push(`${B.l}의 ${r.toFixed(2)}배 — ${why}`);
+    else if (r > hi) (weak[b] = weak[b] || []).push(`${A.l}에 비해 낮아요 (${A.l}의 ${(1 / r).toFixed(2)}배) — ${why}`);
+  }
+  // against bodyweight: a lift a full level under the others
+  const lvs = has.filter(x => x.lv != null);
+  if (lvs.length >= 3) { const med = lvs.map(x => x.lv).sort((p, q) => p - q)[lvs.length >> 1]; for (const x of lvs) if (x.lv <= med - 1) (weak[x.id] = weak[x.id] || []).push(`체중 대비 다른 운동보다 한 단계 낮아요`); }
+  return { bw, sex, lifts, has, weak, sexSet: !!(DB.settings.profile || {}).sex };
+}
+function balanceHtml() {
+  const B = strengthBalance();
+  if (B.has.length < 2) return fold('balance', '힘 밸런스', '바벨 2종목 이상 필요', `<section class="card"><div class="small muted">벤치·스쿼트·데드리프트·오버헤드 프레스·바벨 로우 중 2개 이상을 최근 12주 안에 12회 이하로 기록하면 서로 비교해서 약한 쪽을 알려줘요. 머신은 브랜드마다 무게가 달라서 비교에서 빠져요.</div></section>`, false);
+  const wk = Object.keys(B.weak);
+  const rows = B.lifts.map(x => {
+    const w = B.weak[x.id];
+    const lvTxt = x.lv == null ? (x.e1 ? '' : '기록 없음') : x.lv < 0 ? '입문 아래' : BAL_LV[Math.min(4, Math.floor(x.lv))];
+    return `<tr class="${w ? 'weak' : ''}"><td>${esc(x.l)}</td><td class="num">${x.e1 ? `${trimNum(x.e1)}kg` : '–'}</td><td class="num">${x.x ? `${x.x.toFixed(2)}배` : ''}</td><td>${w ? '<b class="bad">약점</b> ' : ''}${esc(lvTxt)}</td></tr>`;
+  }).join('');
+  const advice = wk.map(id => {
+    const x = B.lifts.find(l => l.id === id);
+    return `<li><b>${esc(x.l)}</b> — ${esc(B.weak[id].join(' · '))}<div class="small muted">최근 4주 ${x.sets4}세트. 주 2회로 늘리고 그날 첫 종목으로, 3–4세트 4–8회. 보조로 ${esc(x.fix)}.</div></li>`;
+  }).join('');
+  const body = `<section class="card">
+    <table class="baltbl"><tr><th>종목</th><th>추정 최대</th><th>체중 대비</th><th>수준</th></tr>${rows}</table>
+    ${wk.length ? `<div class="sec-sub" style="margin-top:12px"><b>보완할 곳</b></div><ul class="ballist">${advice}</ul>` : `<div class="small" style="margin-top:10px">${B.has.length >= 3 ? '큰 운동끼리 비율이 고르게 맞아요.' : '기록한 종목끼리는 비율이 맞아요. 나머지 종목도 해보면 더 정확해져요.'}</div>`}
+    <div class="note">최근 12주 최고 기록으로 1회 최대 무게를 추정해서 비교해요(12회 이하 세트만). 수준은 ${B.sexSet ? (B.sex === 'f' ? '여성' : '남성') : '남성(루틴에서 성별을 고르면 바뀌어요)'} 기준의 대략적인 값이에요.${B.bw ? ` 체중 ${trimNum(B.bw)}kg 기준.` : ' 체중을 기록하면 체중 대비 수준도 보여요.'} 머신 기록은 브랜드마다 무게가 달라서 빠져요.</div></section>`;
+  return fold('balance', '힘 밸런스', wk.length ? `약점 ${wk.map(id => B.lifts.find(l => l.id === id).l).join('·')}` : '고르게 맞아요', body, !!wk.length);
+}
 function viewAnalysis() {
   const R = buildReport(), dl = R.dl, ws = dl.cur, ES = energySummary(7);
   const prog = progression();
@@ -2848,6 +2911,7 @@ function viewAnalysis() {
   const dset = new Set(ss.map(s => s.date)); const ton = ss.reduce((a, s) => a + setKg(s) * (+s.r || 0), 0);
   const wdc = [0, 0, 0, 0, 0, 0, 0]; for (const d of dset) wdc[fromKey(d).getDay()]++;
   const cardioMin = setsBetween(from, today()).filter(isCardioSet).reduce((a, s) => a + (+s.mins || 0), 0);
+  h += balanceHtml();
   h += fold('stats', '통계', `${{ 7: '7일', 28: '4주', 90: '3개월', all: '전체' }[P]} · ${dset.size}일 운동`, `<div class="seg">${[['7', '7일'], ['28', '4주'], ['90', '3개월'], ['all', '전체']].map(([v, l]) => `<button class="${P === v ? 'on' : ''}" data-act="stat-p" data-v="${v}">${l}</button>`).join('')}</div>
   <div class="tiles" style="margin-top:10px">
     <div class="tile"><div class="k">운동일</div><div class="v">${dset.size}<small>일</small></div></div>
@@ -3892,7 +3956,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.8.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.9.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
