@@ -700,7 +700,10 @@ function sessionReport(k) {
   const d = dayRO(k), sets = d.sets || [], str = sets.filter(s => !isCardioSet(s));
   const E = bodyEnergy(), ex = dayExercise(k, E.bw);
   const ts = sets.map(s => s.t).filter(Boolean).sort((a, b) => a - b);
-  const mins = ts.length > 1 ? Math.round((ts[ts.length - 1] - ts[0]) / 60000) + 2 : null;
+  const span = ts.length > 1 ? Math.round((ts[ts.length - 1] - ts[0]) / 60000) + 2 : null;
+  // typed in → that; sets entered all at once (minutes apart they can't be) → ~2.5 min a set, marked as a guess
+  const minsEst = !(d.mins > 0) && str.length >= 3 && (span == null || span < str.length * 1.2);
+  const mins = d.mins > 0 ? +d.mins : minsEst ? Math.round(str.length * 2.5) : span;
   const vol = str.reduce((a, s) => a + setKg(s) * (+s.r || 0), 0);
   const reg = {};
   for (const s of str) { const e = eqById(s.eq) || s; for (const [r, v] of Object.entries(regionsOf(e.name || s.name, s.type || e.type, s.m || e.m, s.grip))) reg[r] = (reg[r] || 0) + v; }
@@ -726,7 +729,7 @@ function sessionReport(k) {
   const groups = STRENGTH_MUSCLES.filter(m => str.some(s => s.m === m));
   const [wa, wb] = weekRange(0, k), wk = muscleVolume(setsBetween(wa, wb));
   const wkCar = setsBetween(wa, wb).filter(isCardioSet).reduce((a, s) => a + (+s.mins || 0), 0);
-  return { sets, str, mins, vol, ex, reg, prs, cmp, groups, wk, wkCar, rest, car: sets.filter(isCardioSet) };
+  return { sets, str, mins, minsEst, vol, ex, reg, prs, cmp, groups, wk, wkCar, rest, car: sets.filter(isCardioSet) };
 }
 function finishHtml(k) {
   const R = sessionReport(k), d = dayRO(k), c = d.check || {};
@@ -772,9 +775,10 @@ function finishHtml(k) {
   if ((gk === 'health' || goalBase(gk) === 'cut') && !R.car.length) fb.push(['info', '유산소 없음', '목표에 맞게 걷기·사이클을 20–30분 더하면 주 150분 권장량을 채우기 쉬워요.']);
   const carMin = R.car.reduce((a, s) => a + (+s.mins || 0), 0);
   if (carMin) { const wkCar = R.wkCar; fb.push([wkCar >= 150 ? 'good' : 'info', `유산소 ${trimNum(carMin)}분 · 최근 7일 ${trimNum(wkCar)}분`, wkCar >= 150 ? '건강 권장량(주 150–300분)을 채웠어요.' : `건강 권장량은 주 150–300분이에요. ${trimNum(150 - wkCar)}분 남았어요.`, 'WHO 2020']); }
-  const tiles = R.str.length ? [[R.mins ? `${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [fmtInt(R.ex.total), 'kcal 소모']]
+  const tiles = R.str.length ? [[R.mins ? `${R.minsEst ? '약 ' : ''}${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [fmtInt(R.ex.total), 'kcal 소모']]
     : [[`${trimNum(carMin)}분`, '유산소'], [`${R.car.length}`, '종목'], [fmtInt(R.ex.carK), 'kcal 소모'], [fmtInt(R.ex.total), '총 소모']];
   return `<div class="tiles fin-tiles">${tiles.map(([v, l]) => `<div class="tile"><div class="k">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
+    ${R.str.length ? kcalLineHtml(k) : ''}
     ${R.str.length ? `<div class="grid2" style="margin-top:10px"><button class="btn primary" data-act="share-img" data-k="${k}" data-story="1">인스타 스토리로</button><button class="btn" data-act="share-img" data-k="${k}">이미지로 공유</button></div>` : ''}
     ${ranked.length ? `<div class="sec-h" style="margin-top:12px"><h2 style="font-size: 15px">오늘 쓴 부위</h2><span class="aside">진할수록 많이</span></div>
       <div class="bodymaps fin-maps">${bodySvg('front', R.reg, max, '앞')}${bodySvg('back', R.reg, max, '뒤')}</div>
@@ -823,7 +827,7 @@ function shareImage(k, story) {
   g.fillStyle = ink3; g.font = F(600, 34); g.textAlign = 'right'; g.fillText(`${+k.slice(5, 7)}월 ${+k.slice(8, 10)}일 (${'일월화수목금토'[new Date(k + 'T00:00').getDay()]})`, W - pad, 116); g.textAlign = 'left';
   const kind = R.groups.map(mName).join(' · ');
   g.fillStyle = hi; g.font = F(800, 64); g.fillText(kind || '오늘의 운동', pad, 230);
-  const tiles = [[R.mins ? `${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [`${R.prs.length}`, '최고 기록']];
+  const tiles = [[R.mins ? `${R.minsEst ? '약 ' : ''}${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [`${R.prs.length}`, '최고 기록']];
   const tw = (W - pad * 2) / 4;
   tiles.forEach(([v, l], i) => { const x = pad + tw * i; g.fillStyle = ink3; g.font = F(600, 28); g.fillText(l, x, 310); g.fillStyle = ink; g.font = F(800, 56); g.fillText(v, x, 380); });
   g.strokeStyle = line; g.lineWidth = 3; g.beginPath(); g.moveTo(pad, 430); g.lineTo(W - pad, 430); g.stroke();
@@ -868,7 +872,7 @@ function viewWorkout() {
   // 1) today's workout + the main action
   if (k === today() && !d.fin && fxList().length) h += `<button class="btn primary block fxbtn" data-act="focus-open">▶ 운동 모드 — 한 종목씩 크게</button>`;
   h += `<div class="sec-h" style="${installHint() ? '' : 'margin-top:6px'}"><h2>${k === today() ? '오늘의 운동' : esc(dateLabel(k)) + ' 운동'}</h2><span class="aside">${sets.length ? `${sets.filter(s => !isCardioSet(s)).length}세트` : ''}<span id="wk-elapsed">${elapsedTxt(k)}</span></span></div>
-  ${sets.length && d.fin ? `<section class="card fincard"><div class="row between" style="gap:10px"><div><b>✓ ${k === today() ? '오늘' : ''} 운동 완료</b><div class="small muted">${(() => { const R = sessionReport(k); return [R.mins ? `${R.mins}분` : '', `${R.str.length}세트`, R.car.length ? `유산소 ${trimNum(R.car.reduce((a, s) => a + (+s.mins || 0), 0))}분` : ''].filter(Boolean).join(' · '); })()}</div></div>
+  ${sets.length && d.fin ? `<section class="card fincard"><div class="row between" style="gap:10px"><div><b>✓ ${k === today() ? '오늘' : ''} 운동 완료</b><div class="small muted">${(() => { const R = sessionReport(k); return [R.mins ? `${R.minsEst ? '약 ' : ''}${R.mins}분` : '', `${R.str.length}세트`, R.car.length ? `유산소 ${trimNum(R.car.reduce((a, s) => a + (+s.mins || 0), 0))}분` : ''].filter(Boolean).join(' · '); })()}</div></div>
       <button class="btn sm primary" data-act="fin-open">요약·피드백</button></div>
       <button class="linkbtn" style="margin-top:6px" data-act="day-resume">↺ 이어서 하기 (마무리 취소)</button></section>`
     : ''}
@@ -1901,7 +1905,19 @@ function viewRecords() {
   </div>`;
   return h;
 }
-function openDaySheet(k) {
+/* the day's estimated burn, from the InBody when there is one */
+function kcalLineHtml(k) {
+  const E = bodyEnergy(), x = dayExercise(k, E.bw); if (!x.total) return '';
+  const how = E.src === 'inbody' ? `인바디 제지방 ${r1(E.ffm)}kg 기준` : E.realBw ? `체중 ${trimNum(E.bw)}kg 기준 · 인바디를 넣으면 더 정확해요` : '평균 체중 기준 · 체중이나 인바디를 넣으면 정확해져요';
+  return `<div class="kcalline"><span>운동으로 쓴 칼로리</span><b>약 ${fmtInt(x.total)} kcal</b><div class="small muted">${how}${x.carK ? ` · 근력 ${fmtInt(x.strK)} + 유산소 ${fmtInt(x.carK)}` : ''}</div></div>`;
+}
+/* a day logged afterwards: the set times are typing times, so let them say how long it really took */
+function manualTimeHtml(k) {
+  const d = dayRO(k), on = d.mins > 0 || d.logOnly;
+  return `<div class="mtime"><label class="row" style="gap:8px"><input type="checkbox" ${on ? 'checked' : ''} data-on="mt-on" data-k="${k}" style="width:auto"> 운동 끝나고 기록만 했어요</label>
+    ${on ? `<div class="row" style="gap:8px;margin-top:6px"><span class="small">실제 운동 시간</span><input type="number" inputmode="numeric" min="5" max="300" placeholder="예: 70" value="${d.mins || ''}" data-on="mt-min" data-k="${k}" style="width:90px"><span class="small">분</span></div>` : ''}</div>`;
+}
+function openDaySheet(k, keep) {
   const d = dayRO(k), mus = musclesOfDay(k).all, c = d.check || {};
   const sets = d.sets || [];
   const order = [], groups = {};
@@ -1910,7 +1926,9 @@ function openDaySheet(k) {
   let h = `<div class="row" style="flex-wrap:wrap;gap:6px">${mus.length ? mus.map(mtag).join('') : '<span class="small muted">운동 기록 없음</span>'}</div>`;
   if (sets.some(s => !isCardioSet(s))) {
     const R = sessionReport(k), max = Math.max(0, ...Object.values(R.reg));
-    h += `<div class="tiles fin-tiles" style="margin-top:10px">${[[R.mins ? `${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [`${R.prs.length}`, 'PR']].map(([v, l]) => `<div class="tile"><div class="k">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
+    h += `<div class="tiles fin-tiles" style="margin-top:10px">${[[R.mins ? `${R.minsEst ? '약 ' : ''}${R.mins}분` : '–', '운동 시간'], [`${R.str.length}`, '세트'], [R.vol ? fmtInt(R.vol) : '–', '볼륨 kg'], [`${R.prs.length}`, 'PR']].map(([v, l]) => `<div class="tile"><div class="k">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
+      ${kcalLineHtml(k)}
+      ${manualTimeHtml(k)}
       <div class="bodymaps fin-maps">${bodySvg('front', R.reg, max, '앞')}${bodySvg('back', R.reg, max, '뒤')}</div>
       <button class="btn block" style="margin-top:8px" data-act="fin-open-k" data-k="${k}">이날 피드백 보기</button>`;
   }
@@ -1930,6 +1948,7 @@ function openDaySheet(k) {
     }
   }
   h += `<div class="grid2" style="margin-top:14px"><button class="btn" data-act="goto-day" data-k="${k}" data-tab="workout">운동 편집</button>${(d.meals || []).length && SHOW_DIET ? `<button class="btn" data-act="goto-day" data-k="${k}" data-tab="diet">식단 편집</button>` : ''}</div>`;
+  if (keep && state.sheet && state.sheet.kind === 'day') { setSheetBody(h, true); return; }
   openSheet(fromKey(k).getFullYear() + '년', `${fromKey(k).getMonth() + 1}월 ${fromKey(k).getDate()}일 (${WD[fromKey(k).getDay()]})`, h, { kind: 'day' });
 }
 
@@ -3673,7 +3692,7 @@ function cardioMet(s) {
   return CARDIO_MET[s.type] || 6.0;
 }
 function dayExercise(k, bw) {
-  const sets = dayRO(k).sets || [];
+  const d0 = dayRO(k), sets = d0.sets || [];
   const str = sets.filter(s => !isCardioSet(s)), car = sets.filter(isCardioSet);
   let strMin = 0;
   if (str.length) {
@@ -3682,10 +3701,13 @@ function dayExercise(k, bw) {
     // logged live → use the real time span; logged all at once → assume ~2.5 min per set incl. rest
     strMin = span >= str.length * 1.2 ? Math.min(span, 150) : str.length * 2.5;
   }
-  const strK = 5.0 * bw * strMin / 60;
+  if (d0.mins > 0) strMin = Math.max(0, d0.mins - car.reduce((a, s) => a + (+s.mins || 0), 0)); // typed in for a day logged afterwards
+  // with an InBody, scale by their own resting burn (fat-free mass) instead of the textbook 1 kcal/kg/h
+  const E = bodyEnergy(), perKgH = E.src === 'inbody' ? E.rmr / 24 / bw : 1;
+  const strK = 5.0 * bw * perKgH * strMin / 60;
   let carK = 0, carMin = 0;
   for (const s of car) { const m = +s.mins || 0; carMin += m; carK += s.kcal > 0 ? +s.kcal : cardioMet(s) * bw * m / 60; }
-  return { strMin: Math.round(strMin), strK: Math.round(strK), carMin: Math.round(carMin), carK: Math.round(carK), total: Math.round(strK + carK) };
+  return { perKgH, strMin: Math.round(strMin), strK: Math.round(strK), carMin: Math.round(carMin), carK: Math.round(carK), total: Math.round(strK + carK) };
 }
 function energySummary(days) {
   const E = bodyEnergy(), t = today(), per = [];
@@ -3960,7 +3982,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.10.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.10.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4391,6 +4413,8 @@ const ACT = {
 };
 
 const ON = {
+  'mt-on': el => { const d = day(el.dataset.k); if (el.checked) d.logOnly = true; else { delete d.logOnly; delete d.mins; } save(); bump(); render(); openDaySheet(el.dataset.k, true); },
+  'mt-min': (el, ev) => { if (ev.type !== 'change') return; const d = day(el.dataset.k), v = Math.round(+el.value); if (v > 0) d.mins = Math.min(300, v); else delete d.mins; save(); bump(); render(); openDaySheet(el.dataset.k, true); },
   'eq-note': el => { DB.eqNote = DB.eqNote || {}; const v = el.value.trim(); if (v) DB.eqNote[el.dataset.eq] = v; else delete DB.eqNote[el.dataset.eq]; save(); }, // no re-render: typing
   'fx-wi': (el, ev) => { if (!state.fx) return; const v = parseFloat(el.value); if (v >= 0) state.fx.w = r1(v); }, // no re-render here: it fires on blur, mid-tap on another button
   'gym-q': (el, ev) => { if (ev.type !== 'input') return; state.gymQ = el.value; const b = $('#gym-list'); if (b) b.innerHTML = gymListHtml(); },

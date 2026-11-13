@@ -1031,3 +1031,9 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 .fx-musc { margin-top: 6px; }
 .fx-musc summary { font-size: 13px; color: var(--ink3); cursor: pointer; }
 .fx-musc .mpeek { margin-top: 6px; }
+
+.kcalline { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 8px; }
+.kcalline b { font-family: var(--mono); font-size: 18px; }
+.kcalline .small { flex-basis: 100%; }
+.mtime { margin-top: 8px; font-size: 14px; }
+.mtime input[type=number] { height: 36px; padding: 0 8px; }
