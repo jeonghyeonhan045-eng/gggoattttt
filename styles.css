@@ -1027,3 +1027,7 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 .baltbl b.bad { color: var(--mark); }
 .ballist { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
 .ballist li { margin-bottom: 8px; }
+
+.fx-musc { margin-top: 6px; }
+.fx-musc summary { font-size: 13px; color: var(--ink3); cursor: pointer; }
+.fx-musc .mpeek { margin-top: 6px; }

@@ -1007,6 +1007,7 @@ function focusHtml() {
     <div class="fx-top"><span class="small muted">${F.i + 1} / ${L.length} 종목</span><button class="linkbtn" data-act="open-set" data-eq="${esc(id)}">자세히 기록 ›</button></div>
     <div class="fx-name">${esc(e.name)}</div>
     <div class="small muted">${tg ? `목표 ${esc(tg)} · ` : ''}지난번 ${esc(lastTxt)}</div>
+    <details class="fx-musc"><summary>쓰는 부위 보기</summary>${musclePeekHtml(e.name, typeOfEq(e), e.m, false, gripOf(e))}</details>
     <input class="fx-note" type="text" maxlength="60" placeholder="메모 — 의자 4칸, 그립 넓게 등 (다음에도 보여요)" value="${esc((DB.eqNote || {})[id] || '')}" data-on="eq-note" data-eq="${esc(id)}">
     <div class="fx-dots">${Array.from({ length: Math.max(n, did.length) }, (_, k) => `<span class="${k < did.length ? 'on' : ''}">${k < did.length ? esc(`${did[k].w > 0 ? trimNum(did[k].w) : ''}${did[k].w > 0 ? '×' : ''}${did[k].r}`) : k + 1}</span>`).join('')}</div>
     ${rem != null ? `<div class="fx-rest" id="fx-rest"><span class="small">휴식</span><b class="num" id="fx-rest-t">${fmtSec(Math.ceil(rem))}</b>
@@ -2407,9 +2408,9 @@ const ICON = { good: '✓', warn: '!', bad: '!!', info: 'i' };
 const LV_LABEL = { good: '양호', warn: '주의', bad: '필요', info: '정보' };
 
 /* training advice that follows the chosen goal; uses this week's logs, not generic rules */
-const MAIN_REG = ['chestU', 'chestL', 'lats', 'midback', 'deltS', 'deltR', 'biceps', 'triceps', 'quads', 'hams', 'glutes', 'abs'];
+const MAIN_REG = ['chestU', 'chestL', 'lats', 'latsL', 'midback', 'deltS', 'deltR', 'biceps', 'triceps', 'quads', 'hams', 'glutes', 'abs'];
 // helpers that work with other muscles and rarely get their own exercise: shown on maps, never judged
-const ASSIST_REG = new Set(['calves', 'forearm']);
+const ASSIST_REG = new Set(['calves', 'forearm', 'serratus', 'gluteMed']);
 function goalTrainHtml(R, RW, ES) {
   const key = goalKey(), base = goalBase(), G = GOALS[key], items = [];
   const prog = progression().filter(r => ['up', 'flat', 'down'].includes(r.status)), down = prog.filter(r => r.status === 'down'), up = prog.filter(r => r.status === 'up');
@@ -3956,7 +3957,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.9.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.9.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 

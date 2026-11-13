@@ -4,10 +4,10 @@
 
 const REGIONS = {
   chestU: '윗가슴', chestL: '가슴 중·하부', deltF: '앞어깨', deltS: '옆어깨', deltR: '뒤어깨',
-  traps: '승모근(위)', midback: '등 중앙', lats: '광배근', lowback: '허리(기립근)',
+  traps: '승모근(위)', midback: '등 중앙', lats: '광배 위·바깥', latsL: '광배 아래', lowback: '허리(기립근)', serratus: '옆갈비(전거근)',
   biceps: '이두', triceps: '삼두', forearm: '전완',
   abs: '복근', oblique: '옆구리(복사근)',
-  glutes: '엉덩이', quads: '허벅지 앞', hams: '허벅지 뒤', adduct: '허벅지 안쪽', calves: '종아리',
+  glutes: '엉덩이', gluteMed: '엉덩이 옆(중둔근)', quads: '허벅지 앞', hams: '허벅지 뒤', adduct: '허벅지 안쪽', calves: '종아리',
 };
 
 // movement pattern → regions
@@ -139,19 +139,38 @@ function gripGroup(type, name) {
   if (type === '바이셉 컬') return 'curl';
   return null;
 }
+/* finer split on top of the maps above: lats upper/outer vs lower, glute side (medius), serratus */
+function refineRegions(out, name, type, grip) {
+  const n = name || '';
+  if (out.lats) {
+    const v = out.lats;
+    // elbows down by the sides (narrow / neutral / underhand, rows, pullovers, straight-arm) → lower lats;
+    // wide overhand pulling from overhead → upper/outer lats
+    const low = grip === 'neutral' || grip === 'under' || type === '로우' || type === '풀오버' || /스트레이트\s*암|straight.?arm|로우\s*로우|low\s*row|원암|one.?arm|친업|chin/i.test(n);
+    const wide = grip === 'wide' || /와이드|wide/i.test(n);
+    out.lats = low ? v * 0.5 : v; out.latsL = low ? v : wide ? v * 0.5 : v * 0.75;
+  }
+  if (out.glutes) {
+    const single = /런지|lunge|불가리안|bulgarian|스플릿|split|스텝\s*업|step.?up|싱글|single|한\s*다리|피스톨|pistol/i.test(n) || type === '런지';
+    out.gluteMed = Math.max(out.gluteMed || 0, single ? 0.5 : type === '스쿼트' || type === '힙 쓰러스트' ? 0.25 : 0);
+  }
+  if (type === '힙 어브덕션') { out.gluteMed = 1; out.glutes = 0.5; }
+  if (type === '푸시업' || type === '풀오버' || /인클라인|incline|오버헤드|overhead|펀치|punch/i.test(n) && (type === '인클라인 프레스' || type === '숄더 프레스')) out.serratus = Math.max(out.serratus || 0, type === '풀오버' ? 0.5 : 0.25);
+  for (const k of Object.keys(out)) if (!out[k]) delete out[k];
+  return out;
+}
 function regionsOf(name, type, m, grip) {
   const G = grip && GRIPS[gripGroup(type, name)], g = G && G.find(x => x[0] === grip);
   if (g && g[2]) {
     const out = Object.assign({}, g[2]);
     if (type === '인클라인 프레스' || /인클라인|incline/i.test(name || '')) { out.chestU = 1; out.chestL = Math.min(out.chestL || 0, 0.5); }
-    return out;
+    return refineRegions(out, name, type, grip);
   }
   const out = Object.assign({}, TYPE_REG[type] || GROUP_REG[m] || {});
   for (const [re, add] of NAME_REG) if (re.test(name || '')) for (const [k, v] of Object.entries(add)) out[k] = v === 0 ? 0 : Math.max(out[k] || 0, v);
   // a curl named for arms (not legs) is a biceps curl
   if (/컬|curl/i.test(name || '') && m === '팔' && !/트라이|tricep|익스텐션/i.test(name)) { out.biceps = Math.max(out.biceps || 0, 1); }
-  for (const k of Object.keys(out)) if (!out[k]) delete out[k];
-  return out;
+  return refineRegions(out, name, type, grip);
 }
 
 /* ---------- drawing: original low-poly figure, front and back. Left half drawn, right half mirrored. ---------- */
@@ -164,6 +183,7 @@ const BODY_FRONT = {
   biceps: [[56, 99, 53, 106, 52, 127, 60, 134, 67, 126, 69, 103]],
   forearm: [[52, 131, 46, 150, 42, 176, 50, 178, 59, 156, 61, 136]],
   oblique: [[80, 108, 88, 109, 87, 168, 79, 159, 74, 131]],
+  serratus: [[71, 100, 80, 107, 77, 121, 72, 117]],
   adduct: [[88, 180, 98, 186, 96, 236, 90, 240, 86, 210]],
   quads: [[76, 168, 88, 180, 86, 210, 90, 240, 85, 263, 72, 263, 66, 231, 66, 196]],
   calves: [[70, 277, 84, 277, 82, 331, 74, 335, 68, 310]],
@@ -174,11 +194,13 @@ const BODY_BACK = {
   deltR: [[80, 68, 64, 72, 58, 88, 68, 92, 78, 80]],
   deltS: [[64, 72, 56, 80, 56, 96, 58, 88]],
   midback: [[100, 78, 100, 110, 88, 100, 84, 81]],
-  lats: [[84, 81, 88, 100, 100, 110, 100, 130, 90, 150, 80, 131, 70, 105, 70, 92]],
+  lats: [[84, 81, 88, 100, 100, 110, 100, 118, 75, 118, 70, 105, 70, 92]],
+  latsL: [[75, 118, 100, 118, 100, 130, 90, 150, 80, 131]],
   triceps: [[58, 94, 54, 104, 54, 128, 62, 134, 68, 118, 68, 98]],
   forearm: [[54, 132, 47, 150, 43, 176, 51, 178, 60, 156, 62, 136]],
   lowback: [[92, 131, 100, 133, 100, 168, 90, 166, 88, 149]],
-  glutes: [[100, 170, 100, 207, 84, 211, 76, 197, 78, 177, 90, 167]],
+  glutes: [[100, 170, 100, 207, 84, 211, 76, 197, 80, 186, 92, 176]],
+  gluteMed: [[90, 167, 100, 170, 92, 176, 80, 186, 76, 197, 78, 177]],
   hams: [[76, 207, 98, 213, 96, 255, 84, 263, 72, 255, 70, 227]],
   calves: [[72, 273, 86, 273, 88, 301, 82, 327, 74, 327, 68, 301]],
 };
@@ -215,11 +237,11 @@ function bodySvg(view, vals, max, label, tipFn) {
 /* weekly set ranges per region (app guide: research gives ~10–20 fractional sets per *muscle*;
    regions that share a muscle — upper/lower chest, the three delt heads — get a share of that) */
 const REG_GROUP = {
-  가슴: ['chestU', 'chestL'], 등: ['lats', 'midback', 'traps', 'lowback'], 어깨: ['deltF', 'deltS', 'deltR'],
-  팔: ['biceps', 'triceps', 'forearm'], 다리: ['quads', 'hams', 'glutes', 'adduct', 'calves'], 코어: ['abs', 'oblique'],
+  가슴: ['chestU', 'chestL', 'serratus'], 등: ['lats', 'latsL', 'midback', 'traps', 'lowback'], 어깨: ['deltF', 'deltS', 'deltR'],
+  팔: ['biceps', 'triceps', 'forearm'], 다리: ['quads', 'hams', 'glutes', 'gluteMed', 'adduct', 'calves'], 코어: ['abs', 'oblique'],
 };
 const REG_RANGE = {
-  chestU: [3, 12], chestL: [6, 20], lats: [8, 20], midback: [6, 18], traps: [3, 14], lowback: [2, 12],
+  chestU: [3, 12], chestL: [6, 20], serratus: [0, 10], lats: [6, 18], latsL: [4, 16], gluteMed: [2, 12], midback: [6, 18], traps: [3, 14], lowback: [2, 12],
   deltF: [3, 14], deltS: [6, 20], deltR: [4, 16], biceps: [6, 20], triceps: [6, 20], forearm: [2, 14],
   quads: [8, 20], hams: [6, 18], glutes: [6, 20], adduct: [3, 14], calves: [6, 18], abs: [4, 16], oblique: [2, 12],
 };
