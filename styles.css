@@ -1037,3 +1037,6 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 .kcalline .small { flex-basis: 100%; }
 .mtime { margin-top: 8px; font-size: 14px; }
 .mtime input[type=number] { height: 36px; padding: 0 8px; }
+
+.fx-dots span.todo { border-style: dashed; color: var(--ink3); }
+.fx-goal { margin-top: 6px; }

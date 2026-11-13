@@ -1013,7 +1013,8 @@ function focusHtml() {
     <div class="small muted">${tg ? `목표 ${esc(tg)} · ` : ''}지난번 ${esc(lastTxt)}</div>
     <details class="fx-musc"><summary>쓰는 부위 보기</summary>${musclePeekHtml(e.name, typeOfEq(e), e.m, false, gripOf(e))}</details>
     <input class="fx-note" type="text" maxlength="60" placeholder="메모 — 의자 4칸, 그립 넓게 등 (다음에도 보여요)" value="${esc((DB.eqNote || {})[id] || '')}" data-on="eq-note" data-eq="${esc(id)}">
-    <div class="fx-dots">${Array.from({ length: Math.max(n, did.length) }, (_, k) => `<span class="${k < did.length ? 'on' : ''}">${k < did.length ? esc(`${did[k].w > 0 ? trimNum(did[k].w) : ''}${did[k].w > 0 ? '×' : ''}${did[k].r}`) : k + 1}</span>`).join('')}</div>
+    <div class="fx-dots">${Array.from({ length: Math.max(n, did.length) }, (_, k) => `<span class="${k < did.length ? 'on' : 'todo'}">${k < did.length ? esc(`${did[k].w > 0 ? trimNum(did[k].w) : ''}${did[k].w > 0 ? '×' : ''}${did[k].r}`) : k + 1}</span>`).join('')}</div>
+    ${did.length && did.length < n ? `<div class="small muted fx-goal">${tg ? `루틴 목표 ${n}세트` : `지난번에 ${n}세트 해서 ${n}세트까지 표시`} — 끝났으면 <b>다음 종목</b>으로 넘어가면 돼요</div>` : ''}
     ${rem != null ? `<div class="fx-rest" id="fx-rest"><span class="small">휴식</span><b class="num" id="fx-rest-t">${fmtSec(Math.ceil(rem))}</b>
         <div class="row" style="gap:6px"><button class="btn sm" data-act="fx-add15">+15초</button><button class="btn sm" data-act="fx-skip">건너뛰기</button></div></div>` : ''}
     ${bw ? '' : `<div class="fx-opts"><div class="unitseg"><button class="${u === 'kg' ? 'on' : ''}" data-act="fx-unit" data-u="kg">kg</button><button class="${u === 'lb' ? 'on' : ''}" data-act="fx-unit" data-u="lb">lb</button></div>
@@ -2752,11 +2753,13 @@ function strengthBalance() {
     const e = setE1(s); if (e > (best[s.eq] || 0)) best[s.eq] = e;
     if (s.date >= addDays(today(), -28)) sets4[s.eq] = (sets4[s.eq] || 0) + 1;
   }
+  // where in the session each lift usually comes: a lift always done after the others reads weaker than it is
+  const pos = {}; for (const L of BAL_LIFTS) { const ds = [...new Set(allSets().filter(s => s.eq === L.id && s.date >= from).map(s => s.date))]; const ps = ds.map(k => eqPos(k, L.id)).filter(Boolean); if (ps.length) pos[L.id] = { avg: ps.reduce((a, b) => a + b, 0) / ps.length, first: ps.some(p => p === 1) }; }
   const lifts = BAL_LIFTS.map(L => {
     const e1 = best[L.id] ? r1(best[L.id]) : null, th = L[sex];
     let lv = null;
     if (e1 && bw) { const x = e1 / bw; if (x < th[0]) lv = x / th[0] - 1; else { let k = 0; while (k < 4 && x >= th[k + 1]) k++; lv = k + (k < 4 ? (x - th[k]) / (th[k + 1] - th[k]) : 0); } }
-    return { ...L, e1, lv, x: e1 && bw ? e1 / bw : null, sets4: sets4[L.id] || 0 };
+    return { ...L, e1, lv, x: e1 && bw ? e1 / bw : null, sets4: sets4[L.id] || 0, pos: pos[L.id] };
   });
   const has = lifts.filter(x => x.e1), byId = Object.fromEntries(lifts.map(x => [x.id, x]));
   const weak = {};
@@ -2782,12 +2785,13 @@ function balanceHtml() {
   }).join('');
   const advice = wk.map(id => {
     const x = B.lifts.find(l => l.id === id);
-    return `<li><b>${esc(x.l)}</b> — ${esc(B.weak[id].join(' · '))}<div class="small muted">최근 4주 ${x.sets4}세트. 주 2회로 늘리고 그날 첫 종목으로, 3–4세트 4–8회. 보조로 ${esc(x.fix)}.</div></li>`;
+    const late = x.pos && !x.pos.first && x.pos.avg >= 2.5 ? ` 보통 ${Math.round(x.pos.avg)}번째 종목으로 해서 실제보다 낮게 나왔을 수 있어요 — 한 번 첫 종목으로 해보고 비교해 보세요.` : '';
+    return `<li><b>${esc(x.l)}</b> — ${esc(B.weak[id].join(' · '))}${late ? `<div class="small" style="margin-top:2px">${esc(late.trim())}</div>` : ''}<div class="small muted">최근 4주 ${x.sets4}세트. 주 2회로 늘리고 그날 첫 종목으로, 3–4세트 4–8회. 보조로 ${esc(x.fix)}.</div></li>`;
   }).join('');
   const body = `<section class="card">
     <table class="baltbl"><tr><th>종목</th><th>추정 최대</th><th>체중 대비</th><th>수준</th></tr>${rows}</table>
     ${wk.length ? `<div class="sec-sub" style="margin-top:12px"><b>보완할 곳</b></div><ul class="ballist">${advice}</ul>` : `<div class="small" style="margin-top:10px">${B.has.length >= 3 ? '큰 운동끼리 비율이 고르게 맞아요.' : '기록한 종목끼리는 비율이 맞아요. 나머지 종목도 해보면 더 정확해져요.'}</div>`}
-    <div class="note">최근 12주 최고 기록으로 1회 최대 무게를 추정해서 비교해요(12회 이하 세트만). 수준은 ${B.sexSet ? (B.sex === 'f' ? '여성' : '남성') : '남성(루틴에서 성별을 고르면 바뀌어요)'} 기준의 대략적인 값이에요.${B.bw ? ` 체중 ${trimNum(B.bw)}kg 기준.` : ' 체중을 기록하면 체중 대비 수준도 보여요.'} 머신 기록은 브랜드마다 무게가 달라서 빠져요.</div></section>`;
+    <div class="note">최근 12주 최고 기록으로 1회 최대 무게를 추정해서 비교해요(12회 이하 세트만). 운동 순서도 봐요: 늘 뒤에 하는 종목은 피로 때문에 낮게 나올 수 있어서 따로 알려줘요. 수준은 ${B.sexSet ? (B.sex === 'f' ? '여성' : '남성') : '남성(루틴에서 성별을 고르면 바뀌어요)'} 기준의 대략적인 값이에요.${B.bw ? ` 체중 ${trimNum(B.bw)}kg 기준.` : ' 체중을 기록하면 체중 대비 수준도 보여요.'} 머신 기록은 브랜드마다 무게가 달라서 빠져요.</div></section>`;
   return fold('balance', '힘 밸런스', wk.length ? `약점 ${wk.map(id => B.lifts.find(l => l.id === id).l).join('·')}` : '고르게 맞아요', body, !!wk.length);
 }
 function viewAnalysis() {
@@ -3982,7 +3986,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.10.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.10.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
