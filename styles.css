@@ -1040,3 +1040,9 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 
 .fx-dots span.todo { border-style: dashed; color: var(--ink3); }
 .fx-goal { margin-top: 6px; }
+
+.restpeek { margin-top: 8px; }
+.restpeek summary { font-size: 13px; color: var(--ink3); cursor: pointer; }
+.rp-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.rp-row:first-of-type { margin-top: 6px; }
+.rp-k { font-size: 13px; }

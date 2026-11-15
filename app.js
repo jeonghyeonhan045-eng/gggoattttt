@@ -2087,6 +2087,19 @@ function recExercises(sp) {
     ...add(pickEq(T(['레그 익스텐션']), 1, ['hs-legext', 'cy-legext']), '3×12–15'),
     ...add(pickEq(e => e.m === '코어', 1, ['cy-abcrunch', 'fw-hangleg']), '3×12–15')];
 }
+/* "what if I rest": the pick for 1–3 days later, with no workouts in between */
+function recShort(T) {
+  const R = recommendNext(T); if (!R || R.first) return null;
+  if (R.own) { const o = R.own, x = R.info[o.sig]; return { l: o.l, why: `${mName(o.sig)} ${x.days >= 99 ? '처음' : x.days + '일 쉰 상태'}${o.done.length ? ` · ${o.done.join('·')}은 이번 바퀴에 함` : ' · 내 순서상 다음'}` }; }
+  if (R.best) return { l: R.best.l, why: R.best.ms.map(m => `${mName(m)} ${R.info[m].last ? R.info[m].days + '일 쉰 상태' : '안 한 부위'}`).join(' · ') };
+  return { l: '쉬는 날', why: '주요 부위가 아직 회복 중' };
+}
+function restPeekHtml(T) {
+  const rows = [1, 2, 3].map(n => { const k = addDays(T, n), r = recShort(k); return r && `<div class="rp-row"><span class="rp-k">${n}일 쉬면<br><span class="muted">${shortDate(k)}</span></span><span><b>${esc(r.l)}</b><br><span class="small muted">${esc(r.why)}</span></span></div>`; }).filter(Boolean);
+  if (!rows.length) return '';
+  const same = new Set(rows.map(r => r.match(/<b>(.*?)<\/b>/)[1])).size === 1;
+  return `<details class="restpeek"><summary>쉬면 뭐가 나올까</summary>${rows.join('')}${same ? '<div class="small muted" style="margin-top:6px">순서대로라 며칠 쉬어도 같은 운동이 차례예요. 쉬는 동안 다른 부위도 같이 회복돼요.</div>' : ''}</details>`;
+}
 function recCardHtml(k) {
   const hasSets = (dayRO(k).sets || []).length > 0;
   const T = hasSets ? addDays(k, 1) : k;
@@ -2110,6 +2123,7 @@ function recCardHtml(k) {
       <div class="small muted" style="margin-top:2px">내 순서: ${esc(o.order.join(' → '))}${o.done.length ? ` · ${esc(jo(o.done.join('·'), '은', '는'))} 이번에 이미 해서 건너뜀` : ''}</div>
       <div class="small muted">${esc(why)}${o.skipped ? ` · ${esc(o.skipped.l)}은 아직 회복 중이라 다음으로` : ''}</div>
       ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '어제 컨디션이 낮거나 근육통이 심했어요.'} 하루 쉬어도 손해 없어요.</div>` : ''}
+      ${restPeekHtml(T)}
       <button class="btn sm block" style="margin-top:8px" data-act="own-plan" data-t="${T}" data-k="${o.src}">${T === k ? `지난 ${esc(o.l)}날(${shortDate(o.src)}) 그대로 시작` : '내일 계획에 넣기'}</button></section>`;
   }
   const b = R.best;
@@ -2121,6 +2135,7 @@ function recCardHtml(k) {
     <div class="row between" style="gap:8px"><b style="font-size: 16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(b.l)}${R.addSh ? ' + 옆·뒤 어깨' : ''}</b></div>
     <div class="small muted" style="margin-top:2px">${esc(why)}</div>${shWhy ? `<div class="small" style="margin-top:4px">${esc(shWhy)}</div>` : ''}
     ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '어제 컨디션이 낮거나 근육통이 심했어요.'} 하루 쉬어도 손해 없어요.</div>` : ''}
+    ${restPeekHtml(T)}
     <button class="btn sm block" style="margin-top:8px" data-act="rec-plan" data-t="${T}" data-k="${b.k}${R.addSh ? '+sh' : ''}">${T === k ? '추천 종목으로 시작' : '내일 계획에 넣기'}</button></section>`;
 }
 
@@ -3986,7 +4001,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.10.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.10.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
