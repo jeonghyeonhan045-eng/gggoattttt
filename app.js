@@ -2015,7 +2015,8 @@ function ownOrder(T) {
     order.push(rest.reduce((a, m) => (tr[cur + '>' + m] || 0) > (tr[cur + '>' + a] || 0) ? m : a, rest[0]));
   }
   // this round so far: the latest days, back to where a part repeats (at most one short of a full round)
-  const done = []; for (let i = days.length - 1; i >= 0 && done.length < P.length - 1; i--) { if (done.includes(days[i].sig)) break; done.push(days[i].sig); }
+  // a break of two or more days also ends the round (they start fresh after time off)
+  const done = []; for (let i = days.length - 1; i >= 0 && done.length < P.length - 1; i--) { if (done.includes(days[i].sig)) break; done.push(days[i].sig); if (i > 0 && daysBetween(days[i - 1].k, days[i].k) >= 3) break; }
   const last = days[days.length - 1].sig, at = order.indexOf(last);
   const next = [...order.slice(at + 1), ...order.slice(0, at)].filter(m => !done.includes(m));
   const cand = next.map(m => { const d = days.slice().reverse().find(x => x.sig === m); return { sig: m, src: d.k, ms: d.ms, l: d.ms.map(mName).join('·') }; });
@@ -2023,7 +2024,10 @@ function ownOrder(T) {
   const from = order.indexOf(cand[0].sig);
   // mention the round only when it changed the pick (the plain next part needs no explaining)
   const rot = [...order.slice(at + 1), ...order.slice(0, at)], skip = rot.slice(0, rot.indexOf(cand[0].sig)).filter(m => done.includes(m));
-  return { cand, order: [...order.slice(from), ...order.slice(0, from)].map(mName), done: skip.map(mName) };
+  const lastBy = {}; for (const d of days) lastBy[d.sig] = { sig: d.sig, src: d.k, ms: d.ms, l: d.ms.map(mName).join('·') };
+  // the part they usually open with after two or more days off
+  const afterRest = {}; for (let i = 1; i < days.length; i++) if (daysBetween(days[i - 1].k, days[i].k) >= 3) afterRest[days[i].sig] = (afterRest[days[i].sig] || 0) + 1;
+  return { cand, order: [...order.slice(from), ...order.slice(0, from)].map(mName), orderSig: order, done: skip.map(mName), last: lastBy, afterRest };
 }
 function recommendNext(T) {
   if (!allSets().some(s => !isCardioSet(s))) return { T, first: true };
@@ -2048,7 +2052,37 @@ function recommendNext(T) {
   // only the day's main part needs its two days (arms on a chest day don't hold up the back day)
   const O = ownOrder(T), pick = O && O.cand.find(c => info[c.sig].days >= 2);
   const ownReady = pick ? Object.assign({}, pick, { order: O.order, done: O.done, skipped: O.cand[0] !== pick ? O.cand[0] : null }) : null;
-  return { T, best, info, streak, tired, rest, addSh: ownReady ? false : addSh, own: ownReady };
+  // after two or more days off, a new round opens with a big part; a small part still owed (shoulders, arms)
+  // rides along as the pieces that fit that day — chest + front/side delts, back + rear delts
+  let gap = 0; for (let k = addDays(T, -1); !trainedDay(k) && gap < 14; k = addDays(k, -1)) gap++;
+  let own = ownReady;
+  if (own && SMALL_PART.has(own.sig) && gap >= 2) {
+    const bigs = O.orderSig.filter(m => !SMALL_PART.has(m) && O.last[m] && info[m].days >= 2);
+    const big = bigs.sort((a, b) => ((O.afterRest[b] || 0) - (O.afterRest[a] || 0)) || (info[b].days - info[a].days))[0];
+    if (big) { const att = attachFor(own.sig, big), lb = O.last[big]; own = Object.assign({}, lb, { l: lb.ms.filter(m => m !== own.sig).map(mName).join('·') || mName(big), order: O.order, done: [], skipped: null, newRound: gap, attach: att, owed: own.sig }); }
+  }
+  // later in that round: a chest or back day still carries the owed shoulders/arms, until they get their own day
+  else if (own && !SMALL_PART.has(own.sig) && own.sig !== '다리' && gap < 2) {
+    let start = null; // first day of this round = first training day after the last 2+ day break
+    for (let k = addDays(T, -1), off = 0, i = 0; i < 21; i++, k = addDays(k, -1)) { if (trainedDay(k)) { if (off >= 2) break; start = k; off = 0; } else off++; }
+    // owed = a small part with no day of its own this round that rode along on the round's first day
+    const owed = start && O.orderSig.find(m => SMALL_PART.has(m) && O.last[m] && O.last[m].src < start && (dayRO(start).sets || []).filter(x => x.m === m && !isCardioSet(x)).length >= 2);
+    if (owed) own = Object.assign({}, own, { l: own.ms.filter(m => m !== owed).map(mName).join('·') || mName(own.sig), attach: attachFor(owed, own.sig), owed, newRound: 0 });
+  }
+  return { T, best, info, streak, tired, rest, addSh: own ? false : addSh, own };
+}
+const SMALL_PART = new Set(['어깨', '팔']);
+/* what of the owed small part fits the big day: pressing already works the front delt and triceps, pulling the rear delt and biceps */
+function attachFor(owed, big) {
+  const T = t => e => t.includes(e.type), P = (types, pref) => pickEq(T(types), 1, pref);
+  if (owed === '어깨') {
+    if (big === '가슴') return { l: '앞·옆 어깨', ids: [...P(['숄더 프레스'], ['fw-db-ohp', 'fw-ohp']), ...P(['레터럴 레이즈'], ['fw-lateral', 'cb-lateral'])], why: '가슴 프레스로 앞어깨는 이미 일부 써서 숄더 프레스 1 + 레터럴 1이면 충분해요' };
+    if (big === '등') return { l: '뒤 어깨', ids: pickEq(T(['리어 델트']), 2, ['cb-facepull', 'fw-reardelt']), why: '로우가 뒤어깨를 일부 써서 리어 델트 2종목만 붙여요' };
+    return { l: '옆·뒤 어깨', ids: [...P(['레터럴 레이즈'], ['fw-lateral', 'cb-lateral']), ...P(['리어 델트'], ['cb-facepull', 'fw-reardelt'])], why: '하체날엔 상체가 쉬어서 옆·뒤 어깨 2종목을 붙여요' };
+  }
+  if (big === '가슴') return { l: '삼두', ids: P(['트라이셉 익스텐션'], ['cb-pushdown']), why: '가슴 프레스로 삼두를 이미 써서 1종목만' };
+  if (big === '등') return { l: '이두', ids: P(['바이셉 컬'], ['fw-db-curl']), why: '당기기로 이두를 이미 써서 1종목만' };
+  return { l: '이두·삼두', ids: [...P(['바이셉 컬'], ['fw-db-curl']), ...P(['트라이셉 익스텐션'], ['cb-pushdown'])], why: '하체날엔 팔이 쉬어서 1종목씩' };
 }
 /* a balanced session for each split: the user's own equipment first, then staples */
 function pickEq(filter, n, prefer) {
@@ -2090,6 +2124,7 @@ function recExercises(sp) {
 /* "what if I rest": the pick for 1–3 days later, with no workouts in between */
 function recShort(T) {
   const R = recommendNext(T); if (!R || R.first) return null;
+  if (R.own && R.own.attach) { const o = R.own; return { l: `${o.l} + ${o.attach.l}`, why: !o.newRound ? `이번 바퀴는 ${jo(mName(o.owed), '을', '를')} 나눠서` : `${o.newRound}일 쉬어서 새 바퀴 · 남은 ${jo(mName(o.owed), '은', '는')} ${o.attach.l}만` }; }
   if (R.own) { const o = R.own, x = R.info[o.sig]; return { l: o.l, why: `${mName(o.sig)} ${x.days >= 99 ? '처음' : x.days + '일 쉰 상태'}${o.done.length ? ` · ${o.done.join('·')}은 이번 바퀴에 함` : ' · 내 순서상 다음'}` }; }
   if (R.best) return { l: R.best.l, why: R.best.ms.map(m => `${mName(m)} ${R.info[m].last ? R.info[m].days + '일 쉰 상태' : '안 한 부위'}`).join(' · ') };
   return { l: '쉬는 날', why: '주요 부위가 아직 회복 중' };
@@ -2097,7 +2132,7 @@ function recShort(T) {
 function restPeekHtml(T) {
   const rows = [1, 2, 3].map(n => { const k = addDays(T, n), r = recShort(k); return r && `<div class="rp-row"><span class="rp-k">${n}일 쉬면<br><span class="muted">${shortDate(k)}</span></span><span><b>${esc(r.l)}</b><br><span class="small muted">${esc(r.why)}</span></span></div>`; }).filter(Boolean);
   if (!rows.length) return '';
-  const same = new Set(rows.map(r => r.match(/<b>(.*?)<\/b>/)[1])).size === 1;
+  const now = recShort(T), same = now && rows.every(r => r.match(/<b>(.*?)<\/b>/)[1] === esc(now.l));
   return `<details class="restpeek"><summary>쉬면 뭐가 나올까</summary>${rows.join('')}${same ? '<div class="small muted" style="margin-top:6px">순서대로라 며칠 쉬어도 같은 운동이 차례예요. 쉬는 동안 다른 부위도 같이 회복돼요.</div>' : ''}</details>`;
 }
 function recCardHtml(k) {
@@ -2119,12 +2154,14 @@ function recCardHtml(k) {
   if (R.own) {
     const o = R.own, why = `${mName(o.sig)} ${R.info[o.sig].days >= 99 ? '처음' : R.info[o.sig].days + '일 쉼'}`;
     return `<section class="card reccard"><div class="small muted">${when} 추천 · 내 순서대로</div>
-      <b style="font-size: 16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(o.l)}</b>
+      <b style="font-size: 16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(o.l)}${o.attach ? ` + ${esc(o.attach.l)}` : ''}</b>
+      ${o.attach && !o.newRound ? `<div class="small" style="margin-top:2px">이번 바퀴는 ${esc(jo(mName(o.owed), '을', '를'))} 나눠서 해요 — ${esc(o.attach.why)}.</div>` : ''}
+      ${o.newRound ? `<div class="small" style="margin-top:2px">${o.newRound}일 쉬었으니 새 바퀴를 ${esc(mName(o.sig))}부터 — 남은 ${esc(jo(mName(o.owed), '은', '는'))} 오늘 맞는 것만 붙여요. ${esc(o.attach.why)}.</div>` : ''}
       <div class="small muted" style="margin-top:2px">내 순서: ${esc(o.order.join(' → '))}${o.done.length ? ` · ${esc(jo(o.done.join('·'), '은', '는'))} 이번에 이미 해서 건너뜀` : ''}</div>
       <div class="small muted">${esc(why)}${o.skipped ? ` · ${esc(o.skipped.l)}은 아직 회복 중이라 다음으로` : ''}</div>
       ${R.rest ? `<div class="small" style="margin-top:4px">${R.streak >= 3 ? `${R.streak}일 연속 운동했어요.` : '어제 컨디션이 낮거나 근육통이 심했어요.'} 하루 쉬어도 손해 없어요.</div>` : ''}
       ${restPeekHtml(T)}
-      <button class="btn sm block" style="margin-top:8px" data-act="own-plan" data-t="${T}" data-k="${o.src}">${T === k ? `지난 ${esc(o.l)}날(${shortDate(o.src)}) 그대로 시작` : '내일 계획에 넣기'}</button></section>`;
+      <button class="btn sm block" style="margin-top:8px" data-act="own-plan" data-t="${T}" data-k="${o.src}" data-add="${o.attach ? esc(o.attach.ids.join(',')) : ''}">${T === k ? `지난 ${esc(o.l)}날(${shortDate(o.src)}) 그대로 시작` : '내일 계획에 넣기'}</button></section>`;
   }
   const b = R.best;
   if (!b) return `<section class="card reccard"><div class="small muted">${when} 추천</div><b style="font-size: 16px">쉬는 날</b><div class="small muted" style="margin-top:2px">주요 부위가 모두 최근 이틀 안에 운동했어요. 같은 부위는 48시간 정도 쉬는 게 일반적이에요.</div></section>`;
@@ -4001,7 +4038,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.10.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.11.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4162,7 +4199,8 @@ const ACT = {
   'own-plan': el => {
     const T = el.dataset.t, src = pastSessions(addDays(T, 1), 60).find(x => x.k === el.dataset.k) || (() => { const ss = (dayRO(el.dataset.k).sets || []).filter(s => !isCardioSet(s)); const eqs = []; for (const s of ss) if (!eqs.includes(s.eq)) eqs.push(s.eq); return { k: el.dataset.k, eqs }; })();
     if (!src || !src.eqs.length) return;
-    day(T).plan = { from: src.k, eqs: src.eqs.slice(), label: `${shortDate(src.k)} 운동 그대로` }; save(); render();
+    const add = (el.dataset.add || '').split(',').filter(id => id && !src.eqs.includes(id)), tg = {}; for (const id of add) tg[id] = '3×12–15';
+    day(T).plan = { from: src.k, eqs: [...src.eqs, ...add], tg, label: `${shortDate(src.k)} 운동${add.length ? ` + ${add.length}종목` : ' 그대로'}` }; save(); render();
     toast(T === state.date ? `${dateLabel(src.k)} 운동 ${src.eqs.length}종목을 불러왔어요` : `내일 계획: ${src.eqs.length}종목`);
   },
   'rec-plan': el => {
