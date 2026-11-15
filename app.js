@@ -2058,16 +2058,31 @@ function recommendNext(T) {
   let own = ownReady;
   if (own && SMALL_PART.has(own.sig) && gap >= 2) {
     const bigs = O.orderSig.filter(m => !SMALL_PART.has(m) && O.last[m] && info[m].days >= 2);
-    const big = bigs.sort((a, b) => ((O.afterRest[b] || 0) - (O.afterRest[a] || 0)) || (info[b].days - info[a].days))[0];
+    // the big part that has rested longest opens the round; their usual after-break part only breaks ties
+    const big = bigs.sort((a, b) => (info[b].days - info[a].days) || ((O.afterRest[b] || 0) - (O.afterRest[a] || 0)))[0];
     if (big) { const att = attachFor(own.sig, big), lb = O.last[big]; own = Object.assign({}, lb, { l: lb.ms.filter(m => m !== own.sig).map(mName).join('·') || mName(big), order: O.order, done: [], skipped: null, newRound: gap, attach: att, owed: own.sig }); }
   }
-  // later in that round: a chest or back day still carries the owed shoulders/arms, until they get their own day
-  else if (own && !SMALL_PART.has(own.sig) && own.sig !== '다리' && gap < 2) {
+  // later in that round: a chest or back day still carries the owed shoulders/arms, and their own day is skipped
+  else if (own && gap < 2) {
     let start = null; // first day of this round = first training day after the last 2+ day break
+    for (let k = addDays(T, -1), off = 0, i = 0; i < 21; i++, k = addDays(k, -1)) { if (trainedDay(k)) { if (off >= 2) break; start = k; off = 0; } else off++; }
+    const split = m => start && O.last[m] && O.last[m].src < start && (dayRO(start).sets || []).filter(x => x.m === m && !isCardioSet(x)).length >= 2;
+    if (SMALL_PART.has(own.sig) && split(own.sig)) {
+      const owedNow = own.sig, nx = O.cand.find(c => !SMALL_PART.has(c.sig) && info[c.sig].days >= 2);
+      if (nx) own = Object.assign({}, nx, { order: O.order, done: O.done, skipped: null, l: nx.ms.filter(m => m !== owedNow).map(mName).join('·') || mName(nx.sig), attach: nx.sig === '다리' ? null : attachFor(owedNow, nx.sig), owed: owedNow, newRound: 0 });
+    }
+  }
+  if (own && !own.attach && own.owed === undefined && !SMALL_PART.has(own.sig) && own.sig !== '다리' && gap < 2) {
+    let start = null;
     for (let k = addDays(T, -1), off = 0, i = 0; i < 21; i++, k = addDays(k, -1)) { if (trainedDay(k)) { if (off >= 2) break; start = k; off = 0; } else off++; }
     // owed = a small part with no day of its own this round that rode along on the round's first day
     const owed = start && O.orderSig.find(m => SMALL_PART.has(m) && O.last[m] && O.last[m].src < start && (dayRO(start).sets || []).filter(x => x.m === m && !isCardioSet(x)).length >= 2);
     if (owed) own = Object.assign({}, own, { l: own.ms.filter(m => m !== owed).map(mName).join('·') || mName(own.sig), attach: attachFor(owed, own.sig), owed, newRound: 0 });
+  }
+  // nothing left this round is ready (the shoulders were split across chest/back days): open the next round
+  if (!own && O) {
+    const big = O.orderSig.filter(m => !SMALL_PART.has(m) && O.last[m] && info[m].days >= 2).sort((a, b) => info[b].days - info[a].days)[0];
+    if (big) { const lb = O.last[big]; own = Object.assign({}, lb, { order: O.order, done: [], skipped: null, roundDone: true }); }
   }
   return { T, best, info, streak, tired, rest, addSh: own ? false : addSh, own };
 }
@@ -2155,6 +2170,7 @@ function recCardHtml(k) {
     const o = R.own, why = `${mName(o.sig)} ${R.info[o.sig].days >= 99 ? '처음' : R.info[o.sig].days + '일 쉼'}`;
     return `<section class="card reccard"><div class="small muted">${when} 추천 · 내 순서대로</div>
       <b style="font-size: 16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(o.l)}${o.attach ? ` + ${esc(o.attach.l)}` : ''}</b>
+      ${o.roundDone ? '<div class="small" style="margin-top:2px">이번 바퀴는 끝났어요. 새 바퀴를 제일 오래 쉰 부위부터 시작해요.</div>' : ''}
       ${o.attach && !o.newRound ? `<div class="small" style="margin-top:2px">이번 바퀴는 ${esc(jo(mName(o.owed), '을', '를'))} 나눠서 해요 — ${esc(o.attach.why)}.</div>` : ''}
       ${o.newRound ? `<div class="small" style="margin-top:2px">${o.newRound}일 쉬었으니 새 바퀴를 ${esc(mName(o.sig))}부터 — 남은 ${esc(jo(mName(o.owed), '은', '는'))} 오늘 맞는 것만 붙여요. ${esc(o.attach.why)}.</div>` : ''}
       <div class="small muted" style="margin-top:2px">내 순서: ${esc(o.order.join(' → '))}${o.done.length ? ` · ${esc(jo(o.done.join('·'), '은', '는'))} 이번에 이미 해서 건너뜀` : ''}</div>
@@ -4038,7 +4054,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.11.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.11.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
