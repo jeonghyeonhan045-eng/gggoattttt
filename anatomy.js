@@ -155,6 +155,8 @@ function refineRegions(out, name, type, grip) {
     out.gluteMed = Math.max(out.gluteMed || 0, single ? 0.5 : type === '스쿼트' || type === '힙 쓰러스트' ? 0.25 : 0);
   }
   if (type === '힙 어브덕션') { out.gluteMed = 1; out.glutes = 0.5; }
+  // dumbbell pullover on a bench: done here as a chest / ribcage stretch — chest and serratus lead, lats help
+  if (/덤벨\s*풀오버|db\s*pullover|dumbbell\s*pullover/i.test(n)) { out.chestL = 1; out.serratus = Math.max(out.serratus || 0, 0.5); out.lats = Math.min(out.lats || 0.5, 0.5); out.latsL = Math.min(out.latsL || 0.5, 0.5); }
   if (type === '푸시업' || type === '풀오버' || /인클라인|incline|오버헤드|overhead|펀치|punch/i.test(n) && (type === '인클라인 프레스' || type === '숄더 프레스')) out.serratus = Math.max(out.serratus || 0, type === '풀오버' ? 0.5 : 0.25);
   for (const k of Object.keys(out)) if (!out[k]) delete out[k];
   return out;

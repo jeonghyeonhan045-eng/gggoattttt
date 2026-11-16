@@ -373,7 +373,7 @@ const FREE_RAW = [
   ['fw-pendlay', '펜들레이 로우', '등', '로우', 'pull'],
   ['fw-csrow', '체스트 서포티드 덤벨 로우', '등', '로우', 'pull'],
   ['fw-meadows', '메도우스 로우', '등', '로우', 'pull'],
-  ['fw-db-pullover', '덤벨 풀오버', '등', '풀오버', 'pull'],
+  ['fw-db-pullover', '덤벨 풀오버', '가슴', '풀오버', 'press'],
   ['fw-rackpull', '랙 풀', '등', '데드리프트', 'hinge'],
   ['fw-bbshrug', '바벨 슈러그', '등', '슈러그', 'ohp'],
   // 어깨

@@ -78,6 +78,8 @@ function load() {
     save();
   }
   try { PHOTOS = JSON.parse(lsGet(PHOTO_KEY) || '{}') || {}; } catch (e) { PHOTOS = {}; }
+  // dumbbell pullover was filed under 등 at first; it's done on chest days
+  for (const d of Object.values(DB.days || {})) for (const s of d.sets || []) if (s.eq === 'fw-db-pullover' && s.m === '등') s.m = '가슴';
 }
 
 function migrateV1() {
@@ -215,8 +217,11 @@ function prevSessionOfEq(eqId, beforeKey) {
 function musclesOfDay(k) {
   const d = dayRO(k);
   const auto = new Set((d.sets || []).map(s => s.m).filter(Boolean));
-  const all = new Set([...auto, ...(d.done || [])]);
-  return { auto, all: MUSCLES.filter(m => all.has(m)) };
+  // a part shows only with real work that day (3+ sets and 20%+ of the day): one accessory doesn't make it a back day
+  const n = {}, ss = (d.sets || []).filter(s => s.m); for (const s of ss) n[s.m] = (n[s.m] || 0) + 1;
+  const top = Object.keys(n).sort((a, b) => n[b] - n[a]);
+  const shown = new Set([...top.filter((m, i) => i === 0 || (n[m] >= 3 && n[m] / ss.length >= 0.2)), ...(d.done || [])]);
+  return { auto, all: [...top.filter(m => shown.has(m)), ...MUSCLES.filter(m => shown.has(m) && !n[m])] };
 }
 function trainedDay(k) { const d = dayRO(k); return (d.sets && d.sets.length > 0) || (d.done && d.done.length > 0); }
 
@@ -1987,7 +1992,8 @@ function lastTrained(m, before) {
   // after a shoulder day don't tire the back the way a back day does, so they don't push the back day out
   const n = {};
   for (const s of allSets()) if (s.m === m && !isCardioSet(s) && s.date < before && typeOfEq(eqOrRecord(s.eq) || { name: '' }) !== '슈러그') n[s.date] = (n[s.date] || 0) + 1;
-  let last = null; for (const d in n) if (n[d] >= 3 && (!last || d > last)) last = d;
+  // …and it must be a real share of that day too: 3–4 sets of pullovers on a 25-set chest day don't make it a back day
+  let last = null; for (const d in n) { const tot = (dayRO(d).sets || []).filter(x => !isCardioSet(x)).length; if (n[d] >= 3 && (n[d] >= 6 || n[d] / tot >= 0.25) && (!last || d > last)) last = d; }
   return last;
 }
 /* the person's own rotation: find the last time they trained what they trained most recently,
@@ -4054,7 +4060,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.11.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.11.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
