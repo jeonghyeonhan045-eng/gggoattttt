@@ -1602,7 +1602,9 @@ function progressionHint(e, prev, u) {
     return { kind: 'up', w: r1(wNow + step), r: Math.max(minR - 2, 5), why: rir != null && rir >= 2.5 ? `지난번 평균 RIR ${r1(rir)} — 여유가 있었어요. 한 단계 올려보세요.` : `지난번 ${work.length}세트 모두 ${minR}회 성공 — 한 단계 올리고 횟수를 다시 쌓아가세요.` };
   }
   if (maxR - minR >= 3 || (rir != null && rir < 0.5 && maxR > minR)) {
-    return { kind: 'hold', w: wNow, r: maxR, why: `지난번 세트별 ${reps.join('·')}회로 떨어졌어요. 같은 무게로 모든 세트 ${maxR}회를 먼저 맞추세요.` };
+    // aim at the weak sets first: all sets to minR+2 (12·11·8·8 → 10 each), not straight to the best set's 12
+    const tgt = Math.min(maxR, minR + 2);
+    return { kind: 'hold', w: wNow, r: tgt, why: `지난번 세트별 ${reps.join('·')}회로 떨어졌어요. 같은 무게로 모든 세트 ${tgt}회 이상부터 맞추세요${tgt < maxR ? ` (그다음 ${maxR}회)` : ''}.` };
   }
   return { kind: 'reps', w: wNow, r: Math.min(maxR + 1, minR + 2), why: `같은 무게로 세트당 1회씩 더해보세요 (지난번 ${reps.join('·')}회).` };
 }
@@ -2020,6 +2022,9 @@ function ownOrder(T) {
     const cur = order[order.length - 1], rest = P.filter(m => !order.includes(m));
     order.push(rest.reduce((a, m) => (tr[cur + '>' + m] || 0) > (tr[cur + '>' + a] || 0) ? m : a, rest[0]));
   }
+  // only a real habit counts: most part-to-part steps must follow that order (a random mix has no order to follow)
+  let fol = 0, stp = 0; for (let i = 1; i < days.length; i++) if (days[i].sig !== days[i - 1].sig) { stp++; if (order[(order.indexOf(days[i - 1].sig) + 1) % order.length] === days[i].sig) fol++; }
+  if (stp >= 4 && fol / stp < 0.45) return null;
   // this round so far: the latest days, back to where a part repeats (at most one short of a full round)
   // a break of two or more days also ends the round (they start fresh after time off)
   const done = []; for (let i = days.length - 1; i >= 0 && done.length < P.length - 1; i--) { if (done.includes(days[i].sig)) break; done.push(days[i].sig); if (i > 0 && daysBetween(days[i - 1].k, days[i].k) >= 3) break; }
@@ -2051,12 +2056,17 @@ function recommendNext(T) {
     const rested = Math.min(...sp.ms.map(m => info[m].days));
     return Object.assign({}, sp, { ready, need, rested, score: need + Math.min(rested, 7) * 0.8 - (sp.k === 'shoulder' ? 3 : 0) });
   }).filter(o => o.ready).sort((a, b) => b.score - a.score);
+  // full-body habit: most recent sessions hit chest, back and legs together → keep recommending full body
+  const recent = []; for (let k = addDays(T, -28); k < T; k = addDays(k, 1)) if (trainedDay(k)) recent.push(k);
+  const fullDay = k => { const n = {}; for (const x of dayRO(k).sets || []) if (!isCardioSet(x)) n[x.m] = (n[x.m] || 0) + 1; return ['가슴', '등', '다리'].every(m => (n[m] || 0) >= 2); };
+  const fullHabit = recent.length >= 4 && recent.filter(fullDay).length / recent.length >= 0.6;
+  if (fullHabit) { const ms = ['가슴', '등', '다리']; opts.length = 0; if (ms.every(m => info[m].days >= 2)) opts.push({ k: 'full', l: '전신', ms, ready: true, need: 0, rested: Math.min(...ms.map(m => info[m].days)), score: 0 }); }
   const rest = streak >= 3 || tired, best = opts[0] || null;
   // few direct shoulder sets this week → add two shoulder moves to whatever day comes next
   const addSh = !!best && !best.ms.includes('어깨') && info['어깨'].dir < 8 && info['어깨'].days >= 2;
   // the person's own order wins when those parts have had their two days
   // only the day's main part needs its two days (arms on a chest day don't hold up the back day)
-  const O = ownOrder(T), pick = O && O.cand.find(c => info[c.sig].days >= 2);
+  const O = fullHabit ? null : ownOrder(T), pick = O && O.cand.find(c => info[c.sig].days >= 2);
   const ownReady = pick ? Object.assign({}, pick, { order: O.order, done: O.done, skipped: O.cand[0] !== pick ? O.cand[0] : null }) : null;
   // after two or more days off, a new round opens with a big part; a small part still owed (shoulders, arms)
   // rides along as the pieces that fit that day — chest + front/side delts, back + rear delts
@@ -2072,7 +2082,8 @@ function recommendNext(T) {
   else if (own && gap < 2) {
     let start = null; // first day of this round = first training day after the last 2+ day break
     for (let k = addDays(T, -1), off = 0, i = 0; i < 21; i++, k = addDays(k, -1)) { if (trainedDay(k)) { if (off >= 2) break; start = k; off = 0; } else off++; }
-    const split = m => start && O.last[m] && O.last[m].src < start && (dayRO(start).sets || []).filter(x => x.m === m && !isCardioSet(x)).length >= 2;
+    const startNext = start && (ownOrder(start) || { cand: [] }).cand[0]; // what was next when the round began
+    const split = m => start && startNext && startNext.sig === m && O.last[m] && O.last[m].src < start && (dayRO(start).sets || []).filter(x => x.m === m && !isCardioSet(x)).length >= 2;
     if (SMALL_PART.has(own.sig) && split(own.sig)) {
       const owedNow = own.sig, nx = O.cand.find(c => !SMALL_PART.has(c.sig) && info[c.sig].days >= 2);
       if (nx) own = Object.assign({}, nx, { order: O.order, done: O.done, skipped: null, l: nx.ms.filter(m => m !== owedNow).map(mName).join('·') || mName(nx.sig), attach: nx.sig === '다리' ? null : attachFor(owedNow, nx.sig), owed: owedNow, newRound: 0 });
@@ -2083,7 +2094,8 @@ function recommendNext(T) {
     let start = null;
     for (let k = addDays(T, -1), off = 0, i = 0; i < 21; i++, k = addDays(k, -1)) { if (trainedDay(k)) { if (off >= 2) break; start = k; off = 0; } else off++; }
     // owed = a small part with no day of its own this round that rode along on the round's first day
-    const owed = start && O.orderSig.find(m => SMALL_PART.has(m) && O.last[m] && O.last[m].src < start && (dayRO(start).sets || []).filter(x => x.m === m && !isCardioSet(x)).length >= 2);
+    const sn = start && (ownOrder(start) || { cand: [] }).cand[0];
+    const owed = start && sn && SMALL_PART.has(sn.sig) && O.last[sn.sig] && O.last[sn.sig].src < start && (dayRO(start).sets || []).filter(x => x.m === sn.sig && !isCardioSet(x)).length >= 2 ? sn.sig : null;
     // the owed part is half done: its other half goes on the next chest/back day, which comes before legs
     const host = owed && [own, ...O.cand].find(c => (c.sig === '가슴' || c.sig === '등') && info[c.sig].days >= 2 && !(dayRO(start).sets || []).some(x => x.m === c.sig));
     if (host) own = Object.assign({}, O.last[host.sig] || host, { order: O.order, done: O.done, skipped: null, l: host.ms.filter(m => m !== owed).map(mName).join('·') || mName(host.sig), attach: attachFor(owed, host.sig), owed, newRound: 0 });
@@ -2220,7 +2232,10 @@ function lightWeeks() {
   return memo('lightWeeks', () => {
     const ws = []; for (let w = 7; w >= 0; w--) ws.push(weekSummary(w));
     const peak = Math.max(0, ...ws.map(x => x.sets));
-    return ws.map((x, i) => peak > 0 && x.sessions >= 1 && x.sets <= 0.65 * peak && i > 0 && ws.slice(0, i).some(y => y.sets >= 0.7 * peak));
+    // a light week = lighter sessions (or just one), not a week that happened to get one session fewer:
+    // a 4-on-2-off or 3-on-2-off rhythm doesn't line up with Mon–Sun weeks
+    const per = ws.filter(x => x.sessions).map(x => x.sets / x.sessions).sort((a, b) => a - b), perMed = per.length ? per[(per.length - 1) >> 1] : 0;
+    return ws.map((x, i) => peak > 0 && x.sessions >= 1 && x.sets <= 0.65 * peak && i > 0 && ws.slice(0, i).some(y => y.sets >= 0.7 * peak) && (x.sessions <= 1 || x.sets / x.sessions <= 0.75 * perMed));
   });
 }
 /* where an exercise sat in that day's order (1 = first). Done later, the same lift reads lower from fatigue. */
@@ -2278,7 +2293,10 @@ function deloadAnalysis() {
   for (let w = W - 1; w >= 0; w--) weeks.push(Object.assign({ w }, weekSummary(w)));
   const peak = Math.max(0, ...weeks.map(x => x.sets));
   const active = weeks.filter(x => x.sessions > 0).length;
-  const loading = x => x.sessions >= 2 && peak > 0 && x.sets >= 0.7 * peak;
+  // a training week = two or more normal sessions; a week that only got one session fewer (rhythms like
+  // 4-on-2-off don't fit Mon–Sun) still counts, only a light week (lighter sessions) or a near-empty one breaks the run
+  const LW = lightWeeks().slice(-W);
+  const loading = x => x.sessions >= 2 && peak > 0 && !LW[weeks.indexOf(x)];
   let streak = 0;
   for (let i = weeks.length - 1; i >= 0; i--) { if (loading(weeks[i])) streak++; else break; }
   // training before the app: if the run reaches back to the first recorded week, add the weeks they say they'd
@@ -2589,18 +2607,27 @@ function restCycle(R, prog) {
   // where each part sits inside the latest full training run
   const block = onR[onR.length - 1].n >= on ? onR[onR.length - 1] : onR.find(r => r.n >= on) || onR[onR.length - 1];
   const pos = {};
-  for (let i = 0; i < block.n; i++) { const d = addDays(block.start, i); for (const m of CYCLE_MS) if (ss.filter(s => s.date === d && s.m === m).length >= 2) (pos[m] = pos[m] || []).push(i); }
+  for (let i = 0; i < block.n; i++) {
+    const d = addDays(block.start, i), dd = ss.filter(s => s.date === d);
+    // a part counts on a day only with real work (shrugs on a shoulder day aren't a back day)
+    for (const m of CYCLE_MS) { const n = dd.filter(s => s.m === m && typeOfEq(eqOrRecord(s.eq) || { name: '' }) !== '슈러그').length; if (n >= 3 && (n >= 6 || n / dd.length >= 0.2)) (pos[m] = pos[m] || []).push(i); }
+  }
   const gapOf = (m, offDays) => { const p = pos[m]; if (!p) return null; let g = (p[0] + block.n - p[p.length - 1]) + offDays; for (let i = 1; i < p.length; i++) g = Math.min(g, p[i] - p[i - 1]); return g; };
   const parts = CYCLE_MS.filter(m => pos[m]).map(m => ({ m, gap: gapOf(m, off), gapLess: off > 1 ? gapOf(m, off - 1) : null, perCycle: pos[m].length }));
+  // shoulders split by head (front/side one day, rear the next) or biceps then triceps aren't the same muscle twice
+  const heads = (d, m) => { const o = new Set(); for (const x of ss) if (x.date === d && x.m === m) for (const [r, v] of Object.entries(regionsOf(x.name, x.type || typeOfEq(eqOrRecord(x.eq) || {}), x.m))) if (v >= 1 && REG_GROUP[m === '다리' ? '다리' : m] && REG_GROUP[m === '다리' ? '다리' : m].includes(r)) o.add(r); return o; };
+  const sameHeads = m => { const p = pos[m]; if (!p) return false; for (let i = 1; i < p.length; i++) if (p[i] - p[i - 1] < 2) { const a = heads(addDays(block.start, p[i - 1]), m), b = heads(addDays(block.start, p[i]), m); if (!a.size || !b.size || [...a].some(r => b.has(r))) return true; } return false; };
+  // different heads on back-to-back days (front/side then rear, biceps then triceps): show it as one turn per cycle
+  for (const p of parts) if (p.gap < 2 && (p.m === '어깨' || p.m === '팔') && !sameHeads(p.m)) { p.gap = cycle; p.gapLess = off > 1 ? cycle - 1 : null; p.split = true; }
   const tooClose = parts.filter(p => p.gap < 2 && p.m !== '팔'); // biceps one day, triceps the next is normal
   // weekly sets now and with one rest day fewer
   const scale = off > 1 ? cycle / (cycle - 1) : 1;
   const proj = STRENGTH_MUSCLES.filter(m => R.mv14.dW[m] >= 0.5).map(m => { const [lo, hi] = volRange(m); return { m, now: R.mv14.dW[m], next: R.mv14.dW[m] * scale, totNow: R.mv14.vol[m], hi }; });
   const c = st => prog.filter(p => p.status === st).length, dropping = c('down') > c('up'), slipping = dropping || R.dl.level === 'bad' || R.dl.level === 'warn';
-  const tiredWhy = dropping ? '무게가 떨어지는 종목이 늘었어요' : `쉬지 않고 ${R.dl.streak}주째예요`; // say the real reason: weights or the long run
+  const tiredWhy = dropping ? '무게가 떨어지는 종목이 늘었어요' : R.dl.streak >= 4 ? `쉬지 않고 ${R.dl.streak}주째예요` : '무게가 정체된 종목이 많아요'; // say the real reason
   let verdict, lv;
   if (tooClose.length) { verdict = `${jo(tooClose.map(p => mName(p.m)).join('·'), '을', '를')} 하루 만에 다시 해요. 같은 부위는 이틀 이상 띄우세요`; lv = 'warn'; }
-  else if (off >= 2 && slipping) { verdict = `${dropping ? '무게가 떨어지는 종목이 있어서' : `쉬지 않고 ${R.dl.streak}주째라서`} 지금처럼 ${off}일 쉬는 게 나아요`; lv = 'info'; }
+  else if (off >= 2 && slipping) { verdict = `${dropping ? '무게가 떨어지는 종목이 있어서' : R.dl.streak >= 4 ? `쉬지 않고 ${R.dl.streak}주째라서` : '정체된 종목이 많아서'} 지금처럼 ${off}일 쉬는 게 나아요`; lv = 'info'; }
   else if (off >= 2 && parts.every(p => p.gapLess == null || p.gapLess >= 2)) { verdict = `${off - 1 === 1 ? '하루' : off - 1 === 2 ? '이틀' : `${off - 1}일`}만 쉬어도 돼요 — 주간 세트 약 +${Math.round((scale - 1) * 100)}%`; lv = 'good'; }
   else if (off === 1 && slipping) { verdict = `${tiredWhy}. 피곤하면 하루 더 쉬어보세요`; lv = 'warn'; }
   else { verdict = '지금 주기가 적당해요'; lv = 'good'; }
@@ -2667,7 +2694,7 @@ function restCycleHtml(C) {
   const high = C.proj.filter(p => p.totNow > p.hi); // already high-volume today
   const body = `<section class="card">
     <div class="cy-now"><b>${C.on}일 운동 · ${C.off}일 휴식</b><span class="small muted">${C.cycle}일 주기${C.cycles < 2 ? ' · 기록 한 바퀴' : ''}</span></div>
-    <div class="cy-parts">${C.parts.map(p => `<span>${esc(mName(p.m))} <b class="num">${p.gap}일</b>마다</span>`).join('')}</div>
+    <div class="cy-parts">${C.parts.map(p => `<span>${esc(mName(p.m))}${p.split ? ` <span class="muted">(${p.m === '어깨' ? '앞·옆 / 뒤' : '이두 / 삼두'} 나눠서)</span>` : ''} <b class="num">${p.gap}일</b>마다</span>`).join('')}</div>
     <div class="verdict ${C.lv === 'good' ? '' : C.lv}" style="margin-top:10px"><div class="vt"><span class="status ${C.lv}">${ICON[C.lv]} ${esc(C.verdict)}</span></div>
       ${fewer ? `<ul><li>같은 부위 사이가 지금 ${Math.min(...C.parts.map(p => p.gap))}일 이상이라, 하루 줄여도 모두 이틀 넘게 쉬어요.</li>
         <li>주간 세트(직접): ${C.proj.slice(0, 5).map(p => `${esc(mName(p.m))} ${Math.round(p.now)}→${Math.round(p.next)}`).join(' · ')}</li>
@@ -2937,7 +2964,7 @@ function viewAnalysis() {
     ${STRENGTH_MUSCLES.map(m => {
       const v = R.mv14.vol[m], dir = R.mv14.dW[m], ind = Math.max(0, v - dir);
       const [lo, hi] = volRange(m), onlyInd = dir < 0.5;
-      const lbl = onlyInd ? (ind > 0 ? '간접만' : '안 함') : v < lo ? `${r1(lo - v)}세트 여유` : v > hi ? '고볼륨' : '적정';
+      const lbl = onlyInd ? (ind > 0 ? '간접만' : '안 함') : v < lo ? `${r1(lo - v)}세트 부족` : v > hi ? '고볼륨' : '적정';
       const regs = (REG_GROUP[m] || []).map(k => { const rv = RW[k] || 0, [rlo, rhi] = REG_RANGE[k];
         const tag = ASSIST_REG.has(k) ? (rv < 0.5 ? '' : '협응근') : rv < 0.5 ? '안 함' : rv < rlo ? '적은 편' : '';
         return bandRow({ label: REGIONS[k], sub: tag, v: rv, lo: rlo, hi: rhi, max: rhi * 1.8, text: r1(rv), small: true }); }).join('');
@@ -2954,7 +2981,7 @@ function viewAnalysis() {
   h += fold('mix', '종목 구성 참고', tips.length ? `짚을 곳 ${tips.length}개` : '고르게 섞여 있어요', `<section class="card">
     ${tips.length ? tips.map((t, i) => `${i === 3 ? `<details class="more"><summary>${tips.length - 3}개 더 보기</summary>` : ''}<div class="mixtip"><div class="row between" style="gap:8px"><b>${mtag(t.m)} ${esc(t.t)}</b></div>
       <div class="d">${esc(t.d)}</div>
-      <div class="exs">${t.ex.map(id => eqById(id)).filter(Boolean).map(e => `<button class="chip" data-act="open-set" data-eq="${esc(e.id)}">${esc(e.name)}</button>`).join('')}</div>
+      <div class="exs">${(() => { const es = t.ex.map(id => eqById(id)).filter(Boolean), dup = n => es.filter(e => e.name === n).length > 1; return es.map(e => `<button class="chip" data-act="open-set" data-eq="${esc(e.id)}">${esc(dup(e.name) && e.brand ? `${e.brand} ${e.name}` : e.name)}</button>`).join(''); })()}</div>
       ${t.src ? `<div class="src">근거: ${esc(t.src)}</div>` : ''}</div>${i === tips.length - 1 && i >= 3 ? '</details>' : ''}`).join('')
     : '<div class="small muted">부위 안에서 종목이 고르게 섞여 있어요. 4주 기록이 쌓이면 윗가슴·측면 어깨·햄스트링처럼 빠지기 쉬운 부분을 짚어드려요.</div>'}
     <div class="note">경고가 아니라 참고예요. 목표나 체형에 따라 일부러 안 하는 종목이 있을 수 있어요. 종목을 누르면 바로 기록할 수 있어요.</div></section>`, false);
@@ -4064,7 +4091,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.11.3 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.12.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
