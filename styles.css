@@ -1046,3 +1046,8 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 .rp-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .rp-row:first-of-type { margin-top: 6px; }
 .rp-k { font-size: 13px; }
+
+.dlday { margin-bottom: 10px; }
+.dltbl { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 14px; }
+.dltbl td { padding: 6px 2px; border-top: 1px solid var(--line); vertical-align: top; }
+.dltbl td.num { text-align: right; white-space: nowrap; }

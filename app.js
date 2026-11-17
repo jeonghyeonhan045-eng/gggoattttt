@@ -994,8 +994,8 @@ function fxTarget(id) {
 function fxPrefill() {
   const F = state.fx, id = fxList()[F.i]; if (!id) return;
   const e = eqById(id) || eqOrRecord(id), u = unitFor(id), todays = (dayRO(state.date).sets || []).filter(s => s.eq === id);
-  const { prev } = fxTarget(id), last = todays[todays.length - 1];
-  const sg = !last && prev ? progressionHint(e, prev, u) : null;
+  const { prev } = fxTarget(id), last = todays[todays.length - 1], plan = dayRO(state.date).plan, dlx = plan && plan.dl && plan.dl[id];
+  const sg = !last && dlx ? { w: dlx.u === u ? dlx.w : r1(fromKg(toKg(dlx.w, dlx.u), u)), r: dlx.r, why: '디로딩: 평소 무게, 세트 절반, 2–3회 남기고 끝내기' } : !last && prev ? progressionHint(e, prev, u) : null;
   const src = last || (sg ? { w: sg.w, r: sg.r, u } : prev ? prev.sets[0] : null);
   F.w = src ? (src.u === u || !src.u ? +src.w || 0 : r1(fromKg(setKg(src), u))) : 0; F.r = src ? +src.r || 10 : 10; F.sg = sg;
 }
@@ -1477,7 +1477,8 @@ function setSheetHtml(e) {
   const pr = prOfEq(e.id), tpr = prOfType(type);
   const todays = dayRO(state.date).sets.filter(s => s.eq === e.id);
   const fav = DB.fav.includes(e.id);
-  const sg = progressionHint(e, prev, S.u);
+  const pl = dayRO(state.date).plan, dlx = pl && pl.dl && pl.dl[e.id] && !todays.length ? pl.dl[e.id] : null;
+  const sg = dlx ? { kind: 'hold', w: dlx.u === S.u ? dlx.w : r1(fromKg(toKg(dlx.w, dlx.u), S.u)), r: dlx.r, why: '디로딩: 평소 무게, 세트 절반, 2–3회 남기고 끝내기' } : progressionHint(e, prev, S.u);
   const prevTxt = i => { if (!prev) return '–'; const p = prev.sets[i]; return !p ? '–' : +p.w > 0 ? `${trimNum(p.u === S.u ? p.w : r1(fromKg(setKg(p), S.u)))}×${p.r}` : `${p.r}${isTimed(e) ? '초' : '회'}`; };
   const wPh = e.bw || BW_NEXT[e.id] ? '맨몸' : '0';
   let top = `<input class="fx-note" style="margin:0 0 10px" type="text" maxlength="60" placeholder="메모 — 의자 4칸, 그립 넓게 등 (다음에도 보여요)" value="${esc((DB.eqNote || {})[e.id] || '')}" data-on="eq-note" data-eq="${esc(e.id)}">`;
@@ -2192,6 +2193,8 @@ function recCardHtml(k) {
     const o = R.own, why = `${mName(o.sig)} ${R.info[o.sig].days >= 99 ? '처음' : R.info[o.sig].days + '일 쉼'}`;
     return `<section class="card reccard"><div class="small muted">${when} 추천 · 내 순서대로</div>
       <b style="font-size: 16px">${R.rest ? '쉬거나, 한다면 ' : ''}${esc(o.l)}${o.attach ? ` + ${esc(o.attach.l)}` : ''}</b>
+      ${!deloadOn(T) && deloadAnalysis().level === 'bad' ? `<button class="btn sm block" style="margin-top:6px" data-act="dl-open">디로딩할 때예요 · 내 기록으로 만든 루틴 보기</button>` : ''}
+      ${deloadOn(T) ? `<div class="small" style="margin-top:2px"><b>디로딩 주간</b> — 계획에 넣으면 세트 절반·평소 무게로 들어가요 (${shortDate(DB.settings.deload.to)}까지)</div>` : ''}
       ${o.roundDone ? '<div class="small" style="margin-top:2px">이번 바퀴는 끝났어요. 새 바퀴를 제일 오래 쉰 부위부터 시작해요.</div>' : ''}
       ${o.attach && !o.newRound ? `<div class="small" style="margin-top:2px">이번 바퀴는 ${esc(jo(mName(o.owed), '을', '를'))} 나눠서 해요 — ${esc(o.attach.why)}.</div>` : ''}
       ${o.newRound ? `<div class="small" style="margin-top:2px">${o.newRound}일 쉬었으니 새 바퀴를 ${esc(mName(o.sig))}부터 — 남은 ${esc(jo(mName(o.owed), '은', '는'))} 오늘 맞는 것만 붙여요. ${esc(o.attach.why)}.</div>` : ''}
@@ -2288,6 +2291,45 @@ function progression() {
   return rows.slice(0, 8);
 }
 
+/* deload routine from their own sessions: same exercises and order, about half the sets, their usual working
+   weight with 2–3 reps left in the tank (rest mode: the comeback week — 70% of the sets at ~90% of the weight) */
+function deloadOn(k) { const D = DB.settings.deload; return !!(D && k >= D.from && k <= D.to); }
+function deloadSession(srcK, mode) {
+  const ss = (dayRO(srcK).sets || []).filter(s => !isCardioSet(s)), by = {};
+  for (const s of ss) (by[s.eq] = by[s.eq] || []).push(s);
+  return Object.entries(by).map(([id, L]) => {
+    const e = eqById(id) || eqOrRecord(id), u = L[0].u || unitFor(id), bw = !(setKg(L[0]) > 0);
+    const top = Math.max(...L.map(setKg)), work = L.filter(x => Math.abs(setKg(x) - top) < 0.01);
+    const reps = Math.round(work.reduce((a, x) => a + (+x.r || 0), 0) / work.length) || 10;
+    const sets = Math.max(2, Math.round(L.length * (mode === 'rest' ? 0.7 : 0.5)));
+    const st = u === 'lb' ? 5 : 2.5, wU = bw ? 0 : fromKg(top, u), w = bw ? 0 : mode === 'rest' ? Math.round(wU * 0.9 / st) * st : r1(wU);
+    return { id, name: e ? e.name : (L[0].name || id), u, w, r: Math.max(5, reps - 2), sets, was: `${L.length}세트${bw ? '' : ` ${trimNum(r1(wU))}${u}`} × ${reps}회` };
+  });
+}
+function deloadPlan(T, srcK, mode) {
+  const L = deloadSession(srcK, mode), tg = {}, dl = {};
+  for (const x of L) { tg[x.id] = `${x.sets}×${x.r}`; dl[x.id] = { w: x.w, r: x.r, u: x.u }; }
+  day(T).plan = { from: srcK, eqs: L.map(x => x.id), tg, dl, label: `디로딩 · ${shortDate(srcK)} 운동 가볍게` }; save(); render();
+}
+function openDeloadRoutine() {
+  const dl = deloadAnalysis(), mode = dl.mode || 'light', O = ownOrder(addDays(today(), 1));
+  // one session per main part, from their latest day of it (in their order when they have one)
+  const last = {}; for (const x of pastSessions(addDays(today(), 1), 42)) { const ms = dayLabelMs(x.k); if (ms && ms.main && !last[ms.main]) last[ms.main] = x.k; }
+  const order = O ? O.orderSig.filter(m => last[m]) : Object.keys(last);
+  for (const m of Object.keys(last)) if (!order.includes(m)) order.push(m);
+  const T = trainedDay(today()) ? addDays(today(), 1) : today();
+  // start the list at the part that's up next
+  const nx = (() => { try { const R = recommendNext(T); return R.own ? R.own.sig : R.best ? R.best.ms[0] : null; } catch (e) { return null; } })(), at = order.indexOf(nx);
+  if (at > 0) order.push(...order.splice(0, at));
+  const on = DB.settings.deload && DB.settings.deload.to >= today();
+  const body = `<div class="small" style="margin-bottom:10px">${mode === 'rest' ? '지금은 3–5일 완전히 쉬고, 아래는 <b>복귀 첫 주</b> 루틴이에요 — 세트 70%, 무게 약 90%.' : '평소 하던 종목·순서 그대로, <b>세트는 절반</b>, 무게는 평소대로 두고 <b>세트마다 2–3회 남기고</b> 끝내요. 5–7일 하고 다음 주 원래대로.'}</div>
+    ${on ? `<div class="verdict good" style="margin-bottom:10px"><div class="status">디로딩 주간 중 · ${shortDate(DB.settings.deload.to)}까지 — 추천 카드의 계획도 가볍게 들어가요</div></div>` : `<button class="btn primary block" style="margin-bottom:12px" data-act="dl-start">이번 주를 디로딩 주간으로 (7일)</button>`}
+    ${order.map(m => { const k = last[m], L = deloadSession(k, mode); return `<section class="card dlday"><div class="row between"><b>${esc(dayLabelMs(k).map(mName).join('·'))}</b><span class="small muted">${shortDate(k)} 기준</span></div>
+      <table class="dltbl">${L.map(x => `<tr><td>${esc(x.name)}</td><td class="num"><b>${x.sets}세트${x.w ? ` × ${trimNum(x.w)}${x.u}` : ''} × ${x.r}회</b><div class="small muted">평소 ${esc(x.was)}</div></td></tr>`).join('')}</table>
+      <button class="btn sm block" style="margin-top:8px" data-act="dl-plan" data-k="${k}" data-t="${T}">${T === today() ? '오늘' : '내일'} 계획에 넣기</button></section>`; }).join('') || '<div class="small muted">최근 6주 기록이 있으면 부위별 루틴을 만들어줘요.</div>'}
+    ${on ? '<button class="btn block" style="margin-top:6px" data-act="dl-stop">디로딩 주간 끝내기</button>' : ''}`;
+  openSheet('디로딩', '내 기록으로 만든 가벼운 주', body, { kind: 'deload' });
+}
 function deloadAnalysis() {
   const W = 8, weeks = [];
   for (let w = W - 1; w >= 0; w--) weeks.push(Object.assign({ w }, weekSummary(w)));
@@ -2326,7 +2368,7 @@ function deloadAnalysis() {
   if (cur.rirN >= 6 && cur.rir <= 0.7) { pts += 1; reasons.push(`최근 세트 평균 RIR ${r1(cur.rir)} — 거의 매 세트 실패 지점까지 가고 있어요.`); }
 
   const light = lightWeeks();
-  const inDeload = light[light.length - 1];
+  const inDeload = deloadOn(today()) || light[light.length - 1];
   const justDeloaded = !inDeload && light[light.length - 2];
   const recovering = !inDeload && (light[light.length - 2] || light[light.length - 3]);
   if (recovering && stalled.length) {
@@ -2343,7 +2385,7 @@ function deloadAnalysis() {
   else if (inDeload) {
     level = 'good'; title = '디로딩 주간 진행 중';
     reasons.length = 0;
-    reasons.push(`최근 7일 근력 세트가 ${cur.sets}세트로 고점(${peak}세트)의 ${Math.round(cur.sets / peak * 100)}% — 회복 주간으로 보고 볼륨·정체 경고를 멈췄어요.`);
+    reasons.push(deloadOn(today()) ? `디로딩 주간이에요 (${shortDate(DB.settings.deload.to)}까지) — 볼륨·정체 경고를 멈췄어요.` : `최근 7일 근력 세트가 ${cur.sets}세트로 고점(${peak}세트)의 ${Math.round(cur.sets / peak * 100)}% — 회복 주간으로 보고 볼륨·정체 경고를 멈췄어요.`);
     reasons.push('다음 주에 원래 볼륨으로 돌아가면 됩니다.');
   }
   else if (pts >= 4) { level = 'bad'; title = '디로딩 권장'; }
@@ -3005,6 +3047,7 @@ function viewAnalysis() {
       <tr><td>요일</td><td>평소처럼 — 운동 습관과 근력 유지에 유리해요</td></tr>
       <tr><td>복귀</td><td>다음 주 원래 볼륨으로</td></tr></table>
       <div class="note">완전히 쉬는 게 나은 경우: 근육통이 심하고 컨디션·잠까지 나쁠 때. 컨디션 체크를 기록하면 앱이 둘 중 하나를 골라줘요.</div>`}</div>` : ''}
+    ${dl.level === 'bad' || dl.level === 'warn' || deloadOn(today()) ? `<button class="btn ${dl.level === 'bad' ? 'primary' : ''} block" style="margin-top:10px" data-act="dl-open">내 기록으로 디로딩 루틴 보기</button>` : ''}
     <div class="rx" style="margin-top:10px"><div class="k">앱 쓰기 전에 쉬지 않고 운동한 기간</div>
       <div class="chips" style="margin-top:6px">${[[0, '없음·처음'], [4, '1달'], [8, '2달'], [12, '3달 이상']].map(([v, l]) => `<button class="chip ${dl.preSet && DB.settings.preWeeks === v ? 'on' : ''}" data-act="pre-wk" data-v="${v}">${l}</button>`).join('')}</div>
       <div class="note">마지막으로 일주일 넘게 쉬거나 가볍게 한 뒤로 얼마나 됐는지예요. 앱 기록이 처음부터 쉬지 않고 이어질 때만 더해서 봐요.${dl.preAdd ? ` 지금 ${dl.preAdd}주를 더해서 판단했어요.` : ''}</div></div>
@@ -4091,7 +4134,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.12.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.13.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4252,6 +4295,7 @@ const ACT = {
   'own-plan': el => {
     const T = el.dataset.t, src = pastSessions(addDays(T, 1), 60).find(x => x.k === el.dataset.k) || (() => { const ss = (dayRO(el.dataset.k).sets || []).filter(s => !isCardioSet(s)); const eqs = []; for (const s of ss) if (!eqs.includes(s.eq)) eqs.push(s.eq); return { k: el.dataset.k, eqs }; })();
     if (!src || !src.eqs.length) return;
+    if (deloadOn(T)) { deloadPlan(T, src.k, 'light'); toast('디로딩 주간이라 가볍게 넣었어요'); return; }
     const add = (el.dataset.add || '').split(',').filter(id => id && !src.eqs.includes(id)), tg = {}; for (const id of add) tg[id] = '3×12–15';
     day(T).plan = { from: src.k, eqs: [...src.eqs, ...add], tg, label: `${shortDate(src.k)} 운동${add.length ? ` + ${add.length}종목` : ' 그대로'}` }; save(); render();
     toast(T === state.date ? `${dateLabel(src.k)} 운동 ${src.eqs.length}종목을 불러왔어요` : `내일 계획: ${src.eqs.length}종목`);
@@ -4358,6 +4402,10 @@ const ACT = {
   'fx-w': el => { state.fx.w = Math.max(0, r1(state.fx.w + +el.dataset.d)); fxRender(); },
   'share-img': el => { shareImage(el.dataset.k, !!el.dataset.story); },
   'fx-rs': el => { const id = fxList()[state.fx.i]; if (!id) return; DB.eqRest = DB.eqRest || {}; DB.eqRest[id] = +el.dataset.v; save(); fxRender(); },
+  'dl-open': () => openDeloadRoutine(),
+  'dl-plan': el => { deloadPlan(el.dataset.t, el.dataset.k, (deloadAnalysis().mode) || 'light'); closeSheet(); toast(`${el.dataset.t === today() ? '오늘' : '내일'} 계획: 디로딩 루틴`); },
+  'dl-start': () => { DB.settings.deload = { from: today(), to: addDays(today(), 6) }; save(); bump(); render(); openDeloadRoutine(); toast('디로딩 주간 시작 · 7일'); },
+  'dl-stop': () => { if (DB.settings.deload) DB.settings.deload.to = addDays(today(), -1); save(); bump(); render(); openDeloadRoutine(); },
   'pre-wk': el => { DB.settings.preWeeks = +el.dataset.v; save(); bump(); render(); },
   'fx-unit': el => {
     const F = state.fx, id = fxList()[F.i], u = unitFor(id), nu = el.dataset.u; if (!id || u === nu) return;
