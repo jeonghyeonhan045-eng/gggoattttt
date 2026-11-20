@@ -155,6 +155,9 @@ function refineRegions(out, name, type, grip) {
     out.gluteMed = Math.max(out.gluteMed || 0, single ? 0.5 : type === '스쿼트' || type === '힙 쓰러스트' ? 0.25 : 0);
   }
   if (type === '힙 어브덕션') { out.gluteMed = 1; out.glutes = 0.5; }
+  // one machine for both arms (curl one side, extension the other)
+  if (/콤보|combo|바이셉\s*\/\s*트라이셉|이두\s*\/\s*삼두/i.test(n)) { out.biceps = 1; out.triceps = 1; }
+  if (/스컬|skull|JM\s*프레스/i.test(n)) { out.triceps = 1; delete out.biceps; }
   // dumbbell pullover on a bench: done here as a chest / ribcage stretch — chest and serratus lead, lats help
   if (/덤벨\s*풀오버|db\s*pullover|dumbbell\s*pullover/i.test(n)) { out.chestL = 1; out.serratus = Math.max(out.serratus || 0, 0.5); out.lats = Math.min(out.lats || 0.5, 0.5); out.latsL = Math.min(out.latsL || 0.5, 0.5); }
   if (type === '푸시업' || type === '풀오버' || /인클라인|incline|오버헤드|overhead|펀치|punch/i.test(n) && (type === '인클라인 프레스' || type === '숄더 프레스')) out.serratus = Math.max(out.serratus || 0, type === '풀오버' ? 0.5 : 0.25);
@@ -174,7 +177,7 @@ function regionsOf(name, type, m, grip) {
   const out = Object.assign({}, TYPE_REG[type] || GROUP_REG[m] || {});
   for (const [re, add] of NAME_REG) if (re.test(name || '')) for (const [k, v] of Object.entries(add)) out[k] = v === 0 ? 0 : Math.max(out[k] || 0, v);
   // a curl named for arms (not legs) is a biceps curl
-  if (/컬|curl/i.test(name || '') && m === '팔' && !/트라이|tricep|익스텐션|리스트|wrist|리버스|reverse/i.test(name)) { out.biceps = Math.max(out.biceps || 0, 1); }
+  if (/컬|curl/i.test(name || '') && m === '팔' && !/트라이|tricep|익스텐션|리스트|wrist|리버스|reverse|스컬|skull/i.test(name)) { out.biceps = Math.max(out.biceps || 0, 1); }
   return refineRegions(out, name, type, grip);
 }
 

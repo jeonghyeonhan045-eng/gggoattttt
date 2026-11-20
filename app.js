@@ -220,7 +220,8 @@ function musclesOfDay(k) {
   // a part shows only with real work that day (3+ sets and 20%+ of the day): one accessory doesn't make it a back day
   const n = {}, ss = (d.sets || []).filter(s => s.m); for (const s of ss) n[s.m] = (n[s.m] || 0) + 1;
   const top = Object.keys(n).sort((a, b) => n[b] - n[a]);
-  const shown = new Set([...top.filter((m, i) => i === 0 || (n[m] >= 3 && n[m] / ss.length >= 0.2)), ...(d.done || [])]);
+  // arms/shoulders/core are usually add-ons: 4+ sets is enough to show them
+  const shown = new Set([...top.filter((m, i) => i === 0 || (n[m] >= 3 && n[m] / ss.length >= 0.2) || (['팔', '어깨', '코어'].includes(m) && n[m] >= 4)), ...(d.done || [])]);
   return { auto, all: [...top.filter(m => shown.has(m)), ...MUSCLES.filter(m => shown.has(m) && !n[m])] };
 }
 function trainedDay(k) { const d = dayRO(k); return (d.sets && d.sets.length > 0) || (d.done && d.done.length > 0); }
@@ -1212,7 +1213,7 @@ const tLabel = t => TYPE_LABEL[t] || t;
 const SEARCH_ALIAS = {
   '풀오버': '암풀다운 스트레이트암 스암풀 풀오버', '랫 풀다운': '랫풀 렛풀다운 광배 풀다운', '풀업': '턱걸이 풀업 친업 어시스트', '로우': '시티드로우 케이블로우 바벨로우 티바 덤벨로우 등',
   '레터럴 레이즈': '사레레 사이드레터럴 사이드레이즈 측면', '리어 델트': '후면 리어 리버스플라이 페이스풀 뒤어깨', '숄더 프레스': '숄프 밀프 밀리터리 ohp 오버헤드', '슈러그': '승모',
-  '바이셉 컬': '이두 팔컬 덤벨컬 해머컬', '트라이셉 익스텐션': '삼두 푸시다운 푸쉬다운 케이블푸시다운 스컬', '트라이셉 딥': '삼두 딥스',
+  '바이셉 컬': '이두 팔 팔운동 팔컬 덤벨컬 해머컬 암컬 바벨컬 이지바 프리처 케이블컬 로프', '트라이셉 익스텐션': '삼두 팔 팔운동 푸시다운 푸쉬다운 케이블푸시다운 로프 스컬 스컬크러셔 오버헤드 킥백 암익스텐션', '트라이셉 딥': '삼두 딥스',
   '벤치프레스': '벤치 가슴', '인클라인 프레스': '인클 윗가슴', '체스트 프레스': '체프 가슴', '펙 플라이': '펙덱 플라이 버터플라이 가슴', '딥스': '딥',
   '스쿼트': '스쿼트 스쿼드 하체', '레그 프레스': '레프 레그프레스', '레그 익스텐션': '레그익스 레익 대퇴', '레그 컬': '레그컬 햄스트링 레컬', '런지': '런지 불가리안 스플릿',
   '루마니안 데드리프트': 'rdl 루마 루데', '데드리프트': '데드 데드리프트', '힙 쓰러스트': '힙쓰 힙쓰러스트 엉덩이', '힙 어브덕션': '어브덕션 아웃타이 엉덩이옆', '힙 어덕션': '어덕션 이너타이 안쪽허벅지',
@@ -4154,7 +4155,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.14.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.14.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
