@@ -907,14 +907,14 @@ function viewWorkout() {
       const vol = g.reduce((a, s) => a + setKg(s) * (+s.r || 0), 0);
       if (id !== activeEq) {
         h += `<div class="card group compact" data-act="eq-expand" data-eq="${esc(id)}">
-          <div class="gh"><div><div class="b">${esc(e.brand || '')} ${mtag(f.m)}</div><div class="t">${esc(e.name)}</div></div>
+          <div class="gh">${exIcon(e)}<div style="flex:1;min-width:0"><div class="b">${esc(e.brand || '')} ${mtag(f.m)}</div><div class="t">${esc(e.name)}</div></div>
             <div class="r">${cardio ? `${trimNum(g.reduce((a, s) => a + (+s.mins || 0), 0))}분` : `${g.length}세트`} ▾</div></div>
           <div class="setchips">${g.map(s => `<span>${esc(fmtSetFull(s))}${flags.has(s.id) ? ' <b class="prb">PR</b>' : ''}</span>`).join('')}</div></div>`;
         continue;
       }
       h += `<div class="card group">
         <div class="gh" data-act="eq-expand" data-eq="${esc(id)}">
-          <div><div class="b">${esc(e.brand || '')} ${mtag(f.m)}</div><div class="t">${esc(e.name)}</div></div>
+          ${exIcon(e)}<div style="flex:1;min-width:0"><div class="b">${esc(e.brand || '')} ${mtag(f.m)}</div><div class="t">${esc(e.name)}</div></div>
           <div class="r">${cardio ? `${trimNum(g.reduce((a, s) => a + (+s.mins || 0), 0))}분` : `${g.length}세트${vol ? `<br>${fmtInt(vol)}kg` : ''}`}</div>
         </div>
         ${g.map((s, i) => `<div class="setrow" ${cardio ? '' : `data-act="set-edit" data-eq="${esc(id)}" data-id="${esc(s.id)}"`}>
@@ -1248,11 +1248,29 @@ function typesOf(m, pool) {
   return Object.keys(by).sort((a, b) => (used(b) > 0) - (used(a) > 0) || (ord.includes(a) ? ord.indexOf(a) : 99) - (ord.includes(b) ? ord.indexOf(b) : 99) || by[b].length - by[a].length)
     .map(t => ({ t, items: by[t].sort((x, y) => byUse(x, y) || KIND_RANK(x) - KIND_RANK(y)) }));
 }
+/* a tiny body icon for an exercise: the side (front/back) where it works most, its muscles lit */
+function exIcon(e) {
+  if (!e || e.kind === 'cardio' || isCardioSet({ type: typeOfEq(e) })) return '';
+  const R = regionsOf(e.name, typeOfEq(e), e.m, typeof gripOf === 'function' ? gripOf(e) : null);
+  // the group with the most work picks the crop; back-side regions pick the back view
+  const gs = Object.entries(REG_GROUP).map(([g, ks]) => [g, ks.reduce((a, k) => a + (R[k] || 0), 0)]).sort((a, b) => b[1] - a[1]);
+  const g = (gs[0] && gs[0][1] > 0 ? gs[0][0] : e.m) || '가슴', back = ['lats', 'latsL', 'midback', 'traps', 'lowback', 'deltR', 'triceps', 'hams', 'glutes', 'gluteMed', 'calves'];
+  const bw = back.reduce((a, k) => a + (R[k] || 0), 0), fw = Object.entries(R).filter(([k]) => !back.includes(k)).reduce((a, [, v]) => a + v, 0);
+  const view = bw > fw ? 'back' : 'front', box = (TILE_VIEW[g] || TILE_VIEW['가슴'])[1];
+  return `<span class="exicon">${bodySvg(view, R, 1, '').replace('viewBox="30 0 140 345"', `viewBox="${box}"`)}</span>`;
+}
+/* a small body crop with the group lit up — the picker's muscle buttons */
+const TILE_VIEW = { 가슴: ['front', '52 55 96 80'], 등: ['back', '50 52 100 112'], 어깨: ['front', '46 52 108 62'], 팔: ['front', '36 70 128 112'], 다리: ['front', '56 160 88 175'], 코어: ['front', '62 92 76 90'], 전신: ['front', '30 0 140 345'] };
+function muscleTile(m) {
+  const v = TILE_VIEW[m]; if (!v) return '<svg viewBox="0 0 40 40" class="bodymap"><circle cx="20" cy="20" r="11" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M14 20h12M20 14v12" stroke="currentColor" stroke-width="2.5"/></svg>';
+  const vals = {}; for (const k of (m === '전신' ? Object.values(REG_GROUP).flat() : REG_GROUP[m] || [])) vals[k] = 1;
+  return bodySvg(v[0], vals, 1, mName(m)).replace('viewBox="30 0 140 345"', `viewBox="${v[1]}"`).split(`fill:${heatColor(1)}`).join('fill:var(--hi)');
+}
 function pickerHtml() {
   return `<div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <input id="eq-q" type="search" placeholder="운동 검색 (예: 암풀다운, 사레레, 힙쓰)" value="${esc(state.eqQ)}" data-on="eq-q" autocomplete="off"></div>
   <div class="seg" style="margin-top:10px">${EQ_VIEWS.map(([v, l]) => `<button class="${state.eqView === v ? 'on' : ''}" data-act="eq-view" data-v="${v}">${l}</button>`).join('')}</div>
-  <div class="chips scrollx ${['all', 'move'].includes(state.eqView) ? '' : 'hidden'}" style="margin-top:8px" id="eq-mchips">${['전체'].concat(STRENGTH_MUSCLES, ['전신']).map(m => `<button class="chip ${state.eqM === m ? 'on' : ''}" data-act="eq-m" data-m="${esc(m)}">${esc(mName(m))}</button>`).join('')}</div>
+  <div class="mtiles ${['all', 'move'].includes(state.eqView) ? '' : 'hidden'}" id="eq-mchips">${['전체'].concat(STRENGTH_MUSCLES, ['전신']).map(m => `<button class="mtile chip ${state.eqM === m ? 'on' : ''}" data-act="eq-m" data-m="${esc(m)}">${muscleTile(m)}<span>${esc(m === '전체' ? '전체' : mName(m))}</span></button>`).join('')}</div>
   <div class="gymbar">${DB.settings.gym && DB.settings.gym.length
     ? `<button class="chip ${state.gymOnly !== false ? 'on' : ''}" data-act="gym-only">내 헬스장 기구만</button><button class="linkbtn" data-act="gym-open">기구 고치기</button>`
     : `<button class="linkbtn" data-act="gym-open">+ 내 헬스장 기구 등록하면 있는 머신만 보여요</button>`}</div>
@@ -1301,7 +1319,7 @@ function eqRow(e, slim) {
   const use = eqUse()[e.id];
   const meta = last ? `최근 ${shortDate(last.date)} · ${fmtSetFull(last)}${use && use.n > 1 ? ` · 총 ${use.n}세트` : ''}` : e.custom ? `직접 추가 · ${typeOfEq(e)}` : slim ? '' : (e.kind === 'free' || e.kind === 'machine' ? `${typeOfEq(e)}` : '');
   return `<div class="eqrow" data-act="open-set" data-eq="${esc(e.id)}">
-    <div class="main">${slim ? '' : `<div class="b">${esc(e.brand)} ${unit}</div>`}<div class="nm">${esc(e.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</div>
+    ${exIcon(e)}<div class="main">${slim ? '' : `<div class="b">${esc(e.brand)} ${unit}</div>`}<div class="nm">${esc(e.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</div>
     <button class="star ${fav ? 'on' : ''}" data-act="fav" data-eq="${esc(e.id)}" aria-label="즐겨찾기"><svg viewBox="0 0 24 24" fill="${fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></button>
   </div>`;
 }
@@ -4160,7 +4178,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.14.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.15.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 

@@ -1060,3 +1060,13 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 .gc-map svg { width: 100%; height: 120px; }
 .gc b { font-size: 12px; }
 .gc .small { font-size: 11px; line-height: 1.3; }
+
+/* picker: muscle tiles (body crop with the group lit) */
+.mtiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.mtiles .mtile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 6px; height: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-weight: 700; font-size: 13px; }
+.mtiles .mtile svg { width: 100%; height: 54px; }
+.mtiles .mtile.on { border: 2px solid var(--hi); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hi) 22%, transparent); }
+.mtiles .mtile:not(.on) svg { opacity: .78; }
+
+.exicon { flex: none; width: 40px; height: 52px; border-radius: 10px; background: var(--bg2, var(--bg)); border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; overflow: hidden; margin-right: 10px; }
+.exicon svg { width: 100%; height: 100%; }
