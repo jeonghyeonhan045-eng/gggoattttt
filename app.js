@@ -1470,7 +1470,12 @@ function gripHtml(e, type) {
   const cur = gripOf(e), opt = GRIPS[g].find(x => x[0] === cur);
   return `<div class="grips"><div class="k">그립 <span class="muted">— 고르면 쓰는 부위가 바뀌어요</span></div>
     <div class="gripchips">${GRIPS[g].map(([id, l]) => `<button class="${id === cur ? 'on' : ''}" data-act="set-grip" data-g="${id}"><svg viewBox="0 0 36 20" aria-hidden="true">${GRIP_ICON[id]}</svg><span>${l}</span></button>`).join('')}</div>
-    <div class="note" style="margin-top:4px">${esc(opt[3])}</div></div>`;
+    <div class="note" style="margin-top:4px">${esc(opt[3])}</div>
+    <details class="gripcmp"><summary>그립별로 쓰는 부위 비교</summary><div class="gc-row" style="grid-template-columns:repeat(${GRIPS[g].length === 3 ? 3 : 2},1fr)">${GRIPS[g].map(([id, l]) => {
+      const R = regionsOf(e.name, type, e.m, id), view = g === 'lat' || g === 'row' ? 'back' : 'front';
+      const main = Object.entries(R).filter(([, v]) => v >= 0.75).sort((a, b) => b[1] - a[1]).map(([k]) => REGIONS[k]).slice(0, 3).join(' · ');
+      return `<div class="gc ${id === cur ? 'on' : ''}"><div class="gc-map">${bodySvg(view, R, 1, '')}</div><b>${esc(l)}</b><span class="small muted">${esc(main)}</span></div>`;
+    }).join('')}</div><div class="note">진하게 칠한 곳이 그 그립에서 주로 쓰는 부위예요.</div></details></div>`;
 }
 function setSheetHtml(e) {
   const S = state.sheet, type = typeOfEq(e);
@@ -4155,7 +4160,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.14.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.14.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
