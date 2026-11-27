@@ -1318,7 +1318,7 @@ function backSwap(id, avoid) {
   if (!backSafe() || !BACK_LIFT.has(id) || !BACK_TO[id]) return id;
   const [types, fb] = BACK_TO[id];
   // avoid: exercises already in the day (RDL → leg curl on a day that has leg curls takes a second curl machine)
-  const pool = allEq().filter(x => (x.kind !== 'cardio' && !BACK_LIFT.has(x.id) && types.includes(typeOfEq(x)) && !/스미스|smith|바벨|barbell/i.test(x.name + ' ' + (x.brand || '')) || x.id === fb) && !(avoid && avoid.has(gymSwap(x.id))));
+  const pool = allEq().filter(x => (x.kind !== 'cardio' && !BACK_LIFT.has(x.id) && types.includes(typeOfEq(x)) && !(/바벨|barbell/i.test(x.name) && !/스미스|smith/i.test(x.name)) || x.id === fb) && !(avoid && avoid.has(gymSwap(x.id))));
   const best = pool.sort((a, b) => byUse(a, b) || (toolOf(a) === '머신' ? 0 : 1) - (toolOf(b) === '머신' ? 0 : 1))[0];
   return best ? best.id : fb;
 }
@@ -3075,7 +3075,7 @@ function strengthBalance() {
     const types = (BACK_TO[L.id] || [[]])[0], ses = {};
     for (const s of allSets()) {
       if (s.date < from || isCardioSet(s) || !(s.r > 0) || s.r > 15 || BACK_LIFT.has(s.eq)) continue;
-      const t = s.type || typeOfEq(eqOrRecord(s.eq) || {}); if (!types.includes(t) || /스미스|smith|바벨|barbell/i.test((s.name || '') + ' ' + (s.brand || ''))) continue; // smith/barbell still load the spine
+      const t = s.type || typeOfEq(eqOrRecord(s.eq) || {}); if (!types.includes(t)) continue;
       const m = (ses[s.eq] = ses[s.eq] || {}); m[s.date] = Math.max(m[s.date] || 0, setE1(s));
     }
     const lastOf = m => Object.keys(m).sort().pop();
@@ -4344,7 +4344,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.17.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.17.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
