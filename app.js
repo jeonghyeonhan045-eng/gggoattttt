@@ -2938,6 +2938,15 @@ const BAL_PAIRS = [
   ['fw-ohp', 'fw-bench', 0.55, 0.85, '오버헤드 프레스는 보통 벤치의 0.6–0.7배'],
   ['fw-bbrow', 'fw-bench', 0.65, 1.3, '바벨 로우는 보통 벤치의 0.7–1배'],
 ];
+/* close cousins of the barbell lifts, converted roughly (rules of thumb, not studies):
+   smith ≈ 10% more than free barbell; two dumbbells ≈ 80% of a barbell; RDL ≈ 75% of a deadlift; rack pull ≈ 115% */
+const BAL_EQUIV = {
+  'fw-squat': [[/스미스|smith/i, ['스쿼트'], 0.9, '스미스 스쿼트']],
+  'fw-bench': [[/스미스|smith/i, ['벤치프레스', '인클라인 프레스'], 0.9, '스미스 벤치'], [/덤벨|dumbbell|db/i, ['벤치프레스'], 1.6, '덤벨 벤치']],
+  'fw-ohp': [[/스미스|smith/i, ['숄더 프레스'], 0.9, '스미스 숄더 프레스'], [/덤벨|dumbbell|db|아놀드/i, ['숄더 프레스'], 1.6, '덤벨 숄더 프레스']],
+  'fw-bbrow': [[/펜들레이|pendlay/i, ['로우'], 1, '펜들레이 로우'], [/덤벨|원암|dumbbell|one.?arm/i, ['로우'], 1.5, '덤벨 로우']],
+  'fw-deadlift': [[/랙\s*풀|rack\s*pull/i, ['데드리프트'], 0.87, '랙 풀'], [/^(?!.*덤벨).*(루마니안|rdl|romanian)/i, ['루마니안 데드리프트'], 1.3, 'RDL'], [/덤벨.*(루마니안|rdl)/i, ['루마니안 데드리프트'], 2.1, '덤벨 RDL']],
+};
 function strengthBalance() {
   const from = addDays(today(), -84), bw = latestBodyweight(), sex = (DB.settings.profile || {}).sex === 'f' ? 'f' : 'm';
   const best = {}, sets4 = {};
@@ -2948,11 +2957,18 @@ function strengthBalance() {
   }
   // where in the session each lift usually comes: a lift always done after the others reads weaker than it is
   const pos = {}; for (const L of BAL_LIFTS) { const ds = [...new Set(allSets().filter(s => s.eq === L.id && s.date >= from).map(s => s.date))]; const ps = ds.map(k => eqPos(k, L.id)).filter(Boolean); if (ps.length) pos[L.id] = { avg: ps.reduce((a, b) => a + b, 0) / ps.length, first: ps.some(p => p === 1) }; }
+  // no barbell record → the best close cousin, converted (marked as an estimate)
+  const conv = {};
+  for (const L of BAL_LIFTS) if (!best[L.id]) for (const s of allSets()) {
+    if (s.date < from || isCardioSet(s) || !(s.r > 0) || s.r > 12 || s.eq === L.id) continue;
+    const t = s.type || typeOfEq(eqOrRecord(s.eq) || {}), nm = s.name || (eqOrRecord(s.eq) || {}).name || '';
+    for (const [re, types, f, l] of BAL_EQUIV[L.id] || []) if (types.includes(t) && re.test(nm)) { const v = setE1(s) * f; if (v > ((conv[L.id] || {}).v || 0)) conv[L.id] = { v, from: l, name: nm, eq: s.eq }; break; }
+  }
   const lifts = BAL_LIFTS.map(L => {
-    const e1 = best[L.id] ? r1(best[L.id]) : null, th = L[sex];
+    const cv = !best[L.id] && conv[L.id], e1 = best[L.id] ? r1(best[L.id]) : cv ? r1(cv.v) : null, th = L[sex];
     let lv = null;
     if (e1 && bw) { const x = e1 / bw; if (x < th[0]) lv = x / th[0] - 1; else { let k = 0; while (k < 4 && x >= th[k + 1]) k++; lv = k + (k < 4 ? (x - th[k]) / (th[k + 1] - th[k]) : 0); } }
-    return { ...L, e1, lv, x: e1 && bw ? e1 / bw : null, sets4: sets4[L.id] || 0, pos: pos[L.id] };
+    return { ...L, e1, lv, x: e1 && bw ? e1 / bw : null, sets4: sets4[cv ? cv.eq : L.id] || 0, pos: pos[L.id], conv: cv || null };
   });
   const has = lifts.filter(x => x.e1), byId = Object.fromEntries(lifts.map(x => [x.id, x]));
   const weak = {};
@@ -2967,25 +2983,60 @@ function strengthBalance() {
   if (lvs.length >= 3) { const med = lvs.map(x => x.lv).sort((p, q) => p - q)[lvs.length >> 1]; for (const x of lvs) if (x.lv <= med - 1) (weak[x.id] = weak[x.id] || []).push(`체중 대비 다른 운동보다 한 단계 낮아요`); }
   return { bw, sex, lifts, has, weak, sexSet: !!(DB.settings.profile || {}).sex };
 }
+/* machine-friendly balance: how fast each movement group is growing (each machine against itself),
+   and how the weekly sets split between pushing, pulling and legs */
+const PAT = s => { const t = s.type || typeOfEq(eqOrRecord(s.eq) || {}); return s.m === '등' || t === '리어 델트' ? '당기기' : s.m === '가슴' || s.m === '어깨' ? '밀기' : s.m === '다리' ? '하체' : s.m === '팔' ? '팔' : null; };
+function growthBalance() {
+  const t = today(), A0 = addDays(t, -27), B0 = addDays(t, -55), a = {}, b = {}, grp = {};
+  for (const s of allSets()) {
+    if (s.date < B0 || isCardioSet(s) || !(s.r > 0) || s.r > 15) continue;
+    const g = PAT(s); if (!g) continue; grp[s.eq] = g;
+    const e = setE1(s), w = s.date >= A0 ? a : b; if (e > (w[s.eq] || 0)) w[s.eq] = e;
+  }
+  const by = {};
+  for (const id of Object.keys(a)) if (b[id]) (by[grp[id]] = by[grp[id]] || []).push(a[id] / b[id] - 1);
+  const med = L => { const x = L.slice().sort((p, q) => p - q); return x[(x.length - 1) >> 1]; };
+  const rows = ['밀기', '당기기', '하체', '팔'].filter(g => by[g]).map(g => ({ g, pct: med(by[g]), n: by[g].length }));
+  const top = Math.max(...rows.map(r => r.pct), 0);
+  for (const r of rows) r.lag = rows.length >= 2 && r.pct < 0.03 && top - r.pct >= 0.08;
+  // weekly sets, last 4 weeks
+  const n = { 밀기: 0, 당기기: 0, 하체: 0, 팔: 0 };
+  for (const s of setsBetween(addDays(t, -27), t)) { if (isCardioSet(s)) continue; const g = PAT(s); if (g) n[g] += 1; }
+  for (const k in n) n[k] = r1(n[k] / 4);
+  const vol = [];
+  if (n.밀기 >= 6 && n.당기기 < n.밀기 * 0.75) vol.push(`당기는 운동이 주 ${n.당기기}세트로 미는 운동(${n.밀기}세트)의 ${Math.round(n.당기기 / n.밀기 * 100)}% — 비슷하게 맞추는 게 어깨 건강에 좋아요.`);
+  if (n.밀기 + n.당기기 >= 12 && n.하체 < (n.밀기 + n.당기기) / 2 * 0.6) vol.push(`하체가 주 ${n.하체}세트로 상체(미는·당기는 평균 ${r1((n.밀기 + n.당기기) / 2)}세트)보다 많이 적어요.`);
+  return { rows, vol, n };
+}
 function balanceHtml() {
-  const B = strengthBalance();
-  if (B.has.length < 2) return fold('balance', '힘 밸런스', '바벨 2종목 이상 필요', `<section class="card"><div class="small muted">벤치·스쿼트·데드리프트·오버헤드 프레스·바벨 로우 중 2개 이상을 최근 12주 안에 12회 이하로 기록하면 서로 비교해서 약한 쪽을 알려줘요. 머신은 브랜드마다 무게가 달라서 비교에서 빠져요.</div></section>`, false);
-  const wk = Object.keys(B.weak);
+  const B = strengthBalance(), G = growthBalance();
+  const wk = B.has.length >= 2 ? Object.keys(B.weak) : [];
   const rows = B.lifts.map(x => {
     const w = B.weak[x.id];
     const lvTxt = x.lv == null ? (x.e1 ? '' : '기록 없음') : x.lv < 0 ? '입문 아래' : BAL_LV[Math.min(4, Math.floor(x.lv))];
-    return `<tr class="${w ? 'weak' : ''}"><td>${esc(x.l)}</td><td class="num">${x.e1 ? `${trimNum(x.e1)}kg` : '–'}</td><td class="num">${x.x ? `${x.x.toFixed(2)}배` : ''}</td><td>${w ? '<b class="bad">약점</b> ' : ''}${esc(lvTxt)}</td></tr>`;
+    return `<tr class="${w && wk.length ? 'weak' : ''}"><td>${esc(x.l)}${x.conv ? `<div class="small muted">≈ ${esc(x.conv.from)} 환산</div>` : ''}</td><td class="num">${x.e1 ? `${x.conv ? '≈' : ''}${trimNum(x.e1)}kg` : '–'}</td><td class="num">${x.x ? `${x.x.toFixed(2)}배` : ''}</td><td>${w && wk.length ? '<b class="bad">약점</b> ' : ''}${esc(lvTxt)}</td></tr>`;
   }).join('');
   const advice = wk.map(id => {
     const x = B.lifts.find(l => l.id === id);
     const late = x.pos && !x.pos.first && x.pos.avg >= 2.5 ? ` 보통 ${Math.round(x.pos.avg)}번째 종목으로 해서 실제보다 낮게 나왔을 수 있어요 — 한 번 첫 종목으로 해보고 비교해 보세요.` : '';
     return `<li><b>${esc(x.l)}</b> — ${esc(B.weak[id].join(' · '))}${late ? `<div class="small" style="margin-top:2px">${esc(late.trim())}</div>` : ''}<div class="small muted">최근 4주 ${x.sets4}세트. 주 2회로 늘리고 그날 첫 종목으로, 3–4세트 4–8회. 보조로 ${esc(x.fix)}.</div></li>`;
   }).join('');
+  const lag = G.rows.filter(r => r.lag);
+  const pctTxt = p => `${p >= 0 ? '+' : ''}${Math.round(p * 100)}%`;
   const body = `<section class="card">
+    <div class="sec-sub"><b>부위별 성장 속도</b> <span class="small muted">최근 4주 vs 그 전 4주 · 같은 기구끼리</span></div>
+    ${G.rows.length ? `<table class="baltbl"><tr><th>부위</th><th>추정 최대 변화</th><th>종목</th><th></th></tr>${G.rows.map(r => `<tr class="${r.lag ? 'weak' : ''}"><td>${esc(r.g)}</td><td class="num">${pctTxt(r.pct)}</td><td class="num">${r.n}개</td><td>${r.lag ? '<b class="bad">뒤처짐</b>' : ''}</td></tr>`).join('')}</table>
+      ${lag.length ? `<div class="small" style="margin-top:6px">${esc(jo(lag.map(r => r.g).join('·'), '이', '가'))} 다른 부위보다 덜 늘고 있어요. 그 부위를 그날 첫 종목으로 옮기거나, 주당 2–4세트 더해보세요.</div>` : '<div class="small" style="margin-top:6px">부위끼리 비슷한 속도로 늘고 있어요.</div>'}`
+      : '<div class="small muted">같은 기구를 4주 넘게 쓰면 부위별로 얼마나 느는지 비교해 줘요. 머신만 써도 돼요.</div>'}
+    <div class="sec-sub" style="margin-top:14px"><b>주간 세트 균형</b> <span class="small muted">최근 4주 평균</span></div>
+    <div class="small">밀기 ${G.n.밀기} · 당기기 ${G.n.당기기} · 하체 ${G.n.하체} · 팔 ${G.n.팔}세트/주</div>
+    ${G.vol.length ? `<ul class="ballist">${G.vol.map(v => `<li>${esc(v)}</li>`).join('')}</ul>` : '<div class="small muted" style="margin-top:2px">미는·당기는·하체 세트가 고르게 나뉘어 있어요.</div>'}
+    <div class="sec-sub" style="margin-top:14px"><b>큰 운동끼리 비율</b> <span class="small muted">바벨 기준 · 비슷한 운동은 환산</span></div>
     <table class="baltbl"><tr><th>종목</th><th>추정 최대</th><th>체중 대비</th><th>수준</th></tr>${rows}</table>
-    ${wk.length ? `<div class="sec-sub" style="margin-top:12px"><b>보완할 곳</b></div><ul class="ballist">${advice}</ul>` : `<div class="small" style="margin-top:10px">${B.has.length >= 3 ? '큰 운동끼리 비율이 고르게 맞아요.' : '기록한 종목끼리는 비율이 맞아요. 나머지 종목도 해보면 더 정확해져요.'}</div>`}
-    <div class="note">최근 12주 최고 기록으로 1회 최대 무게를 추정해서 비교해요(12회 이하 세트만). 운동 순서도 봐요: 늘 뒤에 하는 종목은 피로 때문에 낮게 나올 수 있어서 따로 알려줘요. 수준은 ${B.sexSet ? (B.sex === 'f' ? '여성' : '남성') : '남성(루틴에서 성별을 고르면 바뀌어요)'} 기준의 대략적인 값이에요.${B.bw ? ` 체중 ${trimNum(B.bw)}kg 기준.` : ' 체중을 기록하면 체중 대비 수준도 보여요.'} 머신 기록은 브랜드마다 무게가 달라서 빠져요.</div></section>`;
-  return fold('balance', '힘 밸런스', wk.length ? `약점 ${wk.map(id => B.lifts.find(l => l.id === id).l).join('·')}` : '고르게 맞아요', body, !!wk.length);
+    ${B.has.length < 2 ? '<div class="small muted" style="margin-top:6px">바벨(또는 스미스·덤벨로 환산되는 운동) 2종목 이상이면 비율도 비교해요.</div>' : wk.length ? `<div class="sec-sub" style="margin-top:12px"><b>보완할 곳</b></div><ul class="ballist">${advice}</ul>` : `<div class="small" style="margin-top:10px">큰 운동끼리 비율이 맞아요.</div>`}
+    <div class="note">성장 속도는 기구마다 자기 기록끼리만 비교해서 머신도 정확해요. 비율 비교의 ≈ 표시는 대략적인 환산이에요(스미스는 바벨보다 약 10% 더 들리고, 덤벨 두 개는 바벨의 약 80%, 덤벨 무게는 한 손 기준). 수준은 ${B.sexSet ? (B.sex === 'f' ? '여성' : '남성') : '남성'} 기준 대략값이에요.${B.bw ? ` 체중 ${trimNum(B.bw)}kg.` : ''}</div></section>`;
+  const asideTxt = [lag.length ? `뒤처짐 ${lag.map(r => r.g).join('·')}` : '', wk.length ? `약점 ${wk.map(id => B.lifts.find(l => l.id === id).l).join('·')}` : '', G.vol.length ? '세트 불균형' : ''].filter(Boolean).join(' · ') || '고르게 맞아요';
+  return fold('balance', '힘 밸런스', asideTxt, body, !!(wk.length || lag.length || G.vol.length));
 }
 function viewAnalysis() {
   const R = buildReport(), dl = R.dl, ws = dl.cur, ES = energySummary(7);
@@ -4180,7 +4231,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.15.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.16.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4195,10 +4246,14 @@ async function exportData() {
       return;
     } catch (e) { if (String(e && e.message || e).includes('cancel')) return; }
   }
-  openSheet('백업 내보내기', '백업 코드', `<div class="small muted">아래 코드를 전부 복사해 메모장이나 카톡 '나에게 보내기'에 저장하세요. 나중에 '백업 가져오기'에 붙여넣으면 복원돼요. APK 앱에서는 파일로 저장돼요.</div>
-    <textarea id="bk-code" readonly rows="8" style="margin-top:10px;font-family:var(--mono);font-size: 12px">${esc(data)}</textarea>
-    <div class="grid2" style="margin-top:10px"><button class="btn primary" data-act="bk-copy">전체 복사</button><button class="btn" data-act="bk-file">파일로 저장</button></div>`, { kind: 'backup' });
-  state.bkData = data; state.bkName = name;
+  // no giant text box: inbody photos make the backup several MB, and putting that in a textarea froze phones
+  const lite = JSON.stringify({ app: 'ironlog', exported: new Date().toISOString(), db: DB, photos: {} });
+  const mb = n => n > 1e6 ? `${(n / 1e6).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1e3))}KB`;
+  state.bkData = data; state.bkLite = lite; state.bkName = name;
+  openSheet('백업 내보내기', '백업 파일', `<div class="small muted">파일로 저장해서 보관하거나 카톡 '나에게 보내기'로 보내두세요. 나중에 '백업 가져오기'에서 그 파일을 고르면 복원돼요.</div>
+    <button class="btn primary block" style="margin-top:12px" data-act="bk-file">파일로 저장 · 전체 (${mb(data.length)})</button>
+    ${Object.keys(PHOTOS || {}).length ? `<button class="btn block" style="margin-top:8px" data-act="bk-file" data-lite="1">사진 빼고 저장 (${mb(lite.length)})</button><div class="small muted" style="margin-top:4px">인바디 사진이 용량 대부분이에요. 기록만 필요하면 사진 빼고 저장하세요.</div>` : ''}
+    <button class="btn block" style="margin-top:8px" data-act="bk-copy">코드로 복사 (사진 빼고)</button>`, { kind: 'backup' });
 }
 function importData(file) {
   const rd = new FileReader();
@@ -4599,7 +4654,7 @@ const ACT = {
     save(); closeSheet(); render(); toast('목표를 저장했어요');
   },
   'export': () => exportData(),
-  'bk-file': () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([state.bkData || ''], { type: 'application/json' })); a.download = state.bkName || 'ounwan-backup.json'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); toast('다운로드 폴더에 저장했어요'); } catch (e) { toast('저장하지 못했어요. 전체 복사를 써주세요'); } },
+  'bk-file': el => { try { const lite = el && el.dataset.lite, a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([(lite ? state.bkLite : state.bkData) || ''], { type: 'application/json' })); a.download = (state.bkName || 'ounwan-backup.json').replace('.json', lite ? '-기록만.json' : '.json'); document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); toast('다운로드 폴더에 저장했어요'); } catch (e) { toast('저장하지 못했어요. 전체 복사를 써주세요'); } },
   'import': () => openSheet('백업 가져오기', '복원', `<button class="btn block" data-act="import-file">백업 파일 선택</button>
     <div class="small muted" style="margin:12px 0 6px">또는 복사해 둔 백업 코드를 붙여넣기</div>
     <textarea id="bk-in" rows="6" style="font-family:var(--mono);font-size: 12px" placeholder='{"app":"ironlog", ...}'></textarea>
@@ -4607,9 +4662,8 @@ const ACT = {
   'import-file': () => $('#import-file').click(),
   'import-text': () => importText($('#bk-in').value.trim()),
   'bk-copy': () => {
-    const t = $('#bk-code');
-    const fallback = () => { t.focus(); t.select(); toast('선택됐어요 — 길게 눌러 복사하세요'); };
-    try { navigator.clipboard.writeText(t.value).then(() => toast('복사했어요'), fallback); } catch (e) { fallback(); }
+    const fallback = () => toast('복사가 안 돼요 — 파일로 저장을 써주세요');
+    try { navigator.clipboard.writeText(state.bkLite || '').then(() => toast('복사했어요 — 카톡 나에게 보내기에 붙여넣으세요'), fallback); } catch (e) { fallback(); }
   },
   'reset': () => askConfirm('모든 운동·식단·인바디 기록을 지울까요? 되돌릴 수 없어요. 먼저 백업을 권해요.', '전부 초기화', () => {
     DB = DEFAULTS(); PHOTOS = {}; save(); savePhotos(); closeSheet(); render(); toast('초기화했어요');
