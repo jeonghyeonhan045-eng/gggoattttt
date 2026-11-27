@@ -2309,7 +2309,9 @@ function progression() {
       if (order) status = 'flat';
     }
     const e = eqById(eq) || list[0];
-    rows.push({ eq, name: e.name, brand: e.brand, type: list[0].type, m: list[0].m, n: list.length, sessions: sessions.size, wk, rec, prior, pct, status, order });
+    // the real top set of the latest session (what they actually lifted), shown above the estimate
+    const lastD = list.reduce((a, s) => s.date > a ? s.date : a, ''), top = list.filter(s => s.date === lastD).sort((a, b) => setKg(b) - setKg(a) || (b.r || 0) - (a.r || 0))[0];
+    rows.push({ eq, name: e.name, brand: e.brand, type: list[0].type, m: list[0].m, n: list.length, sessions: sessions.size, wk, rec, prior, pct, status, order, top });
   }
   rows.sort((x, y) => y.n - x.n);
   return rows.slice(0, 8);
@@ -3104,9 +3106,9 @@ function viewAnalysis() {
       const lbl = p.order ? `순서 영향 (${p.order.from}→${p.order.to}번째)` : p.status === 'up' ? `상승 +${Math.round(p.pct * 100)}%` : p.status === 'down' ? `하락 ${Math.round(p.pct * 100)}%` : p.status === 'flat' ? '정체' : p.status === 'idle' ? '최근 한 달 기록 없음' : '기록 쌓는 중';
       return `<div class="prog-row"><div><div class="nm">${esc(p.name)}</div><div class="sub">${esc(p.brand || '')} · ${esc(p.type)} · ${p.sessions}회</div></div>
         <div>${sparkline(p.wk, { color: `var(--m-${MKEY[p.m] || 'full'})` })}</div>
-        <div class="st"><span class="status ${lv}">${ICON[lv]} ${lbl}</span><div class="small muted num">${p.rec > 0 ? r1(p.rec) + 'kg' : ''}</div></div></div>`;
+        <div class="st"><span class="status ${lv}">${ICON[lv]} ${lbl}</span><div class="num pr-top">${p.top && +p.top.w > 0 ? esc(`${trimNum(p.top.w)}${p.top.u || 'kg'} × ${p.top.r}`) : ''}</div><div class="small muted num">${p.rec > 0 ? `추정 최대 ${r1(p.rec)}kg` : ''}</div></div></div>`;
     }).join('') : '<div class="small muted">같은 기구로 3회 이상 운동하면 여기에 진행 추이가 보여요.</div>'}
-    <div class="note">최근 운동한 2주의 최고 vs 그 전 최고 비교(디로딩 주간은 빼고, 쉰 주는 건너뛰어요). 서로 다른 기구는 무게가 1:1로 같지 않아 기구별로 따로 추적해요.</div>
+    <div class="note">위 숫자는 마지막으로 한 날의 가장 무거운 세트, 아래는 그걸로 계산한 1회 최대 추정치예요. 상승·정체는 추정치로 최근 운동한 2주의 최고 vs 그 전 최고를 비교해요(디로딩 주간은 빼고, 쉰 주는 건너뛰어요). 서로 다른 기구는 무게가 1:1로 같지 않아 기구별로 따로 추적해요.</div>
   </section>`, prog.some(p => p.status === 'flat' || p.status === 'down'));
 
   // nutrition (hidden while the diet tab is off)
@@ -4178,7 +4180,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.15.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.15.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
