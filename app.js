@@ -1056,9 +1056,10 @@ function startPlan(list, label, from) {
   // list: [[eqId, target]]; the same exercise twice (5/3/1 main + 5×10) becomes one row with both targets
   const eqs = [], tg = {};
   let swapped = 0;
-  for (const [id0, t] of list) { const id = gymSwap(id0); if (id !== id0) swapped++; if (!eqById(id)) continue; if (!eqs.includes(id)) { eqs.push(id); tg[id] = t; } else tg[id] += ` + ${t}`; }
+  let backN = 0; const inDay = new Set(list.map(([x]) => gymSwap(x)));
+  for (const [id00, t] of list) { const id0 = backSwap(id00, new Set([...inDay, ...eqs])); if (id0 !== id00) inDay.add(gymSwap(id0)); if (id0 !== id00) backN++; const id = gymSwap(id0); if (id !== id0) swapped++; if (!eqById(id)) continue; if (!eqs.includes(id)) { eqs.push(id); tg[id] = t; } else tg[id] += ` + ${t}`; }
   day(state.date).plan = { from: from || state.date, eqs, tg, label };
-  if (swapped) setTimeout(() => toast(`내 헬스장에 없는 기구 ${swapped}개를 같은 운동으로 바꿨어요`), 1600);
+  if (backN || swapped) setTimeout(() => toast([backN ? `허리 부담 운동 ${backN}개를 머신으로` : '', swapped ? `헬스장에 없는 기구 ${swapped}개를 같은 운동으로` : ''].filter(Boolean).join(', ') + ' 바꿨어요'), 1600);
   state.planOpen = false; state.openEq = null;
   save(); closeSheet(); render(); window.scrollTo(0, 0);
   toast(`${label} · ${eqs.length}종목 · 종목을 눌러 기록하세요`);
@@ -1204,7 +1205,7 @@ function openProgram(id) {
     <div class="sec-h" style="margin-top:16px"><h2 style="font-size: 15px">날짜별 구성</h2></div>
     ${p.days.map((d, i) => `<div class="progday ${i === nx ? 'next' : ''}">
       <div class="row between"><b>${esc(d.t)}</b><span class="row" style="gap:8px">${i === nx && DB.prog && DB.prog.id === id ? '<span class="small" style="color:var(--acc);font-weight:800">다음 차례</span>' : ''}<a class="vlink" href="${ytLink(dayQuery(p, d))}" target="_blank" rel="noopener">▶ 영상</a></span></div>
-      ${d.ex.map(([eid, t]) => { const e = eqById(eid) || { name: eid, m: '' }; return `<div class="pex"><a href="${ytLink(`${e.name} 자세`)}" target="_blank" rel="noopener">${esc(e.name)} <span class="yt">▶</span></a><span class="num">${esc(t)}</span></div>`; }).join('')}
+      ${d.ex.map(([eid0, t]) => { const eid = backSwap(eid0, new Set(d.ex.map(([x]) => gymSwap(x)))), e = eqById(eid) || { name: eid, m: '' }, was = eid !== eid0 ? (eqById(eid0) || {}).name : null; return `<div class="pex"><a href="${ytLink(`${e.name} 자세`)}" target="_blank" rel="noopener">${esc(e.name)}${was ? ` <span class="small muted">← ${esc(was)} 대신</span>` : ''} <span class="yt">▶</span></a><span class="num">${esc(t)}</span></div>`; }).join('')}
       <button class="btn ${i === nx ? 'primary' : ''} sm block" style="margin-top:8px" data-act="prog-start" data-p="${p.id}" data-d="${i}">오늘 이걸로 시작</button></div>`).join('')}
     <div class="infobox" style="margin-top:12px"><div class="k">진행 방법</div>${esc(p.note)}</div>
     <div class="note">▶ 영상은 그 날 부위의 유튜브 검색으로, 종목 이름을 누르면 그 종목 자세 영상 검색으로 열려요. 종목은 같은 동작이면 다른 기구로 바꿔도 돼요. 계획에서 다른 기구로 기록해도 같은 패턴으로 묶어 분석해요.</div>`;
@@ -1299,6 +1300,28 @@ function pickerHtml() {
 const gymOn = () => !!(DB.settings.gym && DB.settings.gym.length) && state.gymOnly !== false;
 const gymHas = e => !gymOn() || toolOf(e) !== '머신' || DB.settings.gym.includes(e.id) || !!eqUse()[e.id] || e.custom;
 // the plan uses an exercise this gym doesn't have → the same movement on something it does have
+/* lower-back care: spine-loaded barbell lifts (squat, deadlift family, barbell row) swapped for back-supported
+   machines the person already uses — chosen once in the balance card, or guessed from never doing them */
+const BACK_LIFT = new Set(['fw-squat', 'fw-front', 'fw-deadlift', 'fw-sumo', 'fw-rdl', 'fw-db-rdl', 'fw-goodmorning', 'fw-bbrow']);
+const BACK_TO = { 'fw-squat': [['스쿼트', '레그 프레스'], 'lf-legpress'], 'fw-front': [['스쿼트', '레그 프레스'], 'lf-legpress'],
+  'fw-deadlift': [['힙 쓰러스트'], 'fw-hipthrust'], 'fw-sumo': [['힙 쓰러스트'], 'fw-hipthrust'],
+  'fw-rdl': [['레그 컬'], 'tg-legcurl'], 'fw-db-rdl': [['레그 컬'], 'tg-legcurl'], 'fw-goodmorning': [['레그 컬'], 'tg-legcurl'], 'fw-bbrow': [['로우'], 'cb-row'] };
+function backSafe() { return DB.settings.backSafe === true; }
+function backAvoidGuess() {
+  // a month or more of training with legs and back, and not one squat / deadlift / barbell row
+  if (DB.settings.backSafe != null) return false;
+  const ss = allSets().filter(x => !isCardioSet(x)), first = ss.length ? ss[0].date : today();
+  if (daysBetween(first, today()) < 21 || new Set(ss.map(x => x.date)).size < 10) return false;
+  return !ss.some(x => BACK_LIFT.has(x.eq)) && ss.some(x => x.m === '다리') && ss.some(x => x.m === '등');
+}
+function backSwap(id, avoid) {
+  if (!backSafe() || !BACK_LIFT.has(id) || !BACK_TO[id]) return id;
+  const [types, fb] = BACK_TO[id];
+  // avoid: exercises already in the day (RDL → leg curl on a day that has leg curls takes a second curl machine)
+  const pool = allEq().filter(x => (x.kind !== 'cardio' && !BACK_LIFT.has(x.id) && types.includes(typeOfEq(x)) && !/스미스|smith|바벨|barbell/i.test(x.name + ' ' + (x.brand || '')) || x.id === fb) && !(avoid && avoid.has(gymSwap(x.id))));
+  const best = pool.sort((a, b) => byUse(a, b) || (toolOf(a) === '머신' ? 0 : 1) - (toolOf(b) === '머신' ? 0 : 1))[0];
+  return best ? best.id : fb;
+}
 function gymSwap(id) {
   const e = eqById(id); if (!e || gymHas(e)) return id;
   const t = typeOfEq(e), pool = allEq().filter(x => x.kind !== 'cardio' && typeOfEq(x) === t && x.m === e.m && gymHas(x));
@@ -2468,6 +2491,20 @@ function deloadAnalysis() {
 }
 
 /* weekly set range per muscle: legs combine quads, hamstrings, glutes and calves, so their range is wider */
+/* shoulders and arms are several muscles (three delt heads, biceps + triceps): the 10–20 sets/week guide is
+   per muscle, so their summed sets can't be held against one muscle's range — each head is judged on its own */
+const MULTI_HEAD = { 어깨: ['deltF', 'deltS', 'deltR'], 팔: ['biceps', 'triceps'] };
+function regionWeekly(ratio) {
+  const t = regionTotals(addDays(today(), -13), today()), first = (allSets()[0] || {}).date || today();
+  const span = Math.min(14, Math.max(7, daysBetween(first, today()) + 1));
+  for (const k in t) t[k] = t[k] * 7 / span;
+  if (ratio) for (const [m, ks] of Object.entries(REG_GROUP)) for (const k of ks) if (t[k] != null && ratio[m]) t[k] *= ratio[m];
+  return t;
+}
+function headStatus(m, RW) {
+  const hs = (MULTI_HEAD[m] || []).map(k => { const v = RW[k] || 0, [lo, hi] = REG_RANGE[k]; return { k, v, lo, hi, t: (v - lo) / (hi - lo) }; });
+  return { hs, high: hs.filter(h => h.v > h.hi), low: hs.filter(h => h.v < h.lo), t: hs.length ? hs.reduce((a, h) => a + Math.max(-0.5, Math.min(h.t, 2)), 0) / hs.length : 0 };
+}
 function volRange(m) { return m === '다리' ? [14, 30] : (m === '팔' || m === '코어') ? [6, 20] : [10, 20]; } // ACSM 2026: ≥10/wk, gains level off ~18–20
 function nutritionAnalysis() {
   const t = today(), days = [];
@@ -2504,7 +2541,7 @@ function suggestEquipmentFor(m, n) {
   for (const s of allSets()) if (s.m === m && !isCardioSet(s)) counts[s.eq] = (counts[s.eq] || 0) + 1;
   const used = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([id]) => eqById(id)).filter(Boolean);
   // the ones you already use first, then fill from the catalogue (free weights first: every gym has them)
-  const core = CORE_EX[m] || [], rank = e => { const i = core.indexOf(e.id); return i >= 0 ? i : 100 + (e.kind === 'free' ? 0 : 1); };
+  const core = (CORE_EX[m] || []).filter(id => !backSafe() || !BACK_LIFT.has(id)), rank = e => { const i = core.indexOf(e.id); return i >= 0 ? i : 100 + (e.kind === 'free' ? 0 : 1); };
   const cat = allEq().filter(e => e.m === m && e.kind !== 'cardio' && e.kind !== 'crossfit' && !used.includes(e)).sort((a, b) => rank(a) - rank(b));
   return used.concat(cat).slice(0, n || 2);
 }
@@ -2553,12 +2590,16 @@ function buildReport() {
   if (dl.inDeload) add('good', 9, '디로딩 주간 — 계획대로 가고 있어요', '이번 주는 일부러 가볍게 하는 주라 볼륨 부족·정체 경고를 띄우지 않아요.', '무게는 유지하고 세트만 줄인 상태로 마무리한 뒤, 다음 주 원래 루틴으로 복귀하세요.', 'Bell 2022');
   if (strengthSets >= 6 && !dl.inDeload) {
     const accessoryLow = [], low = [], high = [], once = [];
+    let RWr = null;
     for (const m of STRENGTH_MUSCLES) {
       const v = mv14.vol[m], [lo, hi] = volRange(m);
       const accessory = m === '코어' || m === '팔';
       if (accessory && v < lo) { accessoryLow.push(`${m} 주 ${r1(v)}세트`); continue; }
       if (!accessory && v < lo - 2 && mv14.dW[m] > 0) low.push([m, v, lo]);
-      else if (v > hi) {
+      else if (MULTI_HEAD[m]) {
+        const H = headStatus(m, RWr || (RWr = regionWeekly(mv14.ratio)));
+        for (const x of H.high) high.push(`${REGIONS[x.k]} ${r1(x.v)}`);
+      } else if (v > hi) {
         high.push(`${m} ${r1(v)}`);
       }
       if (mv14.direct[m] * 7 / span14 >= 8 && mv14.days[m].size <= Math.ceil(span14 / 7)) once.push(`${m} ${Math.round(mv14.direct[m] * 7 / span14)}`);
@@ -2972,15 +3013,16 @@ function strengthBalance() {
     if (s.date >= addDays(today(), -28)) sets4[s.eq] = (sets4[s.eq] || 0) + 1;
   }
   // where in the session each lift usually comes: a lift always done after the others reads weaker than it is
-  const pos = {}; for (const L of BAL_LIFTS) { const ds = [...new Set(allSets().filter(s => s.eq === L.id && s.date >= from).map(s => s.date))]; const ps = ds.map(k => eqPos(k, L.id)).filter(Boolean); if (ps.length) pos[L.id] = { avg: ps.reduce((a, b) => a + b, 0) / ps.length, first: ps.some(p => p === 1) }; }
+  const LIFTS = backSafe() ? BAL_LIFTS.filter(L => !BACK_LIFT.has(L.id)) : BAL_LIFTS;
+  const pos = {}; for (const L of LIFTS) { const ds = [...new Set(allSets().filter(s => s.eq === L.id && s.date >= from).map(s => s.date))]; const ps = ds.map(k => eqPos(k, L.id)).filter(Boolean); if (ps.length) pos[L.id] = { avg: ps.reduce((a, b) => a + b, 0) / ps.length, first: ps.some(p => p === 1) }; }
   // no barbell record → the best close cousin, converted (marked as an estimate)
   const conv = {};
-  for (const L of BAL_LIFTS) if (!best[L.id]) for (const s of allSets()) {
+  for (const L of LIFTS) if (!best[L.id]) for (const s of allSets()) {
     if (s.date < from || isCardioSet(s) || !(s.r > 0) || s.r > 12 || s.eq === L.id) continue;
     const t = s.type || typeOfEq(eqOrRecord(s.eq) || {}), nm = s.name || (eqOrRecord(s.eq) || {}).name || '';
     for (const [re, types, f, l] of BAL_EQUIV[L.id] || []) if (types.includes(t) && re.test(nm)) { const v = setE1(s) * f; if (v > ((conv[L.id] || {}).v || 0)) conv[L.id] = { v, from: l, name: nm, eq: s.eq }; break; }
   }
-  const lifts = BAL_LIFTS.map(L => {
+  const lifts = LIFTS.map(L => {
     const cv = !best[L.id] && conv[L.id], e1 = best[L.id] ? r1(best[L.id]) : cv ? r1(cv.v) : null, th = L[sex];
     let lv = null;
     if (e1 && bw) { const x = e1 / bw; if (x < th[0]) lv = x / th[0] - 1; else { let k = 0; while (k < 4 && x >= th[k + 1]) k++; lv = k + (k < 4 ? (x - th[k]) / (th[k + 1] - th[k]) : 0); } }
@@ -2989,7 +3031,7 @@ function strengthBalance() {
   const has = lifts.filter(x => x.e1), byId = Object.fromEntries(lifts.map(x => [x.id, x]));
   const weak = {};
   for (const [a, b, lo, hi, why] of BAL_PAIRS) {
-    const A = byId[a], B = byId[b]; if (!A.e1 || !B.e1) continue;
+    const A = byId[a], B = byId[b]; if (!A || !B || !A.e1 || !B.e1) continue;
     const r = A.e1 / B.e1;
     if (r < lo) (weak[a] = weak[a] || []).push(`${B.l}의 ${r.toFixed(2)}배 — ${why}`);
     else if (r > hi) (weak[b] = weak[b] || []).push(`${A.l}에 비해 낮아요 (${A.l}의 ${(1 / r).toFixed(2)}배) — ${why}`);
@@ -3024,6 +3066,12 @@ function growthBalance() {
   if (n.밀기 + n.당기기 >= 12 && n.하체 < (n.밀기 + n.당기기) / 2 * 0.6) vol.push(`하체가 주 ${n.하체}세트로 상체(미는·당기는 평균 ${r1((n.밀기 + n.당기기) / 2)}세트)보다 많이 적어요.`);
   return { rows, vol, n };
 }
+function backCardHtml() {
+  if (backSafe()) return `<div class="note" style="margin-top:6px">허리 보호 중 — 스쿼트·데드리프트·바벨 로우는 비교와 추천에서 뺐어요. 프로그램·추천 루틴에 나오면 쓰시던 머신(레그 프레스·스쿼트 머신, 힙 쓰러스트, 레그 컬, 머신·케이블 로우)으로 바꿔 넣어요. 하체·등은 위의 성장 속도와 세트 균형으로 봐요. <button class="linkbtn" data-act="back-safe" data-v="0">다시 포함</button></div>`;
+  if (backAvoidGuess()) return `<div class="card soft" style="margin-top:6px;padding:10px 12px"><div class="small"><b>스쿼트·데드리프트·바벨 로우를 한 번도 안 하셨어요.</b> 허리 때문이라면 이 운동들을 비교·추천에서 빼고, 프로그램에 나오면 쓰시던 머신으로 바꿔 드릴게요.</div>
+    <div class="grid2" style="margin-top:8px"><button class="btn sm primary" data-act="back-safe" data-v="1">허리 부담 운동 빼기</button><button class="btn sm" data-act="back-safe" data-v="0">그냥 안 한 거예요</button></div></div>`;
+  return `<div style="margin-top:4px"><button class="linkbtn small" data-act="back-safe" data-v="1">허리가 안 좋으면 — 스쿼트·데드·바벨 로우 빼기</button></div>`;
+}
 function balanceHtml() {
   const B = strengthBalance(), G = growthBalance();
   const wk = B.has.length >= 2 ? Object.keys(B.weak) : [];
@@ -3047,7 +3095,7 @@ function balanceHtml() {
     <div class="sec-sub" style="margin-top:14px"><b>주간 세트 균형</b> <span class="small muted">최근 4주 평균</span></div>
     <div class="small">밀기 ${G.n.밀기} · 당기기 ${G.n.당기기} · 하체 ${G.n.하체} · 팔 ${G.n.팔}세트/주</div>
     ${G.vol.length ? `<ul class="ballist">${G.vol.map(v => `<li>${esc(v)}</li>`).join('')}</ul>` : '<div class="small muted" style="margin-top:2px">미는·당기는·하체 세트가 고르게 나뉘어 있어요.</div>'}
-    <div class="sec-sub" style="margin-top:14px"><b>큰 운동끼리 비율</b> <span class="small muted">바벨 기준 · 비슷한 운동은 환산</span></div>
+    <div class="sec-sub" style="margin-top:14px"><b>큰 운동끼리 비율</b> <span class="small muted">바벨 기준 · 비슷한 운동은 환산</span></div>${backCardHtml()}
     <table class="baltbl"><tr><th>종목</th><th>추정 최대</th><th>체중 대비</th><th>수준</th></tr>${rows}</table>
     ${B.has.length < 2 ? '<div class="small muted" style="margin-top:6px">바벨(또는 스미스·덤벨로 환산되는 운동) 2종목 이상이면 비율도 비교해요.</div>' : wk.length ? `<div class="sec-sub" style="margin-top:12px"><b>보완할 곳</b></div><ul class="ballist">${advice}</ul>` : `<div class="small" style="margin-top:10px">큰 운동끼리 비율이 맞아요.</div>`}
     <div class="note">성장 속도는 기구마다 자기 기록끼리만 비교해서 머신도 정확해요. 비율 비교의 ≈ 표시는 대략적인 환산이에요(스미스는 바벨보다 약 10% 더 들리고, 덤벨 두 개는 바벨의 약 80%, 덤벨 무게는 한 손 기준). 수준은 ${B.sexSet ? (B.sex === 'f' ? '여성' : '남성') : '남성'} 기준 대략값이에요.${B.bw ? ` 체중 ${trimNum(B.bw)}kg.` : ''}</div></section>`;
@@ -3111,22 +3159,24 @@ function viewAnalysis() {
   }
 
   // muscle volume: six groups, each opening into its regions (weekly average of the last 2 weeks)
-  const RW = (() => { const t = regionTotals(addDays(today(), -13), today()), first = (allSets()[0] || {}).date || today(); const span = Math.min(14, Math.max(7, daysBetween(first, today()) + 1)); for (const k in t) t[k] = t[k] * 7 / span;
-    for (const [m, ks] of Object.entries(REG_GROUP)) for (const k of ks) if (t[k] != null && R.mv14.ratio[m]) t[k] *= R.mv14.ratio[m]; return t; })();
+  const RW = regionWeekly(R.mv14.ratio);
   h += goalTrainHtml(R, RW, ES);
   h += `<div class="sec-h"><h2>부위별 주간 세트</h2><span class="aside">최근 2주 주평균 · 누르면 세부 부위</span></div><section class="card">
     ${bandHead(['적음', '효과 범위', '고볼륨'])}
     ${STRENGTH_MUSCLES.map(m => {
       const v = R.mv14.vol[m], dir = R.mv14.dW[m], ind = Math.max(0, v - dir);
       const [lo, hi] = volRange(m), onlyInd = dir < 0.5;
-      const lbl = onlyInd ? (ind > 0 ? '간접만' : '안 함') : v < lo ? `${r1(lo - v)}세트 부족` : v > hi ? '고볼륨' : '적정';
+      const H = MULTI_HEAD[m] && !onlyInd ? headStatus(m, RW) : null;
+      const lbl = onlyInd ? (ind > 0 ? '간접만' : '안 함') : H ? (H.high.length ? `${H.high.map(x => REGIONS[x.k]).join('·')} 많음` : H.low.length ? `${H.low.map(x => REGIONS[x.k]).join('·')} 적음` : '적정') : v < lo ? `${r1(lo - v)}세트 부족` : v > hi ? '고볼륨' : '적정';
       const regs = (REG_GROUP[m] || []).map(k => { const rv = RW[k] || 0, [rlo, rhi] = REG_RANGE[k];
         const tag = ASSIST_REG.has(k) ? (rv < 0.5 ? '' : '협응근') : rv < 0.5 ? '안 함' : rv < rlo ? '적은 편' : '';
         return bandRow({ label: REGIONS[k], sub: tag, v: rv, lo: rlo, hi: rhi, max: rhi * 1.8, text: r1(rv), small: true }); }).join('');
-      const row = bandRow({ label: mName(m), sub: lbl, v: dir, ghost: v, lo, hi, max: hi * 1.8, text: `${r1(dir)}${ind >= 0.5 ? `<em>+${r1(ind)}</em>` : ''}` });
+      // multi-head parts: the bar shows how full the heads are on average (the number stays the real set count)
+      const bv = H ? Math.max(0, lo + (hi - lo) * H.t) : dir;
+      const row = bandRow({ label: mName(m), sub: lbl, v: bv, ghost: H ? null : v, lo, hi, max: hi * 1.8, text: `${r1(dir)}${ind >= 0.5 ? `<em>+${r1(ind)}</em>` : ''}` });
       return `<details class="mgrp" ${dir >= 0.5 ? 'open' : ''}><summary>${row}</summary><div class="regs">${regs}</div></details>`;
     }).join('')}
-    <details class="more"><summary>읽는 법</summary><div class="note">진한 막대 = 그 부위를 직접 한 세트, 연한 연장 = 다른 운동에 딸려 쓰인 몫(+숫자). 가운데 칸이 연구에서 효과적인 범위(근육당 주 10–20세트, 하체는 14–30, 팔·코어는 6세트부터)예요. 누르면 세부 부위가 열려요 — 세부는 어디에 몰렸는지 보는 참고용이고, 종아리·전완근은 협응근이라 판단하지 않아요.</div></details>${R.dl.inDeload ? '<div class="note">지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.</div>' : ''}
+    <details class="more"><summary>읽는 법</summary><div class="note">진한 막대 = 그 부위를 직접 한 세트, 연한 연장 = 다른 운동에 딸려 쓰인 몫(+숫자). 가운데 칸이 연구에서 효과적인 범위(근육당 주 10–20세트, 하체는 14–30, 팔·코어는 6세트부터)예요. 어깨(앞·옆·뒤)와 팔(이두·삼두)은 여러 근육을 합친 숫자라, 막대와 판정은 머리별로 따로 봐요. 누르면 세부 부위가 열려요 — 세부는 어디에 몰렸는지 보는 참고용이고, 종아리·전완근은 협응근이라 판단하지 않아요.</div></details>${R.dl.inDeload ? '<div class="note">지금은 디로딩 주간이라 낮게 나오는 게 정상이에요.</div>' : ''}
   </section>`;
 
   h += restCycleHtml(restCycle(R, prog));
@@ -3903,11 +3953,12 @@ function trainRxHtml(last, ctx) {
   else {
     const R = buildReport(), main = ['가슴', '등', '어깨', '다리'];
     const low = main.filter(m => R.mv14.vol[m] < volRange(m)[0]).map(m => `${mName(m)} ${r1(R.mv14.vol[m])}→${volRange(m)[0]}`);
-    const high = STRENGTH_MUSCLES.filter(m => R.mv14.vol[m] > volRange(m)[1]).map(m => `${mName(m)} ${r1(R.mv14.vol[m])}`);
+    const RWb = regionWeekly(R.mv14.ratio), isHigh = m => MULTI_HEAD[m] ? headStatus(m, RWb).high.length > 0 : R.mv14.vol[m] > volRange(m)[1];
+    const high = STRENGTH_MUSCLES.filter(isHigh).flatMap(m => MULTI_HEAD[m] ? headStatus(m, RWb).high.map(x => `${REGIONS[x.k]} ${r1(x.v)}`) : [`${mName(m)} ${r1(R.mv14.vol[m])}`]);
     if (gk !== 'strength' && gk !== 'health') rx.push(low.length ? `지금 기록: <b>${esc(low.join(' · '))}세트</b>로 늘리기` : '지금 기록: 주요 부위 모두 주 10세트 이상 ✓');
     if (high.length) {
       // above 20 the extra sets still help a little; the person's own trend decides whether it's worth it
-      const P = progression(), hm = STRENGTH_MUSCLES.filter(m => R.mv14.vol[m] > volRange(m)[1]);
+      const P = progression(), hm = STRENGTH_MUSCLES.filter(isHigh);
       const rising = hm.filter(m => P.some(p => p.m === m && p.status === 'up') && !P.some(p => p.m === m && p.status === 'down'));
       rx.push(rising.length === hm.length
         ? `${esc(high.join(' · '))}세트 — 고볼륨이지만 이 부위 무게가 오르고 있어요. 회복되면 유지해도 돼요`
@@ -4247,7 +4298,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.16.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.16.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4569,6 +4620,7 @@ const ACT = {
   // one day from a program, without signing up for the whole program
   'day-start': el => { const p = PROGRAMS.find(x => x.id === el.dataset.p), d = p.days[+el.dataset.d]; startPlan(d.ex, `${p.name} · ${d.t}`, null); day(state.date).plan.prog = p.id; save(); render(); },
   'prog-open': el => openProgram(el.dataset.p),
+  'back-safe': el => { DB.settings.backSafe = el.dataset.v === '1'; save(); bump(); render(); toast(DB.settings.backSafe ? '허리 부담 운동은 빼고 추천할게요' : '스쿼트·데드·바벨 로우도 다시 포함해요'); },
   'prog-start': el => {
     const p = PROGRAMS.find(x => x.id === el.dataset.p), i = +el.dataset.d, d = p.days[i];
     // position in the full sequence (programs with `rep` repeat each block of days for several weeks)
