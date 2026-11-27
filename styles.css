@@ -1025,6 +1025,7 @@ details.gymb > summary::-webkit-details-marker { display: none; }
 .baltbl td.num { font-family: var(--mono); white-space: nowrap; }
 .baltbl tr.weak td { background: color-mix(in srgb, var(--mark) 7%, transparent); }
 .baltbl b.bad { color: var(--mark); }
+.baltbl b.good { color: var(--good); }
 .ballist { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
 .ballist li { margin-bottom: 8px; }
 

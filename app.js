@@ -3069,7 +3069,23 @@ function strengthBalance() {
   // against bodyweight: a lift a full level under the others
   const lvs = has.filter(x => x.lv != null);
   if (lvs.length >= 3) { const med = lvs.map(x => x.lv).sort((p, q) => p - q)[lvs.length >> 1]; for (const x of lvs) if (x.lv <= med - 1) (weak[x.id] = weak[x.id] || []).push(`체중 대비 다른 운동보다 한 단계 낮아요`); }
-  return { bw, sex, lifts, has, weak, sexSet: !!(DB.settings.profile || {}).sex };
+  // lower-back mode: the left-out lifts are replaced by the machine they actually use for that job, judged by its own trend
+  // (machine weights have no bodyweight standard and can't be compared with a barbell)
+  const subs = !backSafe() ? [] : BAL_LIFTS.filter(L => BACK_LIFT.has(L.id)).map(L => {
+    const types = (BACK_TO[L.id] || [[]])[0], ses = {};
+    for (const s of allSets()) {
+      if (s.date < from || isCardioSet(s) || !(s.r > 0) || s.r > 15 || BACK_LIFT.has(s.eq)) continue;
+      const t = s.type || typeOfEq(eqOrRecord(s.eq) || {}); if (!types.includes(t) || /스미스|smith|바벨|barbell/i.test((s.name || '') + ' ' + (s.brand || ''))) continue; // smith/barbell still load the spine
+      const m = (ses[s.eq] = ses[s.eq] || {}); m[s.date] = Math.max(m[s.date] || 0, setE1(s));
+    }
+    const lastOf = m => Object.keys(m).sort().pop();
+    const top = Object.entries(ses).sort((p, q) => (Object.keys(q[1]).length - Object.keys(p[1]).length) || (lastOf(q[1]) > lastOf(p[1]) ? 1 : -1))[0];
+    if (!top) return { L, e: null };
+    const e = eqOrRecord(top[0]) || {}, v = Object.keys(top[1]).sort().map(k => top[1][k]), best = Math.max(...v);
+    const ch = v.length >= 3 ? (Math.max(...v.slice(-2)) / v[0] - 1) : null;
+    return { L, e, n: v.length, e1: r1(best), x: bw ? best / bw : null, ch };
+  });
+  return { bw, sex, lifts, has, weak, subs, sexSet: !!(DB.settings.profile || {}).sex };
 }
 /* machine-friendly balance: how fast each movement group is growing (each machine against itself),
    and how the weekly sets split between pushing, pulling and legs */
@@ -3097,7 +3113,7 @@ function growthBalance() {
   return { rows, vol, n };
 }
 function backCardHtml() {
-  if (backSafe()) return `<div class="note" style="margin-top:6px">허리 보호 중 — 스쿼트·데드리프트·바벨 로우는 비교와 추천에서 뺐어요. 프로그램·추천 루틴에 나오면 쓰시던 머신(레그 프레스·스쿼트 머신, 힙 쓰러스트, 레그 컬, 머신·케이블 로우)으로 바꿔 넣어요. 하체·등은 위의 성장 속도와 세트 균형으로 봐요. <button class="linkbtn" data-act="back-safe" data-v="0">다시 포함</button></div>`;
+  if (backSafe()) return `<div class="note" style="margin-top:6px">허리 보호 중 — 스쿼트·데드리프트·바벨 로우 자리에 실제로 쓰시는 머신을 넣었어요. 머신 무게는 바벨 기준과 비교할 수 없어서 약점 판정 대신 그 기구의 첫 기록 대비 변화로 보여줘요. 프로그램·추천 루틴에 나오면 쓰시던 머신(레그 프레스·스쿼트 머신, 힙 쓰러스트, 레그 컬, 머신·케이블 로우)으로 바꿔 넣어요. <button class="linkbtn" data-act="back-safe" data-v="0">다시 포함</button></div>`;
   if (backAvoidGuess()) return `<div class="card soft" style="margin-top:6px;padding:10px 12px"><div class="small"><b>스쿼트·데드리프트·바벨 로우를 한 번도 안 하셨어요.</b> 허리 때문이라면 이 운동들을 비교·추천에서 빼고, 프로그램에 나오면 쓰시던 머신으로 바꿔 드릴게요.</div>
     <div class="grid2" style="margin-top:8px"><button class="btn sm primary" data-act="back-safe" data-v="1">허리 부담 운동 빼기</button><button class="btn sm" data-act="back-safe" data-v="0">그냥 안 한 거예요</button></div></div>`;
   return `<div style="margin-top:4px"><button class="linkbtn small" data-act="back-safe" data-v="1">허리가 안 좋으면 — 스쿼트·데드·바벨 로우 빼기</button></div>`;
@@ -3109,7 +3125,7 @@ function balanceHtml() {
     const w = B.weak[x.id];
     const lvTxt = x.lv == null ? (x.e1 ? '' : '기록 없음') : x.lv < 0 ? '입문 아래' : BAL_LV[Math.min(4, Math.floor(x.lv))];
     return `<tr class="${w && wk.length ? 'weak' : ''}"><td>${esc(x.l)}${x.conv ? `<div class="small muted">≈ ${esc(x.conv.from)} 환산</div>` : ''}</td><td class="num">${x.e1 ? `${x.conv ? '≈' : ''}${trimNum(x.e1)}kg` : '–'}</td><td class="num">${x.x ? `${x.x.toFixed(2)}배` : ''}</td><td>${w && wk.length ? '<b class="bad">약점</b> ' : ''}${esc(lvTxt)}</td></tr>`;
-  }).join('');
+  }).join('') + (B.subs || []).map(x => `<tr><td>${esc(x.L.l)} <span class="small muted">대신</span>${x.e ? `<div class="small muted">${esc([x.e.brand, x.e.name].filter(Boolean).join(' '))}</div>` : ''}</td><td class="num">${x.e1 ? `${trimNum(x.e1)}kg` : '–'}</td><td class="num small muted">머신</td><td>${!x.e ? '기록 없음' : x.ch == null ? `기록 쌓는 중 (${x.n}회)` : `<b class="${x.ch >= 0.01 ? 'good' : x.ch <= -0.03 ? 'bad' : ''}">${x.ch >= 0 ? '+' : ''}${Math.round(x.ch * 100)}%</b> <span class="small muted">${x.n}회</span>`}</td></tr>`).join('');
   const advice = wk.map(id => {
     const x = B.lifts.find(l => l.id === id);
     const late = x.pos && !x.pos.first && x.pos.avg >= 2.5 ? ` 보통 ${Math.round(x.pos.avg)}번째 종목으로 해서 실제보다 낮게 나왔을 수 있어요 — 한 번 첫 종목으로 해보고 비교해 보세요.` : '';
@@ -4328,7 +4344,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.17.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.17.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
