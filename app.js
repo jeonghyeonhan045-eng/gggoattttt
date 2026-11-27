@@ -80,6 +80,22 @@ function load() {
   try { PHOTOS = JSON.parse(lsGet(PHOTO_KEY) || '{}') || {}; } catch (e) { PHOTOS = {}; }
   // dumbbell pullover was filed under 등 at first; it's done on chest days
   for (const d of Object.values(DB.days || {})) for (const s of d.sets || []) if (s.eq === 'fw-db-pullover' && s.m === '등') s.m = '가슴';
+  // arm equipment once mis-filed: "바이셉스컬" caught by the 스컬 (skull crusher) rule, arm moves filed under 어깨
+  {
+    const ARM = new Set(['바이셉 컬', '트라이셉 익스텐션', '트라이셉 딥']);
+    const fix = e => {
+      let ch = false;
+      if (e.type === '트라이셉 익스텐션' && /바이셉|이두/.test(e.name || '') && !/트라이셉|삼두/.test(e.name || '')) { e.type = '바이셉 컬'; ch = true; }
+      if (ARM.has(e.type) && e.m !== '팔') { e.m = '팔'; ch = true; }
+      if (e.type === '랫 풀다운' && /암\s*풀다운|스트레이트\s*암/.test(e.name || '')) { e.type = '풀오버'; ch = true; } // straight-arm pulldown isn't a lat pulldown
+      return ch;
+    };
+    const fixed = new Map();
+    for (const e of DB.customEq || []) if (fix(e)) fixed.set(e.id, e);
+    for (const d of Object.values(DB.days || {})) for (const s of d.sets || []) {
+      const e = fixed.get(s.eq); if (e) { s.type = e.type; s.m = e.m; }
+    }
+  }
 }
 
 function migrateV1() {
@@ -2037,7 +2053,7 @@ function ownOrder(T) {
   let days = []; for (let k = addDays(T, -35); k < T; k = addDays(k, 1)) { const ms = dayLabelMs(k); if (ms && ms.length) days.push({ k, ms, sig: ms.main }); } // a day goes by its main part (등 vs 등·팔 is the same back day)
   // the parts this person rotates through: main parts seen at least twice (a one-off arm day isn't part of the order)
   const cnt = {}; for (const d of days) cnt[d.sig] = (cnt[d.sig] || 0) + 1;
-  days = days.filter(d => cnt[d.sig] >= 2);
+  days = days.filter(d => cnt[d.sig] >= 2 || !SMALL_PART.has(d.sig)); // a big part counts from its first day (new users have one round)
   const P = [...new Set(days.map(d => d.sig))];
   if (P.length < 2 || days.length < P.length + 1) return null;
   // their order, from what usually follows what (one swapped week doesn't rewrite it)
@@ -4231,7 +4247,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.16.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.16.1 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
@@ -4440,8 +4456,9 @@ const ACT = {
   'ce-save': () => {
     const S = state.sheet;
     const name = $('#ce-name').value.trim(); if (!name) { $('#ce-name').focus(); toast('이름을 입력하세요'); return; }
-    const brand = $('#ce-brand').value.trim() || '내 기구', m = $('#ce-m').value, tsel = $('#ce-type').value;
+    const brand = $('#ce-brand').value.trim() || '내 기구', m0 = $('#ce-m').value, tsel = $('#ce-type').value;
     const type = tsel === '__self' ? name : tsel;
+    const m = ['바이셉 컬', '트라이셉 익스텐션', '트라이셉 딥'].includes(type) ? '팔' : m0; // arm moves always count as 팔
     if (S.id) {
       const ex = DB.customEq.find(e => e.id === S.id);
       Object.assign(ex, { name, brand, m, type }); if (S.reg) ex.reg = S.reg;
