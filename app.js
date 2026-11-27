@@ -2546,6 +2546,34 @@ function suggestEquipmentFor(m, n) {
   return used.concat(cat).slice(0, n || 2);
 }
 
+function habitChecks(b) {
+  const from = addDays(b, -27), ss = setsBetween(from, b).filter(x => !isCardioSet(x)), out = {};
+  // a) one movement on many machines: none of them gets enough sessions to show whether it's going up
+  const byT = {};
+  for (const x of ss) { const t = x.type || typeOfEq(eqOrRecord(x.eq) || {}); if (!t || t === x.name) continue; (byT[t] = byT[t] || {}); (byT[t][x.eq] = byT[t][x.eq] || new Set()).add(x.date); }
+  const spread = Object.entries(byT).map(([t, m]) => { const n = Object.values(m).map(v => v.size), top = Object.entries(m).sort((p, q) => q[1].size - p[1].size)[0]; return { t, k: n.length, max: Math.max(...n), sess: n.reduce((p, q) => p + q, 0), top: eqOrRecord(top[0]) }; })
+    .filter(x => x.k >= 4 && x.max <= 3 && x.sess >= 6).sort((p, q) => q.k - p.k);
+  if (spread.length) {
+    const L = spread.slice(0, 3);
+    out.spread = { t: `기구를 너무 돌려 써요 · ${L.map(x => `${x.t} ${x.k}개`).join(' · ')}`,
+      d: `4주 동안 ${L.map(x => `${x.t} ${x.sess}번을 기구 ${x.k}개로`).join(', ')} 나눠서 했어요. 기구마다 레버·도르래가 달라 무게를 서로 비교할 수 없어서, 어느 것도 3번 넘게 안 하면 늘고 있는지 정체인지 판단이 안 돼요.`,
+      act: `패턴마다 메인 기구 하나를 정해 매번 첫 종목으로 하세요${L[0].top ? ` (예: ${L[0].t}는 ${[L[0].top.brand, L[0].top.name].filter(Boolean).join(" ")})` : ''}. 나머지는 보조로 돌려도 돼요.` };
+  }
+  // b) all sets at one weight ending on the same rep (10·10·10·10): near failure, reps usually drop 1–3 by the last set
+  const g = {}; for (const x of ss) { const k = x.date + '|' + x.eq; (g[k] = g[k] || []).push(x); }
+  let n = 0, flat = 0, rirN = 0;
+  for (const arr of Object.values(g)) {
+    if (arr.length < 3 || !(setKg(arr[0]) > 0) || arr.some(x => Math.abs(setKg(x) - setKg(arr[0])) > 0.01)) continue;
+    n++; const r = arr.map(x => +x.r); if (r[r.length - 1] >= r[0]) flat++; // last set as good as the first
+  }
+  for (const x of ss) if (x.rir != null) rirN++;
+  const ten = ss.filter(x => +x.r === 10).length;
+  if (n >= 10 && flat / n >= 0.5) out.flat = {
+    t: `마지막 세트까지 횟수가 안 줄어요 · ${Math.round(flat / n * 100)}%`,
+    d: `같은 무게로 3세트 이상 한 ${n}번 중 ${flat}번은 마지막 세트 횟수가 첫 세트와 같거나 더 많았어요${ten / ss.length >= 0.35 ? ` (전체 세트의 ${Math.round(ten / ss.length * 100)}%가 딱 10회)` : ''}. 한계 가까이 하면 마지막 세트는 보통 1–3회 덜 나와요. 끝까지 안 줄거나 오히려 늘면 정해둔 횟수에서 멈췄고 여유가 3회 이상 남았을 수 있어요. 근성장은 한계에 가까울수록 커지고, 2–3회 남기는 정도면 충분해요.`,
+    act: `마지막 세트는 할 수 있는 만큼 해보세요. 목표보다 2회 이상 더 되면 다음엔 한 단계 올리면 돼요.${rirN / ss.length < 0.2 ? ' 세트에 "몇 회 더 가능했는지(RIR)"를 남기면 더 정확히 봐드려요.' : ''}` };
+  return out;
+}
 function buildReport() {
   const [a, b] = weekRange(0);
   const sets7 = setsBetween(a, b);
@@ -2605,6 +2633,8 @@ function buildReport() {
       if (mv14.direct[m] * 7 / span14 >= 8 && mv14.days[m].size <= Math.ceil(span14 / 7)) once.push(`${m} ${Math.round(mv14.direct[m] * 7 / span14)}`);
     }
     if (high.length) add('info', 2, `고볼륨 · ${high.join(' · ')}세트/주`, '20세트를 넘겨도 근성장은 조금씩 더 늘 수 있어요(주 30–45세트 그룹이 더 컸던 연구도 있어요). 다만 세트당 효율은 떨어지고 회복 부담이 커지는 구간이고, 이 구간 연구는 아직 적어요.', '근육통·컨디션이 괜찮고 무게가 늘고 있으면 유지해도 돼요. 정체되거나 피곤하면 이 부위부터 줄이세요.', 'Schoenfeld 2019 · Pelland 2024');
+    // 4-week habits that hide progress: one movement spread over many machines, and sets that all end on the same rep
+    const H = habitChecks(b); if (H.spread) add('info', 3, H.spread.t, H.spread.d, H.spread.act, ''); if (H.flat) add('warn', 4, H.flat.t, H.flat.d, H.flat.act, 'Robinson 2024 · Refalo 2023');
     if (once.length) add('info', 1, `주 1회에 몰아서 · ${once.join(' · ')}세트`, '볼륨이 같다면 빈도 자체의 근비대 효과는 작아서 분할 방식(브로 스플릿)도 괜찮아요. 다만 한 세션에 많이 몰면 뒤쪽 세트의 질이 떨어지기 쉽고, 근력 향상엔 빈도가 도움이 돼요.', '정체되면 부위당 세트를 주 2회로 나눠보세요.', 'Pelland 2024 · Schoenfeld 2016');
     if (low.length) {
       const [m0, v0, lo0] = low[0];
@@ -4298,7 +4328,7 @@ function openSettings(focus) {
     <div class="grid2"><button class="btn" data-act="export">백업 내보내기</button><button class="btn" data-act="import">백업 가져오기</button></div>
     <div class="note">기록은 이 기기에만 저장돼요. 폰을 바꾸거나 앱을 지우기 전에 백업 파일을 꼭 저장하세요. 인바디 사진도 백업에 포함돼요.</div>
     <button class="btn block danger ghost" style="margin-top:14px" data-act="reset">모든 데이터 초기화</button>
-    <div class="note" style="text-align:center;margin-top:14px">오운완 6.16.2 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
+    <div class="note" style="text-align:center;margin-top:14px">오운완 6.17.0 · ${isNative ? 'Android 앱' : '웹'}</div>`, state.sheet);
   if (focus === 'goals') setTimeout(() => { const g = $('#goals-h'); if (g) g.scrollIntoView({ block: 'start' }); }, 260);
 }
 
